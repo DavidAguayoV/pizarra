@@ -4,7 +4,21 @@ import type { Elemento, Linea } from '../src/core/elementos';
 import { escenaInicial, OP_AGREGAR, OP_BORRAR, reductoresEscena } from '../src/core/escena';
 import type { Escena } from '../src/core/escena';
 import { Store } from '../src/core/store';
-import { crearForma, crearTrazo, factorPresion, formaValida, grosorMedio, restringir } from '../src/ink/herramientas';
+import {
+  crearForma,
+  crearTrazo,
+  factorPresion,
+  formaValida,
+  grosorDePosicion,
+  grosorMedio,
+  POSICIONES_ATAJO,
+  RANGO_RESALTADOR,
+  RANGO_TINTA,
+  restringir,
+  tamTextoDeGrosor,
+} from '../src/ink/herramientas';
+import { colorDeTinta, OPCIONES_RESALTADOR } from '../src/core/colores';
+import { CLARO, OSCURO } from '../src/ui/tokens';
 import { bezierPorPuntos, simplificarRdp } from '../src/ink/suavizado';
 import { RechazoPalma } from '../src/ink/rechazoPalma';
 import { escenaEjemplo } from './fixtures';
@@ -72,10 +86,32 @@ describe('herramientas', () => {
     expect(grosorMedio(crearTrazo([0, 0, 0.5, 1, 1, 0.5], 'tinta', 0.03, false))).toBeCloseTo(0.03);
   });
 
-  it('el resaltador es 4 veces más ancho y no depende de la presión', () => {
-    const t = crearTrazo([0, 0, 1, 1, 1, 1], 'acento', 0.03, true);
+  it('el resaltador conserva su grosor y no depende de la presión', () => {
+    const t = crearTrazo([0, 0, 1, 1, 1, 1], 'luzAmarillo', 0.12, true);
     expect(t.grosor).toBeCloseTo(0.12);
     expect(grosorMedio(t)).toBeCloseTo(0.12);
+  });
+
+  it('el deslizador recorre el rango completo en escala logarítmica', () => {
+    expect(grosorDePosicion(0, RANGO_TINTA)).toBeCloseTo(0.004);
+    expect(grosorDePosicion(100, RANGO_TINTA)).toBeCloseTo(0.12);
+    // A mitad de recorrido está la media geométrica, no la aritmética.
+    expect(grosorDePosicion(50, RANGO_TINTA)).toBeCloseTo(Math.sqrt(0.004 * 0.12), 3);
+    expect(grosorDePosicion(-5, RANGO_TINTA)).toBeCloseTo(0.004);
+    expect(grosorDePosicion(500, RANGO_RESALTADOR)).toBeCloseTo(0.3);
+  });
+
+  it('los atajos 1-2-3 dan grosores fino < medio < grueso y el texto crece con el grosor', () => {
+    const [f, m, g] = POSICIONES_ATAJO.map((p) => grosorDePosicion(p, RANGO_TINTA)) as [number, number, number];
+    expect(f).toBeLessThan(m);
+    expect(m).toBeLessThan(g);
+    expect(tamTextoDeGrosor(f)).toBeLessThan(tamTextoDeGrosor(g));
+  });
+
+  it('cada color del resaltador tiene un tono propio y distinto de la tinta', () => {
+    const paleta = OPCIONES_RESALTADOR.map((o) => colorDeTinta(CLARO, o.clave));
+    expect(new Set(paleta).size).toBe(5);
+    expect(colorDeTinta(CLARO, 'luzRosa')).toBe(colorDeTinta(OSCURO, 'luzRosa'));
   });
 
   it('Shift fuerza múltiplos de 45° en líneas y cuadrados en cajas', () => {

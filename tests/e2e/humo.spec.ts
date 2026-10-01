@@ -47,6 +47,32 @@ test('cada herramienta de dibujo agrega un elemento y todo se deshace y rehace',
   await expect(estado(page)).toContainText('7 elementos');
 });
 
+test('el deslizador cambia el grosor y el resaltador tiene sus propios colores y grosores', async ({ page }) => {
+  const desl = page.getByRole('slider', { name: 'Grosor del trazo' });
+  const valor = page.locator('.valor-grosor');
+  const antes = await valor.textContent();
+  await desl.fill('90');
+  await expect(valor).not.toHaveText(antes ?? '');
+  await expect(page.getByRole('group', { name: 'Color de tinta' })).toBeVisible();
+
+  await herramienta(page, 'Resaltador').click();
+  await expect(page.getByRole('group', { name: 'Color del resaltador' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Color de tinta' })).toBeHidden();
+  await page.getByRole('button', { name: 'Rosa fluorescente' }).click();
+  await desl.fill('100');
+  await expect(valor).toHaveText('30 cm');
+  await arrastrar(page, [200, 400], [500, 400]);
+
+  // El grosor del resaltador no pisa el de la tinta.
+  await herramienta(page, 'Lápiz').click();
+  await expect(valor).not.toHaveText('30 cm');
+  await page.locator('summary', { hasText: 'Exportar' }).click();
+  const [d] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Descargar .tex (fragmento)' }).click()]);
+  const tex = readFileSync(await d.path(), 'utf8');
+  expect(tex).toContain('definecolor{pzluzRosa}{HTML}{FF4FA3}');
+  expect(tex).toContain('opacity=0.5');
+});
+
 test('un clic con el lápiz deja un punto y un clic con una forma no deja nada', async ({ page }) => {
   await herramienta(page, 'Lápiz').click();
   await page.mouse.click(300, 300);
@@ -249,8 +275,15 @@ for (const [esquema, nombre] of [['light', 'claro'], ['dark', 'oscuro']] as cons
     await page.keyboard.type('Σ F = m a');
     await page.keyboard.press('Enter');
     await herramienta(page, 'Resaltador').click();
-    await muestra('Ámbar · resultado').click();
-    await arrastrar(page, [775, 372], [905, 372]);
+    await muestra('Amarillo fluorescente').click();
+    await page.getByRole('slider', { name: 'Grosor del trazo' }).fill('45');
+    await arrastrar(page, [775, 362], [905, 362]);
+    await muestra('Rosa fluorescente').click();
+    await page.getByRole('slider', { name: 'Grosor del trazo' }).fill('20');
+    await arrastrar(page, [300, 620], [560, 620]);
+    await muestra('Celeste fluorescente').click();
+    await page.getByRole('slider', { name: 'Grosor del trazo' }).fill('70');
+    await arrastrar(page, [620, 600], [860, 640]);
     await page.mouse.move(1000, 700);
     await page.screenshot({ path: `docs/capturas/etapa1-${nombre}.png` });
   });

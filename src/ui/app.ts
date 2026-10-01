@@ -1,6 +1,6 @@
 import type { Camara, Punto } from '../core/camara';
 import { camaraInicial } from '../core/camara';
-import { OPCIONES_COLOR, colorDeTinta } from '../core/colores';
+import { OPCIONES_COLOR, OPCIONES_RESALTADOR, colorDeTinta } from '../core/colores';
 import type { ColorTinta, Elemento } from '../core/elementos';
 import { escenaInicial, OP_AGREGAR, OP_BORRAR, reductoresEscena } from '../core/escena';
 import type { Escena } from '../core/escena';
@@ -14,7 +14,16 @@ import { ANCHO_CM_POR_DEFECTO, aTikz } from '../export/tikz';
 import { aplicarCamara, CacheImagenes, dibujarElemento, dibujarElementos, dibujarGrilla, cajaVisible } from '../ink/dibujo';
 import { Entrada, esCampoDeTexto } from '../ink/entrada';
 import type { Herramienta } from '../ink/herramientas';
-import { crearImagen, crearTexto, DEFS_HERRAMIENTAS, GROSORES, TAMANOS_TEXTO } from '../ink/herramientas';
+import {
+  crearImagen,
+  crearTexto,
+  DEFS_HERRAMIENTAS,
+  grosorDePosicion,
+  POSICIONES_ATAJO,
+  RANGO_RESALTADOR,
+  RANGO_TINTA,
+  tamTextoDeGrosor,
+} from '../ink/herramientas';
 import { cargarImagen, primeraImagen } from './imagenes';
 import { PALETAS } from './tokens';
 
@@ -29,8 +38,6 @@ const CURSORES: Record<Herramienta, string> = {
   texto: 'text',
   mano: 'grab',
 };
-
-const GROSOR_NOMBRES = ['Fino', 'Medio', 'Grueso'] as const;
 
 function boton(texto: string, titulo: string, onClick: () => void): HTMLButtonElement {
   const b = document.createElement('button');
@@ -62,8 +69,16 @@ export function montarApp(raiz: HTMLElement): void {
   let camara: Camara = camaraInicial();
 
   let herramienta: Herramienta = 'lapiz';
-  let color: ColorTinta = 'tinta';
-  let grosorIdx = 1;
+  let colorTinta: ColorTinta = 'tinta';
+  let colorLuz: ColorTinta = 'luzAmarillo';
+  /** Posición (0 a 100) del deslizador de grosor, una por tipo de herramienta. */
+  let posTinta: number = RANGO_TINTA.inicial;
+  let posLuz: number = RANGO_RESALTADOR.inicial;
+  const esLuz = (): boolean => herramienta === 'resaltador';
+  const colorActual = (): ColorTinta => (esLuz() ? colorLuz : colorTinta);
+  const grosorActual = (): number =>
+    esLuz() ? grosorDePosicion(posLuz, RANGO_RESALTADOR) : grosorDePosicion(posTinta, RANGO_TINTA);
+  const grosorTexto = (): number => tamTextoDeGrosor(grosorDePosicion(posTinta, RANGO_TINTA));
   let vivo: Elemento | null = null;
   let ocultos: ReadonlySet<string> = new Set();
 
@@ -80,23 +95,46 @@ export function montarApp(raiz: HTMLElement): void {
     botonesHerr.set(d.clave, b);
   }
 
-  const botonesColor = new Map<ColorTinta, HTMLButtonElement>();
-  for (const o of OPCIONES_COLOR) {
-    const b = boton('', o.etiqueta, () => {
-      color = o.clave;
-      actualizarBarra();
-    });
-    b.className = 'muestra';
-    b.setAttribute('aria-label', o.etiqueta);
-    botonesColor.set(o.clave, b);
-  }
+  const muestras = (
+    opciones: readonly { clave: ColorTinta; etiqueta: string }[],
+    elegir: (c: ColorTinta) => void,
+  ): Map<ColorTinta, HTMLButtonElement> => {
+    const m = new Map<ColorTinta, HTMLButtonElement>();
+    for (const o of opciones) {
+      const b = boton('', o.etiqueta, () => {
+        elegir(o.clave);
+        actualizarBarra();
+      });
+      b.className = 'muestra';
+      b.setAttribute('aria-label', o.etiqueta);
+      m.set(o.clave, b);
+    }
+    return m;
+  };
+  const botonesColor = muestras(OPCIONES_COLOR, (c) => (colorTinta = c));
+  const botonesLuz = muestras(OPCIONES_RESALTADOR, (c) => (colorLuz = c));
+  const grupoTinta = grupo('Color de tinta', ...botonesColor.values());
+  const grupoLuz = grupo('Color del resaltador', ...botonesLuz.values());
 
-  const botonesGrosor = GROSOR_NOMBRES.map((n, i) =>
-    boton(n, `Grosor ${n.toLowerCase()} (${i + 1})`, () => {
-      grosorIdx = i;
-      actualizarBarra();
-    }),
-  );
+  // Deslizador de grosor: la vista previa muestra el trazo tal como se verá en pantalla.
+  const deslizador = document.createElement('input');
+  deslizador.type = 'range';
+  deslizador.min = '0';
+  deslizador.max = '100';
+  deslizador.step = '1';
+  deslizador.setAttribute('aria-label', 'Grosor del trazo');
+  deslizador.addEventListener('input', () => {
+    if (esLuz()) posLuz = Number(deslizador.value);
+    else posTinta = Number(deslizador.value);
+    actualizarBarra();
+  });
+  const vistaGrosor = document.createElement('span');
+  vistaGrosor.className = 'vista-grosor';
+  vistaGrosor.setAttribute('aria-hidden', 'true');
+  const valorGrosor = document.createElement('span');
+  valorGrosor.className = 'valor-grosor';
+  const grupoGrosor = grupo('Grosor', deslizador, vistaGrosor, valorGrosor);
+  grupoGrosor.classList.add('grosor');
 
   const bDeshacer = boton('Deshacer', 'Deshacer (Ctrl+Z)', () => store.deshacer());
   const bRehacer = boton('Rehacer', 'Rehacer (Ctrl+Y)', () => store.rehacer());
@@ -139,8 +177,9 @@ export function montarApp(raiz: HTMLElement): void {
   fila1.append(
     titulo,
     grupo('Herramientas', ...botonesHerr.values()),
-    grupo('Color', ...botonesColor.values()),
-    grupo('Grosor', ...botonesGrosor),
+    grupoTinta,
+    grupoLuz,
+    grupoGrosor,
   );
   const fila2 = document.createElement('div');
   fila2.className = 'fila';
@@ -229,9 +268,22 @@ export function montarApp(raiz: HTMLElement): void {
     for (const [k, b] of botonesHerr) b.setAttribute('aria-pressed', String(k === herramienta));
     for (const [k, b] of botonesColor) {
       b.style.setProperty('--muestra', colorDeTinta(paleta, k));
-      b.setAttribute('aria-pressed', String(k === color));
+      b.setAttribute('aria-pressed', String(k === colorTinta));
     }
-    botonesGrosor.forEach((b, i) => b.setAttribute('aria-pressed', String(i === grosorIdx)));
+    for (const [k, b] of botonesLuz) {
+      b.style.setProperty('--muestra', colorDeTinta(paleta, k));
+      b.setAttribute('aria-pressed', String(k === colorLuz));
+    }
+    grupoTinta.hidden = esLuz();
+    grupoLuz.hidden = !esLuz();
+    grupoGrosor.hidden = herramienta === 'mano' || herramienta === 'borrador';
+    deslizador.value = String(esLuz() ? posLuz : posTinta);
+    const g = grosorActual();
+    const alto = Math.min(30, Math.max(1.5, g * camara.escala));
+    vistaGrosor.style.height = `${alto}px`;
+    vistaGrosor.style.background = colorDeTinta(paleta, colorActual());
+    vistaGrosor.style.opacity = esLuz() ? '0.6' : '1';
+    valorGrosor.textContent = `${(g * 100).toFixed(g < 0.1 ? 1 : 0).replace('.', ',')} cm`;
     lienzo.style.cursor = CURSORES[herramienta];
     const n = store.estado.elementos.length;
     menu.habilitar(n > 0);
@@ -256,9 +308,9 @@ export function montarApp(raiz: HTMLElement): void {
     ponerCamara,
     vista: () => ({ ancho, alto }),
     herramienta: () => herramienta,
-    color: () => color,
-    grosor: () => GROSORES[grosorIdx]!,
-    tamTexto: () => TAMANOS_TEXTO[grosorIdx]!,
+    color: colorActual,
+    grosor: grosorActual,
+    tamTexto: grosorTexto,
     elementos: () => store.estado.elementos,
     previsualizar(v, o) {
       const cambioOcultos = o.size !== ocultos.size;
@@ -276,7 +328,7 @@ export function montarApp(raiz: HTMLElement): void {
   let editor: HTMLTextAreaElement | null = null;
   function editarTexto(p: Punto): void {
     cerrarEditor(true);
-    const tam = TAMANOS_TEXTO[grosorIdx]!;
+    const tam = grosorTexto();
     const r = lienzo.getBoundingClientRect();
     const sx = ancho / 2 + (p.x - camara.cx) * camara.escala;
     const sy = alto / 2 - (p.y - camara.cy) * camara.escala;
@@ -287,7 +339,7 @@ export function montarApp(raiz: HTMLElement): void {
     ta.style.left = `${r.left + sx}px`;
     ta.style.top = `${r.top + sy}px`;
     ta.style.fontSize = `${Math.max(12, tam * camara.escala)}px`;
-    ta.style.color = colorDeTinta(PALETAS[temaActual()], color);
+    ta.style.color = colorDeTinta(PALETAS[temaActual()], colorTinta);
     ta.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -304,7 +356,7 @@ export function montarApp(raiz: HTMLElement): void {
     ta.dataset['x'] = String(p.x);
     ta.dataset['y'] = String(p.y);
     ta.dataset['tam'] = String(tam);
-    ta.dataset['color'] = color;
+    ta.dataset['color'] = colorTinta;
     document.body.append(ta);
     editor = ta;
     ta.focus();
@@ -466,7 +518,15 @@ export function montarApp(raiz: HTMLElement): void {
       if (d) {
         elegirHerramienta(d.clave);
       } else if (k >= '1' && k <= '3') {
-        grosorIdx = Number(k) - 1;
+        const pos = POSICIONES_ATAJO[Number(k) - 1]!;
+        if (esLuz()) posLuz = pos;
+        else posTinta = pos;
+        actualizarBarra();
+      } else if (k === '[' || k === ']') {
+        const paso = k === ']' ? 5 : -5;
+        const ajustar = (v: number): number => Math.min(100, Math.max(0, v + paso));
+        if (esLuz()) posLuz = ajustar(posLuz);
+        else posTinta = ajustar(posTinta);
         actualizarBarra();
       } else if (k === '0') {
         ponerCamara(camaraInicial());

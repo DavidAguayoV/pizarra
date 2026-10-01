@@ -1,7 +1,7 @@
 import type { Punto } from '../core/camara';
 import { colorDeTinta, PALETA_EXPORTACION } from '../core/colores';
 import type { ColorTinta, Elemento, Imagen, Linea, Texto, Trazo } from '../core/elementos';
-import { COLORES_TINTA, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import { COLORES_RESALTADOR, COLORES_TINTA, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
 import { OPACIDAD_RESALTADOR } from '../ink/dibujo';
 import { grosorMedio } from '../ink/herramientas';
 import { bezierPorPuntos, simplificarRdp } from '../ink/suavizado';
@@ -101,7 +101,7 @@ export function aTikz(elementos: readonly Elemento[], op: OpcionesTikz = {}): Re
     cuerpo.push('  % (escena vacía)');
   }
 
-  const usados = COLORES_TINTA.filter((c) => elementos.some((e) => e.tipo !== 'imagen' && e.color === c));
+  const usados = [...COLORES_TINTA, ...COLORES_RESALTADOR].filter((c) => elementos.some((e) => e.tipo !== 'imagen' && e.color === c));
   const colores = usados.map(
     (c) => `  \\definecolor{${nombreColor(c)}}{HTML}{${colorDeTinta(paleta, c).slice(1).toUpperCase()}}`,
   );

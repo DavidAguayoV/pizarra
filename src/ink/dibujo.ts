@@ -8,7 +8,11 @@ import { TIPOGRAFIA } from '../ui/tokens';
 import { factorPresion } from './herramientas';
 
 /** Opacidad del resaltador (se superpone sin tapar el texto de abajo). */
-export const OPACIDAD_RESALTADOR = 0.35;
+export const OPACIDAD_RESALTADOR = 0.5;
+/** Sobre fondo oscuro el fluorescente se apaga: se compensa con más opacidad. */
+export function opacidadResaltador(paleta: PaletaTema): number {
+  return paleta.nombre === 'oscuro' ? 0.75 : OPACIDAD_RESALTADOR;
+}
 
 /** Imágenes decodificadas, por id de elemento. `alCargar` pide un nuevo cuadro. */
 export class CacheImagenes {
@@ -175,7 +179,7 @@ function dibujarTrazo(ctx: CanvasRenderingContext2D, t: Trazo, op: OpcionesDibuj
   const pts = puntosDe(t);
   const base = anchoMin(op, t.grosor);
   if (pts.length === 0) return;
-  if (t.resaltador) ctx.globalAlpha = OPACIDAD_RESALTADOR;
+  if (t.resaltador) ctx.globalAlpha = opacidadResaltador(op.paleta);
 
   if (pts.length === 1 || (pts.length === 2 && pts[0]!.x === pts[1]!.x && pts[0]!.y === pts[1]!.y)) {
     ctx.beginPath();

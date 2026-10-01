@@ -23,11 +23,27 @@ export const DEFS_HERRAMIENTAS: readonly DefHerramienta[] = [
   { clave: 'mano', etiqueta: 'Mover vista', atajo: 'M' },
 ];
 
-/** Grosores de línea en metros (fino, medio, grueso). */
-export const GROSORES = [0.012, 0.026, 0.055] as const;
-/** Alto de letra en metros para cada grosor. */
-export const TAMANOS_TEXTO = [0.14, 0.22, 0.34] as const;
-export const FACTOR_RESALTADOR = 4;
+/** Rango del deslizador de grosor (metros). Escala logarítmica: más fino donde importa. */
+export interface RangoGrosor {
+  min: number;
+  max: number;
+  /** Posición inicial del deslizador, de 0 a 100. */
+  inicial: number;
+}
+export const RANGO_TINTA: RangoGrosor = { min: 0.004, max: 0.12, inicial: 41 };
+export const RANGO_RESALTADOR: RangoGrosor = { min: 0.03, max: 0.3, inicial: 33 };
+export const POSICIONES_ATAJO = [18, 41, 70] as const;
+
+/** Posición del deslizador (0 a 100) → grosor en metros. */
+export function grosorDePosicion(pos: number, r: RangoGrosor): number {
+  const t = Math.min(100, Math.max(0, pos)) / 100;
+  return Math.round(r.min * (r.max / r.min) ** t * 1e4) / 1e4;
+}
+
+/** Alto de letra (m) que acompaña a un grosor de tinta. */
+export function tamTextoDeGrosor(grosor: number): number {
+  return Math.round((0.1 + 4.5 * grosor) * 1e3) / 1e3;
+}
 /** Radio del borrador en píxeles de pantalla. */
 export const RADIO_BORRADOR_PX = 14;
 
@@ -57,7 +73,7 @@ export function crearTrazo(puntos: number[], color: ColorTinta, grosor: number, 
     id: nuevoIdElemento(),
     tipo: 'trazo',
     color,
-    grosor: resaltador ? grosor * FACTOR_RESALTADOR : grosor,
+    grosor,
     puntos: puntos.map(redondear),
     resaltador,
   };

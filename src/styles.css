@@ -29,6 +29,11 @@
   box-sizing: border-box;
 }
 
+/* Las reglas de display de los grupos no deben anular el atributo hidden. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body,
 #app {
@@ -112,6 +117,29 @@ button.muestra {
   padding: 0;
   background: var(--muestra, var(--texto));
   border-color: var(--borde);
+}
+
+.grosor {
+  align-items: center;
+  gap: 8px;
+}
+
+.grosor input[type='range'] {
+  width: 9rem;
+  height: 44px;
+  accent-color: var(--acento);
+}
+
+.vista-grosor {
+  display: inline-block;
+  width: 48px;
+  border-radius: 999px;
+}
+
+.valor-grosor {
+  min-width: 4.2rem;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .menu {

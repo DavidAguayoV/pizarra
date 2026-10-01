@@ -10,7 +10,10 @@ import type { Punto } from './camara';
  */
 
 export const COLORES_TINTA = ['tinta', 'campo', 'contacto', 'disipacion', 'movimiento', 'acento', 'neutro'] as const;
-export type ColorTinta = (typeof COLORES_TINTA)[number];
+/** Colores fluorescentes del resaltador: iguales en ambos temas (se superponen con transparencia). */
+export const COLORES_RESALTADOR = ['luzAmarillo', 'luzNaranja', 'luzRosa', 'luzVerde', 'luzCeleste'] as const;
+export type ColorResaltador = (typeof COLORES_RESALTADOR)[number];
+export type ColorTinta = (typeof COLORES_TINTA)[number] | ColorResaltador;
 
 interface Base {
   id: string;

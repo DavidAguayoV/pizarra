@@ -17,7 +17,7 @@
     .. controls (1.871,5.562) and (2.117,5.636) .. (2.363,5.612)
     .. controls (2.609,5.587) and (2.855,5.464) .. (3.101,5.316)
     .. controls (3.347,5.169) and (3.716,4.824) .. (3.84,4.726);
-  \draw[pzacento, line width=8.4pt, opacity=0.35, line cap=round, line join=round] (0.148,3.544) -- (4.578,3.544);
+  \draw[pzacento, line width=8.4pt, opacity=0.5, line cap=round, line join=round] (0.148,3.544) -- (4.578,3.544);
   % --- formas ---
   \draw[pztinta, line width=2.18pt, line cap=round] (0.148,2.658) -- (6.055,2.658);
   \draw[pzcampo, line width=2.18pt, line cap=round] (7.531,7.384) -- (7.531,4.776);
