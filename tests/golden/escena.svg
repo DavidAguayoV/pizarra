@@ -1,12 +1,81 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="872.6" height="722.6" viewBox="0 0 872.6 722.6">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1142.3" height="1379.6" viewBox="0 0 1142.3 1379.6">
 <rect width="100%" height="100%" fill="#FFFFFF"/>
-<path d="M40 392.6 Q90 352.6 115 337.6 Q140 322.6 165 317.6 Q190 312.6 215 322.6 Q240 332.6 265 352.6 L290 372.6" stroke="#0B6FA8" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-<path d="M40 452.6 L340 452.6" stroke="#8A5A00" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-opacity="0.5"/>
-<line x1="40" y1="512.6" x2="440" y2="512.6" stroke="#0B1320" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-<line x1="540" y1="192.6" x2="540" y2="369.2" stroke="#C2343F" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-<polygon points="540,392.6 549.83,369.2 530.17,369.2" fill="#C2343F"/>
-<rect x="480" y="272.6" width="240" height="160" stroke="#4A5A70" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-<ellipse cx="740" cy="112.6" rx="100" ry="80" stroke="#0B7A4B" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-<text font-family="&quot;Segoe UI Variable Display&quot;, &quot;Segoe UI&quot;, system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#6B45C9" xml:space="preserve"><tspan x="80" y="66.6">f_k = 5% de N</tspan><tspan x="80" y="116.6">$\vec{F}=m\vec{a}$</tspan></text>
-<image x="40" y="592.6" width="100" height="100" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="/>
+<path d="M309.7 392.6 Q359.7 352.6 384.7 337.6 Q409.7 322.6 434.7 317.6 Q459.7 312.6 484.7 322.6 Q509.7 332.6 534.7 352.6 L559.7 372.6" stroke="#0B6FA8" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M309.7 452.6 L609.7 452.6" stroke="#8A5A00" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-opacity="0.5"/>
+<line x1="309.7" y1="512.6" x2="709.7" y2="512.6" stroke="#0B1320" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<line x1="809.7" y1="192.6" x2="809.7" y2="369.2" stroke="#C2343F" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<polygon points="809.7,392.6 819.52,369.2 799.87,369.2" fill="#C2343F"/>
+<rect x="749.7" y="272.6" width="240" height="160" stroke="#4A5A70" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<ellipse cx="1009.7" cy="112.6" rx="100" ry="80" stroke="#0B7A4B" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<text x="349.7" y="66.6" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#6B45C9" xml:space="preserve">f_k = 5% de N</text>
+<text x="349.7" y="116.6" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#6B45C9" xml:space="preserve">F</text>
+<line x1="351.3" y1="83.8" x2="371.7" y2="83.8" stroke="#6B45C9" stroke-width="2.4"/>
+<polygon points="371.7,83.8 365.7,81 365.7,86.6" fill="#6B45C9"/>
+<text x="377.3" y="116.6" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#6B45C9" xml:space="preserve">=</text>
+<text x="407.7" y="116.6" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#6B45C9" xml:space="preserve">m</text>
+<text x="441.7" y="116.6" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#6B45C9" xml:space="preserve">a</text>
+<line x1="443.3" y1="83.8" x2="463.7" y2="83.8" stroke="#6B45C9" stroke-width="2.4"/>
+<polygon points="463.7,83.8 457.7,81 457.7,86.6" fill="#6B45C9"/>
+<image x="309.7" y="592.6" width="100" height="100" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="/>
+<line x1="357.73" y1="902.6" x2="601.95" y2="761.6" stroke="#0B1320" stroke-width="2.8" stroke-linecap="round"/>
+<polygon points="617.54,752.6 598.17,755.05 605.73,768.15" fill="#0B1320"/>
+<line x1="439.7" y1="924.56" x2="298.7" y2="680.34" stroke="#0B1320" stroke-width="2.8" stroke-linecap="round"/>
+<polygon points="289.7,664.75 292.15,684.12 305.24,676.56" fill="#0B1320"/>
+<text x="642.91" y="746" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#0B1320" xml:space="preserve">x</text>
+<text x="262.7" y="647.04" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#0B1320" xml:space="preserve">y</text>
+<line x1="409.7" y1="1172.6" x2="279.79" y2="947.6" stroke="#C2343F" stroke-width="3" stroke-opacity="0.45" stroke-dasharray="8 12"/>
+<line x1="409.7" y1="872.6" x2="296.16" y2="938.15" stroke="#C2343F" stroke-width="4.2" stroke-linecap="round" stroke-opacity="0.85" stroke-dasharray="24 12"/>
+<polygon points="279.79,947.6 300.13,945.02 292.19,931.28" fill="#C2343F" fill-opacity="0.85"/>
+<line x1="409.7" y1="1172.6" x2="539.6" y2="1097.6" stroke="#C2343F" stroke-width="3" stroke-opacity="0.45" stroke-dasharray="8 12"/>
+<line x1="409.7" y1="872.6" x2="530.15" y2="1081.23" stroke="#C2343F" stroke-width="4.2" stroke-linecap="round" stroke-opacity="0.85" stroke-dasharray="24 12"/>
+<polygon points="539.6,1097.6 537.02,1077.26 523.27,1085.2" fill="#C2343F" fill-opacity="0.85"/>
+<text x="30" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">(</text>
+<text x="43.6" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#C2343F" xml:space="preserve">m</text>
+<text x="77.6" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#C2343F" xml:space="preserve">g</text>
+<line x1="79.2" y1="1000.04" x2="99.6" y2="1000.04" stroke="#C2343F" stroke-width="2.4"/>
+<polygon points="99.6,1000.04 93.6,997.24 93.6,1002.84" fill="#C2343F"/>
+<text x="99.6" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">)</text>
+<text x="113.2" y="1040.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="28" font-style="italic" fill="#C2343F" xml:space="preserve">x</text>
+<text x="135.4" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">=</text>
+<text x="171.4" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">−</text>
+<text x="201.8" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">7</text>
+<text x="223.8" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">,</text>
+<text x="233.4" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">5</text>
+<text x="262.2" y="1032.84" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">N</text>
+<text x="472.23" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">(</text>
+<text x="485.83" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#C2343F" xml:space="preserve">m</text>
+<text x="519.83" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#C2343F" xml:space="preserve">g</text>
+<line x1="521.43" y1="1164.39" x2="541.83" y2="1164.39" stroke="#C2343F" stroke-width="2.4"/>
+<polygon points="541.83,1164.39 535.83,1161.59 535.83,1167.19" fill="#C2343F"/>
+<text x="541.83" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">)</text>
+<text x="555.43" y="1205.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="28" font-style="italic" fill="#C2343F" xml:space="preserve">y</text>
+<text x="577.63" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">=</text>
+<text x="613.63" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">−</text>
+<text x="644.03" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">1</text>
+<text x="657.63" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">3</text>
+<text x="686.43" y="1197.19" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">N</text>
+<line x1="409.7" y1="872.6" x2="409.7" y2="1145.6" stroke="#C2343F" stroke-width="6" stroke-linecap="round"/>
+<polygon points="409.7,1172.6 421.04,1145.6 398.36,1145.6" fill="#C2343F"/>
+<path d="M478.98 832.6 A80 80 0 0 1 409.7 952.6" stroke="#C2343F" stroke-width="3" fill="none"/>
+<text x="477.23" y="966.78" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#C2343F" xml:space="preserve">θ</text>
+<text x="504.83" y="966.78" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">=</text>
+<text x="535.23" y="966.78" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">1</text>
+<text x="548.83" y="966.78" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">2</text>
+<text x="570.83" y="966.78" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">0</text>
+<text x="592.83" y="949.18" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="28" fill="#C2343F" xml:space="preserve">°</text>
+<text x="424.7" y="1037" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#C2343F" xml:space="preserve">m</text>
+<text x="458.7" y="1037" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#C2343F" xml:space="preserve">g</text>
+<line x1="460.3" y1="1004.2" x2="480.7" y2="1004.2" stroke="#C2343F" stroke-width="2.4"/>
+<polygon points="480.7,1004.2 474.7,1001.4 474.7,1007" fill="#C2343F"/>
+<text x="486.3" y="1037" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">=</text>
+<text x="516.7" y="1037" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">1</text>
+<text x="530.3" y="1037" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">5</text>
+<text x="559.1" y="1037" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" fill="#C2343F" xml:space="preserve">N</text>
+<line x1="409.7" y1="872.6" x2="293.2" y2="670.98" stroke="#0B6FA8" stroke-width="6" stroke-linecap="round"/>
+<polygon points="279.7,647.6 283.38,676.65 303.02,665.31" fill="#0B6FA8"/>
+<text x="363.07" y="761.93" font-family=""Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif" font-size="40" font-style="italic" fill="#0B6FA8" xml:space="preserve">N</text>
+<line x1="364.67" y1="729.13" x2="385.07" y2="729.13" stroke="#0B6FA8" stroke-width="2.4"/>
+<polygon points="385.07,729.13 379.07,726.33 379.07,731.93" fill="#0B6FA8"/>
+<line x1="409.7" y1="872.6" x2="444.08" y2="861.14" stroke="#6B45C9" stroke-width="6" stroke-linecap="round" stroke-opacity="0.65" stroke-dasharray="20 14"/>
+<polygon points="469.7,852.6 440.49,850.38 447.67,871.9" fill="#6B45C9" fill-opacity="0.65"/>
 </svg>

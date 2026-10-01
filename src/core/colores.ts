@@ -1,5 +1,5 @@
-import type { ColorResaltador, ColorTinta } from './elementos';
-import { CLARO, type PaletaTema } from '../ui/tokens';
+import type { ColorResaltador, ColorTinta, Elemento } from './elementos';
+import { CLARO, colorDeRol, FAMILIA_DE_ROL, type PaletaTema } from '../ui/tokens';
 
 /** Fluorescentes: mismo tono en los dos temas. */
 export const COLOR_RESALTADOR: Readonly<Record<ColorResaltador, string>> = {
@@ -42,3 +42,17 @@ export const OPCIONES_RESALTADOR: readonly OpcionColor[] = [
 ];
 
 export const PALETA_EXPORTACION: PaletaTema = CLARO;
+
+/** Color con el que se dibuja un elemento: tinta, o el del rol físico si es un vector. */
+export function colorDeElemento(paleta: PaletaTema, e: Elemento): string {
+  if (e.tipo === 'imagen') return paleta.texto;
+  if (e.tipo === 'vector') return colorDeRol(paleta, e.rol);
+  return colorDeTinta(paleta, e.color);
+}
+
+/** Clave de color (para definirlo en TikZ): la tinta del elemento o la familia del rol del vector. */
+export function claveColor(e: Elemento): ColorTinta | null {
+  if (e.tipo === 'imagen') return null;
+  if (e.tipo === 'vector') return FAMILIA_DE_ROL[e.rol] as ColorTinta;
+  return e.color;
+}

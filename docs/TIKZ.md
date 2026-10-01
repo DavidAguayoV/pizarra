@@ -43,6 +43,20 @@ descargan aparte: hay que dejarlas junto al `.tex`.
 | Texto | `\node[anchor=north west, align=left, font={\fontsize{..}{..}\selectfont}] at (..) {línea 1 \\ línea 2};` |
 | Imagen | `\node[anchor=north west] at (..) {\includegraphics[width=..cm]{pizarra-imagen-N.png}};` |
 
+### Sistema de referencia y vectores
+
+| Elemento | TikZ |
+|---|---|
+| Ejes | Dos flechas (cuerpo `\draw` + punta `\fill`) de lado a lado, giradas el ángulo del sistema; etiquetas `$x$`, `$y$` junto a las puntas. Capa `sistema de referencia`. |
+| Vector | Flecha con el color de la familia de su rol (`pzcampo` para el peso, `pzcontacto` para normal y tensión, `pzdisipacion` para el roce, `pzmovimiento` para velocidad y aceleración, `pzacento` para la resultante). Etiqueta en `\node` con `$\vec{N}$`. Capa `vectores`. |
+| Componentes | Flechas punteadas (`dash pattern`) a lo largo de los ejes, líneas de proyección `dotted` y etiquetas `$F_x$`, `$F_y$` (con valor si está activado). |
+| Ángulo | `\draw ... arc[start angle=.., end angle=.., radius=..cm]` y su etiqueta (`$\theta$`). |
+| Vector fantasma (suma) | Punteado y con `opacity=0.65`, sin etiqueta. |
+
+* Las unidades salen con `\mathrm{...}` (LaTeX básico): **no se necesita amsmath**. En el texto libre y en las etiquetas, `\text{..}` sí lo exige (el compositor de la pizarra lo entiende, pero LaTeX necesita `\usepackage{amsmath}`; usa `\mathrm` para evitarlo).
+* Los números llevan coma decimal protegida (`12{,}5`) para que LaTeX no meta un espacio.
+* El recuadro de la figura incluye las etiquetas, así que no se recortan.
+
 ### Texto
 
 * Los caracteres especiales (`& % # _ { } ~ ^ \ $`) se escapan.

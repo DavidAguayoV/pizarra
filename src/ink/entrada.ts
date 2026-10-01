@@ -1,7 +1,12 @@
 import type { Camara, Punto, Vista } from '../core/camara';
 import { acercarEn, desplazar, pantallaAMundo } from '../core/camara';
 import type { ColorTinta, Elemento } from '../core/elementos';
-import { cajaCacheada, nuevoIdElemento, tocaElemento } from '../core/elementos';
+import { cajaCacheada, nuevoIdElemento, tocaElemento, trasladar } from '../core/elementos';
+import type { LotePayload } from '../core/escena';
+import type { NombreAsa } from '../physics/edicion';
+import { ajustarAngulo, asasDe, moverAsa } from '../physics/edicion';
+import type { RolVector } from '../physics/vectores';
+import { crearEjes, crearVector } from '../physics/vectores';
 import type { Herramienta, TipoForma } from './herramientas';
 import {
   crearForma,
@@ -23,12 +28,24 @@ export interface Anfitrion {
   grosor(): number;
   tamTexto(): number;
   elementos(): readonly Elemento[];
-  /** Elemento en construcción (null = nada) y los ids que el borrador está "borrando" en vivo. */
-  previsualizar(vivo: Elemento | null, ocultos: ReadonlySet<string>): void;
+  /** Lo que se está dibujando o arrastrando y los ids que se están "borrando" u ocultando en vivo. */
+  previsualizar(vivos: Elemento | readonly Elemento[] | null, ocultos: ReadonlySet<string>): void;
   confirmar(e: Elemento): void;
   borrar(ids: string[]): void;
   pedirTexto(p: Punto): void;
+  /** Rol físico con el que se crean los vectores y sistema de referencia que se les asigna. */
+  rolVector(): RolVector;
+  refActual(): string | null;
+  /** Selección (edición). */
+  seleccion(): readonly Elemento[];
+  seleccionar(ids: readonly string[]): void;
+  /** Aplica varios cambios como una sola operación (un deshacer los revierte juntos). */
+  editar(cambio: LotePayload): void;
 }
+
+/** Distancia (px de pantalla) a la que se agarra un asa o se acierta a un elemento. */
+const RADIO_ASA_PX = 12;
+const RADIO_CLIC_PX = 8;
 
 const DISTANCIA_MIN_PX = 1.5;
 const FORMAS: ReadonlySet<Herramienta> = new Set(['linea', 'flecha', 'rect', 'elipse']);
@@ -44,6 +61,10 @@ interface Activo {
   ultimaPantalla: Punto;
   ocultos: Set<string>;
   vivo: Elemento | null;
+  /** Selección: arrastre de elementos enteros o de un asa. */
+  arrastre: { tipo: 'mover'; originales: readonly Elemento[] } | { tipo: 'asa'; original: Elemento; asa: NombreAsa } | null;
+  movido: boolean;
+  vivos: readonly Elemento[];
   /** Id del elemento en construcción: el mismo en la vista previa, en la transmisión y al confirmarlo. */
   idVivo: string;
 }
@@ -162,8 +183,15 @@ export class Entrada {
       ultimaPantalla: p,
       ocultos: new Set(),
       vivo: null,
+      arrastre: null,
+      movido: false,
+      vivos: [],
       idVivo: nuevoIdElemento(),
     };
+    if (herramienta === 'seleccionar') {
+      this.empezarSeleccion(this.activo, p, w, e.shiftKey);
+      return;
+    }
     this.agregarPunto(this.activo, e, p, w, true);
     this.actualizarVivo(this.activo, e.shiftKey);
   }
@@ -190,6 +218,10 @@ export class Entrada {
     const a = this.activo;
     if (!a || a.id !== e.pointerId) return;
     const eventos = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+    if (a.herramienta === 'seleccionar') {
+      this.arrastrarSeleccion(a, this.pantalla(e), e.shiftKey);
+      return;
+    }
     for (const ev of eventos.length > 0 ? eventos : [e]) {
       const pp = this.pantalla(ev);
       this.agregarPunto(a, ev, pp, this.mundo(pp), false);
@@ -211,6 +243,12 @@ export class Entrada {
     }
     const a = this.activo;
     if (!a || a.id !== e.pointerId) return;
+    if (a.herramienta === 'seleccionar') {
+      this.arrastrarSeleccion(a, this.pantalla(e), e.shiftKey);
+      this.activo = null;
+      this.terminarSeleccion(a);
+      return;
+    }
     this.actualizarVivo(a, e.shiftKey);
     this.activo = null;
     this.terminar(a);
@@ -295,6 +333,25 @@ export class Entrada {
       case 'borrador':
         a.vivo = null;
         break;
+      case 'vector': {
+        let b = this.mundo(a.ultimaPantalla);
+        if (shift) b = ajustarAngulo(a.inicio, b);
+        a.vivo = crearVector(this.host.rolVector(), a.inicio, b, { id: a.idVivo, ref: this.host.refActual() });
+        break;
+      }
+      case 'ejes': {
+        let b = this.mundo(a.ultimaPantalla);
+        if (shift) b = ajustarAngulo(a.inicio, b);
+        const dx = b.x - a.inicio.x;
+        const dy = b.y - a.inicio.y;
+        const largo = Math.hypot(dx, dy);
+        // Un clic sin arrastrar coloca unos ejes horizontales de tamaño estándar.
+        a.vivo =
+          largo < 0.12
+            ? crearEjes(a.inicio, 0, 1.5, { id: a.idVivo })
+            : crearEjes(a.inicio, Math.round(Math.atan2(dy, dx) * 1e4) / 1e4, Math.round(largo * 1e4) / 1e4, { id: a.idVivo });
+        break;
+      }
       default: {
         if (!FORMAS.has(a.herramienta)) return;
         const tipo = a.herramienta as TipoForma;
@@ -316,6 +373,77 @@ export class Entrada {
       this.host.confirmar(a.vivo);
     }
     this.host.previsualizar(null, VACIO);
+  }
+
+  // --- Selección y edición ------------------------------------------------------------------
+
+  private empezarSeleccion(a: Activo, p: Punto, w: Punto, shift: boolean): void {
+    const sel = this.host.seleccion();
+    const escala = this.host.camara().escala;
+    const unico = sel.length === 1 ? sel[0] : undefined;
+    if (unico) {
+      // ¿Se agarró un asa del elemento seleccionado?
+      for (const asa of asasDe(unico)) {
+        const q = this.aPantalla(asa.p);
+        if (Math.hypot(q.x - p.x, q.y - p.y) <= RADIO_ASA_PX) {
+          a.arrastre = { tipo: 'asa', original: unico, asa: asa.nombre };
+          return;
+        }
+      }
+    }
+    // Si no, ¿se tocó algún elemento? (el de más arriba)
+    const radio = RADIO_CLIC_PX / escala;
+    const elementos = this.host.elementos();
+    let tocado: Elemento | undefined;
+    for (let i = elementos.length - 1; i >= 0; i--) {
+      const el = elementos[i]!;
+      if (tocaElemento(el, w, radio)) {
+        tocado = el;
+        break;
+      }
+    }
+    if (!tocado) {
+      if (!shift) this.host.seleccionar([]);
+      return;
+    }
+    const yaEsta = sel.some((x) => x.id === tocado!.id);
+    if (shift) {
+      this.host.seleccionar(yaEsta ? sel.filter((x) => x.id !== tocado!.id).map((x) => x.id) : [...sel.map((x) => x.id), tocado.id]);
+      if (yaEsta) return;
+    } else if (!yaEsta) {
+      this.host.seleccionar([tocado.id]);
+    }
+    a.arrastre = { tipo: 'mover', originales: this.host.seleccion() };
+  }
+
+  private arrastrarSeleccion(a: Activo, p: Punto, shift: boolean): void {
+    const r = a.arrastre;
+    if (!r) return;
+    a.ultimaPantalla = p;
+    const w = this.mundo(p);
+    if (!a.movido && Math.hypot(p.x - this.aPantalla(a.inicio).x, p.y - this.aPantalla(a.inicio).y) < DISTANCIA_MIN_PX * 2) return;
+    a.movido = true;
+    if (r.tipo === 'mover') {
+      const dx = w.x - a.inicio.x;
+      const dy = w.y - a.inicio.y;
+      a.vivos = r.originales.map((o) => trasladar(o, dx, dy));
+      a.ocultos = new Set(r.originales.map((o) => o.id));
+    } else {
+      a.vivos = [moverAsa(r.original, r.asa, w, shift)];
+      a.ocultos = new Set([r.original.id]);
+    }
+    this.host.previsualizar(a.vivos, a.ocultos);
+  }
+
+  private terminarSeleccion(a: Activo): void {
+    if (a.movido && a.vivos.length > 0) this.host.editar({ actualizar: [...a.vivos] });
+    this.host.previsualizar(null, VACIO);
+  }
+
+  private aPantalla(w: Punto): Punto {
+    const c = this.host.camara();
+    const v = this.host.vista();
+    return { x: v.ancho / 2 + (w.x - c.cx) * c.escala, y: v.alto / 2 - (w.y - c.cy) * c.escala };
   }
 
   private cancelarActivo(): void {

@@ -1,7 +1,9 @@
 import type { Camara, Vista } from '../core/camara';
 import { camaraInicial } from '../core/camara';
 import { temaActual } from '../core/tema';
-import type { Elemento } from '../core/elementos';
+import type { Ejes, Elemento } from '../core/elementos';
+import { cajaDe } from '../core/elementos';
+import { asasDe } from '../physics/edicion';
 import { aplicarCamara, CacheImagenes, cajaVisible, dibujarElemento, dibujarElementos, dibujarGrilla } from '../ink/dibujo';
 import { PALETAS } from './tokens';
 
@@ -25,7 +27,8 @@ export class Lienzo {
   ancho = 0;
   alto = 0;
 
-  private vivo: Elemento | null = null;
+  private vivos: readonly Elemento[] = [];
+  private seleccion: readonly Elemento[] = [];
   private ocultos: ReadonlySet<string> = new Set();
   private readonly ctx: CanvasRenderingContext2D;
   private readonly base = document.createElement('canvas');
@@ -66,11 +69,17 @@ export class Lienzo {
   }
 
   /** Elemento en construcción (de este usuario o recibido por la red) y los ids que se están borrando. */
-  fijarVivo(vivo: Elemento | null, ocultos: ReadonlySet<string>): void {
+  fijarVivo(vivos: Elemento | readonly Elemento[] | null, ocultos: ReadonlySet<string>): void {
     const cambioOcultos = ocultos.size !== this.ocultos.size;
-    this.vivo = vivo;
+    this.vivos = vivos === null ? [] : Array.isArray(vivos) ? (vivos as readonly Elemento[]) : [vivos as Elemento];
     this.ocultos = ocultos;
     if (cambioOcultos) this.baseSucia = true;
+    this.pedirCuadro();
+  }
+
+  /** Elementos seleccionados: se marcan con un recuadro y, si es uno solo, con sus asas. */
+  fijarSeleccion(sel: readonly Elemento[]): void {
+    this.seleccion = sel;
     this.pedirCuadro();
   }
 
@@ -95,6 +104,35 @@ export class Lienzo {
     this.invalidar();
   }
 
+  /** Recuadro punteado y asas, en píxeles de pantalla (no escalan con el zoom). */
+  private dibujarSeleccion(color: string): void {
+    if (this.seleccion.length === 0) return;
+    const c = this.ctx;
+    const { camara, ancho, alto, dpr } = this;
+    const aPantalla = (x: number, y: number) => ({ x: ancho / 2 + (x - camara.cx) * camara.escala, y: alto / 2 - (y - camara.cy) * camara.escala });
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.strokeStyle = color;
+    c.fillStyle = color;
+    c.lineWidth = 1.5;
+    c.setLineDash([5, 4]);
+    for (const e of this.seleccion) {
+      const b = cajaDe(e);
+      const p0 = aPantalla(b.x0, b.y1);
+      const p1 = aPantalla(b.x1, b.y0);
+      c.strokeRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
+    }
+    c.setLineDash([]);
+    const unico = this.seleccion.length === 1 ? this.seleccion[0] : undefined;
+    for (const asa of unico ? asasDe(unico) : []) {
+      const p = aPantalla(asa.p.x, asa.p.y);
+      c.beginPath();
+      c.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      c.fillStyle = '#fff';
+      c.fill();
+      c.stroke();
+    }
+  }
+
   private pintar(): void {
     const paleta = PALETAS[temaActual()];
     const vista = this.vista;
@@ -111,10 +149,13 @@ export class Lienzo {
     }
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.drawImage(this.base, 0, 0);
-    if (this.vivo) {
+    if (this.vivos.length > 0) {
+      const ejes = new Map(this.elementos().filter((e): e is Ejes => e.tipo === 'ejes').map((e) => [e.id, e]));
+      const conEjes = { ...opciones, ejesDe: (id: string) => ejes.get(id) ?? null };
       aplicarCamara(this.ctx, this.camara, vista, this.dpr);
-      dibujarElemento(this.ctx, this.vivo, opciones);
+      for (const v of this.vivos) dibujarElemento(this.ctx, v, conEjes);
     }
+    this.dibujarSeleccion(paleta.activo);
     this.canvas.dataset['escala'] = this.camara.escala.toFixed(1); // ayuda a las pruebas y a depurar
     this.opciones.alCuadro?.();
   }

@@ -1,6 +1,9 @@
-import { colorDeTinta, PALETA_EXPORTACION } from '../core/colores';
-import type { Caja2D, Elemento, Trazo } from '../core/elementos';
-import { ASCENSO, cajaDe, geometriaPunta, INTERLINEADO, lineasDe, puntosDe, unirCajas } from '../core/elementos';
+import { colorDeElemento, PALETA_EXPORTACION } from '../core/colores';
+import type { Caja2D, Ejes, Elemento, Trazo, Vector } from '../core/elementos';
+import { ASCENSO, cajaDe, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe, unirCajas } from '../core/elementos';
+import { componerLinea, matASvg } from '../core/matematica';
+import type { AnclaEtiqueta } from '../physics/vectores';
+import { anclaEtiquetaVector, anclasEjes, arcoAngulo, cajaConEtiquetas, cajaConEtiquetasEjes, geometriaComponentes } from '../physics/vectores';
 import { grosorMedio } from '../ink/herramientas';
 import { OPACIDAD_RESALTADOR } from '../ink/dibujo';
 import type { PaletaTema } from '../ui/tokens';
@@ -20,7 +23,14 @@ export const MARGEN_EXPORTACION = 0.15;
 
 /** Caja que envuelve toda la escena, o null si está vacía. */
 export function cajaEscena(elementos: readonly Elemento[]): Caja2D | null {
-  return unirCajas(elementos.map(cajaDe));
+  const ejes = new Map(elementos.filter((e): e is Ejes => e.tipo === 'ejes').map((e) => [e.id, e]));
+  return unirCajas(
+    elementos.map((e) => {
+      if (e.tipo === 'vector') return cajaConEtiquetas(e, e.ref ? (ejes.get(e.ref) ?? null) : null);
+      if (e.tipo === 'ejes') return cajaConEtiquetasEjes(e);
+      return cajaDe(e);
+    }),
+  );
 }
 
 export function escaparXml(s: string): string {
@@ -46,7 +56,9 @@ export function aSvg(elementos: readonly Elemento[], op: OpcionesSvg = {}): stri
   const Y = (y: number) => n((y1 - y) * s);
   const L = (m: number) => n(m * s);
 
-  const partes = elementos.map((e) => elementoSvg(e, paleta, X, Y, L));
+  const ejes = new Map(elementos.filter((e): e is Ejes => e.tipo === 'ejes').map((e) => [e.id, e]));
+  const ejesDe = (id: string): Ejes | null => ejes.get(id) ?? null;
+  const partes = elementos.map((e) => elementoSvg(e, paleta, X, Y, L, ejesDe));
   const fondo = op.fondo === false ? '' : `<rect width="100%" height="100%" fill="${paleta.fondo}"/>`;
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${n(ancho)}" height="${n(alto)}" viewBox="0 0 ${n(ancho)} ${n(alto)}">`,
@@ -61,11 +73,11 @@ export function aSvg(elementos: readonly Elemento[], op: OpcionesSvg = {}): stri
 
 type Conv = (v: number) => string;
 
-function elementoSvg(e: Elemento, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv): string {
+function elementoSvg(e: Elemento, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv, ejesDe: (id: string) => Ejes | null): string {
   if (e.tipo === 'imagen') {
     return `<image x="${X(e.pos.x)}" y="${Y(e.pos.y)}" width="${L(e.ancho)}" height="${L(e.alto)}" xlink:href="${e.src}"/>`;
   }
-  const c = colorDeTinta(paleta, e.color);
+  const c = colorDeElemento(paleta, e);
   const trazo = (g: number) => `stroke="${c}" stroke-width="${L(g)}" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
   switch (e.tipo) {
     case 'trazo':
@@ -83,16 +95,71 @@ function elementoSvg(e: Elemento, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv)
       return `<rect x="${X(Math.min(e.a.x, e.b.x))}" y="${Y(Math.max(e.a.y, e.b.y))}" width="${L(Math.abs(e.b.x - e.a.x))}" height="${L(Math.abs(e.b.y - e.a.y))}" ${trazo(e.grosor)}/>`;
     case 'elipse':
       return `<ellipse cx="${X((e.a.x + e.b.x) / 2)}" cy="${Y((e.a.y + e.b.y) / 2)}" rx="${L(Math.abs(e.b.x - e.a.x) / 2)}" ry="${L(Math.abs(e.b.y - e.a.y) / 2)}" ${trazo(e.grosor)}/>`;
-    case 'texto': {
-      const lineas = lineasDe(e)
-        .map((linea, i) => {
-          const y = Y(e.pos.y - e.tam * (ASCENSO + i * INTERLINEADO));
-          return `<tspan x="${X(e.pos.x)}" y="${y}">${escaparXml(linea)}</tspan>`;
-        })
-        .join('');
-      return `<text font-family="${escaparXml(TIPOGRAFIA.texto)}" font-size="${L(e.tam)}" fill="${c}" xml:space="preserve">${lineas}</text>`;
+    case 'texto':
+      return lineasDe(e)
+        .map((linea, i) =>
+          matASvg(componerLinea(linea), e.pos.x, e.pos.y - e.tam * (ASCENSO + i * INTERLINEADO), e.tam, { X, Y, L }, c, TIPOGRAFIA.texto),
+        )
+        .join('\n');
+    case 'vector':
+      return vectorSvg(e, c, X, Y, L, ejesDe);
+    case 'ejes':
+      return ejesSvg(e, c, X, Y, L);
+  }
+}
+
+type Pt = { x: number; y: number };
+
+function flechaSvg(a: Pt, b: Pt, grosor: number, color: string, X: Conv, Y: Conv, L: Conv, opacidad = 1, raya = ''): string {
+  const g = geometriaPunta({ a, b, grosor });
+  const opLinea = opacidad < 1 ? ` stroke-opacity="${opacidad}"` : '';
+  const opRelleno = opacidad < 1 ? ` fill-opacity="${opacidad}"` : '';
+  return [
+    `<line x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(g.base.x)}" y2="${Y(g.base.y)}" stroke="${color}" stroke-width="${L(grosor)}" stroke-linecap="round"${opLinea}${raya}/>`,
+    `<polygon points="${X(g.cola.x)},${Y(g.cola.y)} ${X(g.izq.x)},${Y(g.izq.y)} ${X(g.der.x)},${Y(g.der.y)}" fill="${color}"${opRelleno}/>`,
+  ].join('\n');
+}
+
+function etiquetaSvg(a: AnclaEtiqueta | null, color: string, X: Conv, Y: Conv, L: Conv): string {
+  return a ? matASvg(a.caja, a.origen.x, a.origen.y, a.tam, { X, Y, L }, color, TIPOGRAFIA.texto) : '';
+}
+
+function vectorSvg(v: Vector, c: string, X: Conv, Y: Conv, L: Conv, ejesDe: (id: string) => Ejes | null): string {
+  const ejes = v.ref ? ejesDe(v.ref) : null;
+  const partes: string[] = [];
+  const raya = (a: number, b: number) => ` stroke-dasharray="${L(a)} ${L(b)}"`;
+  if (v.componentes && !v.fantasma) {
+    const g = geometriaComponentes(v, ejes);
+    for (const p of [g.d.puntaX, g.d.puntaY]) {
+      partes.push(`<line x1="${X(v.b.x)}" y1="${Y(v.b.y)}" x2="${X(p.x)}" y2="${Y(p.y)}" stroke="${c}" stroke-width="${L(v.grosor * 0.5)}" stroke-opacity="0.45"${raya(0.04, 0.06)}/>`);
+      partes.push(flechaSvg(v.a, p, v.grosor * 0.7, c, X, Y, L, 0.85, raya(0.12, 0.06)));
+    }
+    partes.push(etiquetaSvg(g.etiquetaX, c, X, Y, L), etiquetaSvg(g.etiquetaY, c, X, Y, L));
+  }
+  partes.push(flechaSvg(v.a, v.b, v.grosor, c, X, Y, L, v.fantasma ? 0.65 : 1, v.fantasma ? raya(0.1, 0.07) : ''));
+  if (v.angulo && !v.fantasma) {
+    const arco = arcoAngulo(v, ejes);
+    if (arco) {
+      const p0 = { x: arco.centro.x + arco.radio * Math.cos(arco.desde), y: arco.centro.y + arco.radio * Math.sin(arco.desde) };
+      const p1 = { x: arco.centro.x + arco.radio * Math.cos(arco.hasta), y: arco.centro.y + arco.radio * Math.sin(arco.hasta) };
+      const barrido = arco.hasta > arco.desde ? 0 : 1; // el SVG tiene y hacia abajo: el sentido se invierte
+      partes.push(`<path d="M${X(p0.x)} ${Y(p0.y)} A${L(arco.radio)} ${L(arco.radio)} 0 0 ${barrido} ${X(p1.x)} ${Y(p1.y)}" stroke="${c}" stroke-width="${L(v.grosor * 0.5)}" fill="none"/>`);
+      partes.push(etiquetaSvg(arco.etiqueta, c, X, Y, L));
     }
   }
+  partes.push(etiquetaSvg(anclaEtiquetaVector(v), c, X, Y, L));
+  return partes.filter((p) => p !== '').join('\n');
+}
+
+function ejesSvg(e: Ejes, c: string, X: Conv, Y: Conv, L: Conv): string {
+  const [x, y] = extremosEjes(e);
+  const a = anclasEjes(e);
+  return [
+    flechaSvg(x.neg, x.pos, e.grosor, c, X, Y, L),
+    flechaSvg(y.neg, y.pos, e.grosor, c, X, Y, L),
+    etiquetaSvg(a.x, c, X, Y, L),
+    etiquetaSvg(a.y, c, X, Y, L),
+  ].join('\n');
 }
 
 function trazoSvg(t: Trazo, color: string, X: Conv, Y: Conv, L: Conv): string {

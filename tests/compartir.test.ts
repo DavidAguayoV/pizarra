@@ -102,7 +102,7 @@ describe('trazo en construcción por lotes', () => {
     const l = p.lote(crearTrazo([5, 5, 0.5, 6, 6, 0.5], 'tinta', 0.02, false, 'b'), new Set());
     expect(l.desde).toBe(0);
     const f = crearForma('rect', { x: 0, y: 0 }, { x: 1, y: 1 }, 'tinta', 0.02, 'f');
-    expect(p.lote(f, new Set()).el).toEqual(f);
+    expect(p.lote(f, new Set()).els).toEqual([f]);
   });
 
   it('el borrador solo envía qué ids está borrando', () => {

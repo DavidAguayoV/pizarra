@@ -1,8 +1,11 @@
 import type { Camara, Vista } from '../core/camara';
 import { pantallaAMundo } from '../core/camara';
-import { colorDeTinta } from '../core/colores';
-import type { Caja2D, Elemento, Imagen, Trazo } from '../core/elementos';
-import { ASCENSO, cajaCacheada, cajasSeCruzan, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import { colorDeElemento } from '../core/colores';
+import type { Caja2D, Ejes, Elemento, Imagen, Trazo, Vector } from '../core/elementos';
+import { ASCENSO, cajaCacheada, cajasSeCruzan, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import type { AnclaEtiqueta } from '../physics/vectores';
+import { dibujarMat, componerLinea } from '../core/matematica';
+import { anclaEtiquetaVector, anclasEjes, arcoAngulo, geometriaComponentes } from '../physics/vectores';
 import type { PaletaTema } from '../ui/tokens';
 import { TIPOGRAFIA } from '../ui/tokens';
 import { factorPresion } from './herramientas';
@@ -61,6 +64,8 @@ export interface OpcionesDibujo {
   escala: number;
   /** Ids que no se dibujan (borrador en vivo). */
   ocultos?: ReadonlySet<string>;
+  /** Busca unos ejes por id (sistema de referencia de un vector). */
+  ejesDe?: (id: string) => Ejes | null;
 }
 
 /** Fija la transformación mundo → píxeles del canvas (incluye devicePixelRatio). */
@@ -82,10 +87,12 @@ export function dibujarElementos(
   op: OpcionesDibujo,
   visible?: Caja2D,
 ): void {
+  const indice = op.ejesDe ? null : new Map(elementos.filter((e): e is Ejes => e.tipo === 'ejes').map((e) => [e.id, e]));
+  const conEjes: OpcionesDibujo = indice ? { ...op, ejesDe: (id) => indice.get(id) ?? null } : op;
   for (const e of elementos) {
     if (op.ocultos?.has(e.id)) continue;
     if (visible && !cajasSeCruzan(cajaCacheada(e), visible)) continue;
-    dibujarElemento(ctx, e, op);
+    dibujarElemento(ctx, e, conEjes);
   }
 }
 
@@ -98,7 +105,7 @@ export function dibujarElemento(ctx: CanvasRenderingContext2D, e: Elemento, op: 
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   if (e.tipo !== 'imagen') {
-    const col = colorDeTinta(op.paleta, e.color);
+    const col = colorDeElemento(op.paleta, e);
     ctx.strokeStyle = col;
     ctx.fillStyle = col;
   }
@@ -144,18 +151,18 @@ export function dibujarElemento(ctx: CanvasRenderingContext2D, e: Elemento, op: 
       break;
     }
     case 'texto': {
-      // El mundo tiene y hacia arriba: se voltea de nuevo para que el texto salga derecho.
-      ctx.font = `${e.tam}px ${TIPOGRAFIA.texto}`;
-      ctx.textBaseline = 'alphabetic';
+      // Texto y matemática ($...$) con las mismas medidas en pantalla, PNG y SVG.
       lineasDe(e).forEach((linea, i) => {
-        ctx.save();
-        ctx.translate(e.pos.x, e.pos.y - e.tam * (ASCENSO + i * INTERLINEADO));
-        ctx.scale(1, -1);
-        ctx.fillText(linea, 0, 0);
-        ctx.restore();
+        dibujarMat(ctx, componerLinea(linea), e.pos.x, e.pos.y - e.tam * (ASCENSO + i * INTERLINEADO), e.tam, TIPOGRAFIA.texto);
       });
       break;
     }
+    case 'vector':
+      dibujarVector(ctx, e, op);
+      break;
+    case 'ejes':
+      dibujarEjes(ctx, e, op);
+      break;
     case 'imagen': {
       const img = op.imagenes.obtener(e);
       if (img) {
@@ -249,4 +256,90 @@ export function dibujarGrilla(
     const py = v.alto / 2 - (y - c.cy) * c.escala;
     linea(0, py, v.ancho, py, y % 5 === 0 ? colores.fuerte : colores.grilla, y === 0 ? 2 : 1);
   }
+}
+
+const FLECHA_MIN = 1e-4;
+
+function flecha(ctx: CanvasRenderingContext2D, a: { x: number; y: number }, b: { x: number; y: number }, grosor: number, op: OpcionesDibujo): void {
+  if (Math.hypot(b.x - a.x, b.y - a.y) < FLECHA_MIN) return;
+  const g = geometriaPunta({ a, b, grosor });
+  ctx.lineWidth = Math.max(grosor, 1 / op.escala);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(g.base.x, g.base.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(g.cola.x, g.cola.y);
+  ctx.lineTo(g.izq.x, g.izq.y);
+  ctx.lineTo(g.der.x, g.der.y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function etiqueta(ctx: CanvasRenderingContext2D, a: AnclaEtiqueta | null): void {
+  if (a) dibujarMat(ctx, a.caja, a.origen.x, a.origen.y, a.tam, TIPOGRAFIA.texto);
+}
+
+function dibujarVector(ctx: CanvasRenderingContext2D, v: Vector, op: OpcionesDibujo): void {
+  const ejes = v.ref ? (op.ejesDe?.(v.ref) ?? null) : null;
+  if (v.fantasma) {
+    ctx.globalAlpha = 0.65;
+    ctx.setLineDash([0.1, 0.07]);
+  }
+  if (v.componentes && !v.fantasma) {
+    const c = geometriaComponentes(v, ejes);
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = Math.max(v.grosor * 0.5, 1 / op.escala);
+    ctx.setLineDash([0.04, 0.06]);
+    for (const p of [c.d.puntaX, c.d.puntaY]) {
+      ctx.beginPath();
+      ctx.moveTo(v.b.x, v.b.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.setLineDash([0.12, 0.06]);
+    flecha(ctx, v.a, c.d.puntaX, v.grosor * 0.7, op);
+    flecha(ctx, v.a, c.d.puntaY, v.grosor * 0.7, op);
+    ctx.restore();
+    etiqueta(ctx, c.etiquetaX);
+    etiqueta(ctx, c.etiquetaY);
+  }
+  flecha(ctx, v.a, v.b, v.grosor, op);
+  ctx.setLineDash([]);
+  if (v.angulo && !v.fantasma) {
+    const arco = arcoAngulo(v, ejes);
+    if (arco) {
+      ctx.lineWidth = Math.max(v.grosor * 0.5, 1 / op.escala);
+      ctx.beginPath();
+      ctx.arc(arco.centro.x, arco.centro.y, arco.radio, arco.desde, arco.hasta, arco.hasta < arco.desde);
+      ctx.stroke();
+      etiqueta(ctx, arco.etiqueta);
+    }
+  }
+  etiqueta(ctx, anclaEtiquetaVector(v));
+}
+
+function dibujarEjes(ctx: CanvasRenderingContext2D, e: Ejes, op: OpcionesDibujo): void {
+  const [x, y] = extremosEjes(e);
+  ctx.lineWidth = Math.max(e.grosor, 1 / op.escala);
+  for (const eje of [x, y]) {
+    const g = geometriaPunta({ a: eje.neg, b: eje.pos, grosor: e.grosor });
+    ctx.beginPath();
+    ctx.moveTo(eje.neg.x, eje.neg.y);
+    ctx.lineTo(g.base.x, g.base.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(g.cola.x, g.cola.y);
+    ctx.lineTo(g.izq.x, g.izq.y);
+    ctx.lineTo(g.der.x, g.der.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  const a = anclasEjes(e);
+  etiqueta(ctx, a.x);
+  etiqueta(ctx, a.y);
 }

@@ -1,7 +1,9 @@
 import type { Punto } from '../core/camara';
-import { colorDeTinta, PALETA_EXPORTACION } from '../core/colores';
-import type { ColorTinta, Elemento, Imagen, Linea, Texto, Trazo } from '../core/elementos';
-import { COLORES_RESALTADOR, COLORES_TINTA, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import { claveColor, colorDeTinta, PALETA_EXPORTACION } from '../core/colores';
+import type { ColorTinta, Ejes, Elemento, Imagen, Linea, Texto, Trazo, Vector } from '../core/elementos';
+import { COLORES_RESALTADOR, COLORES_TINTA, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import type { AnclaEtiqueta } from '../physics/vectores';
+import { aGrados, anclaEtiquetaVector, anclasEjes, arcoAngulo, geometriaComponentes } from '../physics/vectores';
 import { OPACIDAD_RESALTADOR } from '../ink/dibujo';
 import { grosorMedio } from '../ink/herramientas';
 import { bezierPorPuntos, simplificarRdp } from '../ink/suavizado';
@@ -50,6 +52,8 @@ const NOMBRES_CAPA: Record<Elemento['tipo'], string> = {
   elipse: 'formas',
   texto: 'texto',
   imagen: 'imágenes',
+  ejes: 'sistema de referencia',
+  vector: 'vectores',
 };
 
 export function nombreColor(c: ColorTinta): string {
@@ -88,6 +92,8 @@ export function aTikz(elementos: readonly Elemento[], op: OpcionesTikz = {}): Re
     escala = op.cmPorMetro ?? (op.anchoCm ?? ANCHO_CM_POR_DEFECTO) / anchoM;
     const P = (p: Punto): string => `(${num((p.x - caja.x0) * escala)},${num((p.y - caja.y0) * escala)})`;
     const grosorPt = (g: number): string => `line width=${num(Math.max(g * escala * PT_POR_CM, 0.2), 2)}pt`;
+    const ejes = new Map(elementos.filter((e): e is Ejes => e.tipo === 'ejes').map((e) => [e.id, e]));
+    const ejesDe = (id: string): Ejes | null => ejes.get(id) ?? null;
     let capa = '';
     for (const e of elementos) {
       const nombre = NOMBRES_CAPA[e.tipo];
@@ -95,13 +101,13 @@ export function aTikz(elementos: readonly Elemento[], op: OpcionesTikz = {}): Re
         cuerpo.push(`  % --- ${nombre} ---`);
         capa = nombre;
       }
-      cuerpo.push(...elementoTikz(e, escala, P, grosorPt, imagenes));
+      cuerpo.push(...elementoTikz(e, escala, P, grosorPt, imagenes, ejesDe));
     }
   } else {
     cuerpo.push('  % (escena vacía)');
   }
 
-  const usados = [...COLORES_TINTA, ...COLORES_RESALTADOR].filter((c) => elementos.some((e) => e.tipo !== 'imagen' && e.color === c));
+  const usados = [...COLORES_TINTA, ...COLORES_RESALTADOR].filter((c) => elementos.some((e) => claveColor(e) === c));
   const colores = usados.map(
     (c) => `  \\definecolor{${nombreColor(c)}}{HTML}{${colorDeTinta(paleta, c).slice(1).toUpperCase()}}`,
   );
@@ -138,6 +144,7 @@ function elementoTikz(
   P: (p: Punto) => string,
   grosorPt: (g: number) => string,
   imagenes: ImagenExportada[],
+  ejesDe: (id: string) => Ejes | null,
 ): string[] {
   switch (e.tipo) {
     case 'trazo':
@@ -161,6 +168,10 @@ function elementoTikz(
       return [textoTikz(e, escala, P)];
     case 'imagen':
       return [imagenTikz(e, escala, P, imagenes)];
+    case 'vector':
+      return vectorTikz(e, escala, P, grosorPt, ejesDe);
+    case 'ejes':
+      return ejesTikz(e, escala, P, grosorPt);
   }
 }
 
@@ -204,4 +215,71 @@ function imagenTikz(i: Imagen, escala: number, P: (p: Punto) => string, imagenes
   const nombre = `pizarra-imagen-${imagenes.length + 1}.${i.src.startsWith('data:image/png') ? 'png' : 'jpg'}`;
   imagenes.push({ nombre, src: i.src });
   return `  \\node[anchor=north west, inner sep=0pt] at ${P(i.pos)} {\\includegraphics[width=${num(i.ancho * escala)}cm]{${nombre}}};`;
+}
+
+type Pt = { x: number; y: number };
+const PT_CM = PT_POR_CM;
+
+function nodoEtiqueta(a: AnclaEtiqueta | null, color: string, escala: number, P: (p: Punto) => string): string[] {
+  if (!a) return [];
+  const pt = a.tam * escala * PT_CM;
+  const fuente = `font={\\fontsize{${num(pt, 2)}}{${num(pt * INTERLINEADO, 2)}}\\selectfont}`;
+  return [`  \\node[text=${color}, inner sep=0pt, ${fuente}] at ${P(a.centro)} {$${a.fuente}$};`];
+}
+
+/** Cuerpo de la flecha hasta la base de la punta y la punta como triángulo relleno. */
+function flechaDe(a: Pt, b: Pt, grosor: number, opciones: string, color: string, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
+  if (Math.hypot(b.x - a.x, b.y - a.y) < 1e-4) return [];
+  const g = geometriaPunta({ a, b, grosor });
+  const relleno = /opacity=([\d.]+)/.exec(opciones);
+  return [
+    `  \\draw[${color}, ${grosorPt(grosor)}, line cap=round${opciones}] ${P(a)} -- ${P(g.base)};`,
+    `  \\fill[${color}${relleno ? `, opacity=${relleno[1]}` : ''}] ${P(g.cola)} -- ${P(g.izq)} -- ${P(g.der)} -- cycle;`,
+  ];
+}
+
+function vectorTikz(
+  v: Vector,
+  escala: number,
+  P: (p: Punto) => string,
+  grosorPt: (g: number) => string,
+  ejesDe: (id: string) => Ejes | null,
+): string[] {
+  const clave = claveColor(v);
+  const col = nombreColor(clave ?? 'tinta');
+  const ejes = v.ref ? ejesDe(v.ref) : null;
+  const out: string[] = [];
+  if (v.componentes && !v.fantasma) {
+    const g = geometriaComponentes(v, ejes);
+    for (const p of [g.d.puntaX, g.d.puntaY]) {
+      out.push(`  \\draw[${col}, ${grosorPt(v.grosor * 0.5)}, dotted, opacity=0.45] ${P(v.b)} -- ${P(p)};`);
+      out.push(...flechaDe(v.a, p, v.grosor * 0.7, ', dash pattern=on 3.5pt off 2pt, opacity=0.85', col, P, grosorPt));
+    }
+    out.push(...nodoEtiqueta(g.etiquetaX, col, escala, P), ...nodoEtiqueta(g.etiquetaY, col, escala, P));
+  }
+  out.push(...flechaDe(v.a, v.b, v.grosor, v.fantasma ? ', dash pattern=on 3pt off 2pt, opacity=0.65' : '', col, P, grosorPt));
+  if (v.angulo && !v.fantasma) {
+    const arco = arcoAngulo(v, ejes);
+    if (arco) {
+      const inicio = { x: arco.centro.x + arco.radio * Math.cos(arco.desde), y: arco.centro.y + arco.radio * Math.sin(arco.desde) };
+      out.push(
+        `  \\draw[${col}, ${grosorPt(v.grosor * 0.5)}] ${P(inicio)} arc[start angle=${num(aGrados(arco.desde), 2)}, end angle=${num(aGrados(arco.hasta), 2)}, radius=${num(arco.radio * escala)}cm];`,
+      );
+      out.push(...nodoEtiqueta(arco.etiqueta, col, escala, P));
+    }
+  }
+  out.push(...nodoEtiqueta(anclaEtiquetaVector(v), col, escala, P));
+  return out;
+}
+
+function ejesTikz(e: Ejes, escala: number, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
+  const col = nombreColor(e.color);
+  const [x, y] = extremosEjes(e);
+  const a = anclasEjes(e);
+  return [
+    ...flechaDe(x.neg, x.pos, e.grosor, '', col, P, grosorPt),
+    ...flechaDe(y.neg, y.pos, e.grosor, '', col, P, grosorPt),
+    ...nodoEtiqueta(a.x, col, escala, P),
+    ...nodoEtiqueta(a.y, col, escala, P),
+  ];
 }

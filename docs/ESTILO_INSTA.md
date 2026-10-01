@@ -67,6 +67,15 @@ si difiere del código, manda el código del proyecto Insta).
 `@problemasfisicauai`, blanco al 55 %, esquina inferior izquierda (corto) o derecha (largo).
 En la pizarra solo aplica a las exportaciones en formato de redes (Etapa 8).
 
+## Vectores en la pizarra (Etapa 3)
+
+El color de un vector sale de su **rol**, con la misma asignación de los videos (familias de la tabla de arriba), y cada
+rol trae una letra y una unidad por defecto: peso `m\vec{g}` (N), normal `\vec{N}`, tensión `\vec{T}`, roce `\vec{f}`,
+fuerza aplicada `\vec{F}`, velocidad `\vec{v}` (m/s), aceleración `\vec{a}` (m/s²), momento `\vec{p}`,
+resultante `\vec{R}`. El color **no es lo único** que distingue un vector: lleva su letra. Normal y tensión comparten color
+(como en los videos); la etiqueta las distingue. Los videos no definen un estilo de trazo por fuerza, así que no se
+inventó ninguno: queda como decisión pendiente (punto 4 de la lista siguiente).
+
 ## Cómo se adaptó al tema CLARO
 
 La paleta v2 está pensada para fondo oscuro: el ámbar `#FFC53D` sobre blanco da 1,5:1 (ilegible).

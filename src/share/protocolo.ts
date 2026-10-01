@@ -67,7 +67,8 @@ export interface BaseTrazo {
 export interface LoteVivo {
   id: string;
   ocultos: string[];
-  el?: Elemento;
+  /** Elementos enteros (formas, o varios elementos que se arrastran a la vez). */
+  els?: Elemento[];
   base?: BaseTrazo;
   desde?: number;
   pts?: number[];

@@ -2,7 +2,7 @@ import type { Punto } from '../core/camara';
 import { camaraInicial } from '../core/camara';
 import { OPCIONES_COLOR, OPCIONES_RESALTADOR, colorDeTinta } from '../core/colores';
 import type { ColorTinta, Elemento } from '../core/elementos';
-import { escenaInicial, OP_AGREGAR, OP_BORRAR, reductoresEscena } from '../core/escena';
+import { escenaInicial, OP_AGREGAR, OP_BORRAR, OP_LOTE, reductoresEscena } from '../core/escena';
 import type { Escena } from '../core/escena';
 import { Store } from '../core/store';
 import type { Op } from '../core/ops';
@@ -24,14 +24,19 @@ import {
   RANGO_TINTA,
   tamTextoDeGrosor,
 } from '../ink/herramientas';
+import type { RolVector } from '../physics/vectores';
 import { elegirTransport } from '../share';
 import { crearCompartir } from './compartir';
 import type { Transmision } from './compartir';
 import { cargarImagen, primeraImagen } from './imagenes';
 import { Lienzo } from './lienzo';
+import { PanelPropiedades } from './propiedades';
 import { PALETAS } from './tokens';
 
 const CURSORES: Record<Herramienta, string> = {
+  seleccionar: 'default',
+  ejes: 'crosshair',
+  vector: 'crosshair',
   lapiz: 'crosshair',
   resaltador: 'crosshair',
   borrador: 'cell',
@@ -73,6 +78,8 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   if (opciones.ops) store.cargar(opciones.ops);
 
   let herramienta: Herramienta = 'lapiz';
+  let seleccionIds: string[] = [];
+  let rolVector: RolVector = 'aplicada';
   let colorTinta: ColorTinta = 'tinta';
   let colorLuz: ColorTinta = 'luzAmarillo';
   /** Posición (0 a 100) del deslizador de grosor, una por tipo de herramienta. */
@@ -161,6 +168,20 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     entradaImagen.value = '';
     if (f) void colocarImagen(f);
   });
+  const entradaEscala = document.createElement('input');
+  entradaEscala.type = 'number';
+  entradaEscala.min = '5';
+  entradaEscala.max = '5000';
+  entradaEscala.step = '10';
+  entradaEscala.className = 'entrada-escala';
+  entradaEscala.setAttribute('aria-label', 'Escala de la vista en píxeles por metro');
+  entradaEscala.addEventListener('change', () => {
+    const v = Number(entradaEscala.value);
+    if (Number.isFinite(v)) L.ponerCamara({ ...L.camara, escala: Math.min(5000, Math.max(5, v)) });
+  });
+  const etiquetaEscala = document.createElement('label');
+  etiquetaEscala.className = 'etiqueta-escala';
+  etiquetaEscala.append('Escala ', entradaEscala, ' px/m');
   const bAbrir = boton('Abrir', 'Abrir un proyecto (.json)', () => entradaArchivo.click());
   const bImagen = boton('Imagen', 'Insertar una imagen (también se puede pegar o arrastrar)', () => entradaImagen.click());
 
@@ -204,16 +225,51 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   );
   const fila2 = document.createElement('div');
   fila2.className = 'fila';
-  fila2.append(bDeshacer, bRehacer, bVista, bImagen, bAbrir, menu.elemento, compartir.boton, bTema, estado, aviso, entradaArchivo, entradaImagen);
+  fila2.append(bDeshacer, bRehacer, bVista, bImagen, bAbrir, menu.elemento, compartir.boton, bTema, etiquetaEscala, estado, aviso, entradaArchivo, entradaImagen);
   barra.append(fila1, fila2);
 
   const lienzo = document.createElement('canvas');
   lienzo.className = 'lienzo';
   lienzo.setAttribute('aria-label', 'Lienzo de la pizarra');
-  raiz.append(barra, lienzo);
+  const zona = document.createElement('div');
+  zona.className = 'zona-lienzo';
+  raiz.append(barra, zona);
   // --- Lienzo (cámara, caché de dibujo, elemento en construcción) --------------------------
   const L = new Lienzo(lienzo, () => store.estado.elementos, { alCuadro: () => { actualizarBarra(); publicarVista(); } });
   const ponerCamara = L.ponerCamara.bind(L);
+  zona.append(lienzo);
+
+  // --- Selección y propiedades -----------------------------------------------------------------
+  const seleccionEls = (): Elemento[] => store.estado.elementos.filter((e) => seleccionIds.includes(e.id));
+  const refActual = (): string | null => [...store.estado.elementos].reverse().find((e) => e.tipo === 'ejes')?.id ?? null;
+  const panel = new PanelPropiedades({
+    elementos: () => store.estado.elementos,
+    seleccion: seleccionEls,
+    seleccionar: (ids) => seleccionar(ids),
+    editar: (c) => store.emitir(OP_LOTE, c),
+    herramienta: () => herramienta,
+    rolVector: () => rolVector,
+    ponerRolVector: (r) => {
+      rolVector = r;
+      panel.actualizar();
+    },
+    refActual,
+    centroVista: () => ({ x: L.camara.cx, y: L.camara.cy }),
+    avisar: (t) => avisar(t),
+  });
+  zona.append(panel.elemento);
+
+  function seleccionar(ids: readonly string[]): void {
+    seleccionIds = [...ids];
+    L.fijarSeleccion(seleccionEls());
+    panel.actualizar();
+  }
+  function refrescarSeleccion(): void {
+    const existentes = new Set(store.estado.elementos.map((e) => e.id));
+    seleccionIds = seleccionIds.filter((i) => existentes.has(i));
+    L.fijarSeleccion(seleccionEls());
+    panel.actualizar();
+  }
 
   // --- Barra --------------------------------------------------------------------
   function actualizarBarra(): void {
@@ -230,9 +286,11 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       b.style.setProperty('--muestra', colorDeTinta(paleta, k));
       b.setAttribute('aria-pressed', String(k === colorLuz));
     }
-    grupoTinta.hidden = esLuz();
+    const sinPincel = ['seleccionar', 'mano', 'borrador', 'vector', 'ejes'].includes(herramienta);
+    grupoTinta.hidden = esLuz() || sinPincel;
     grupoLuz.hidden = !esLuz();
-    grupoGrosor.hidden = herramienta === 'mano' || herramienta === 'borrador';
+    grupoGrosor.hidden = sinPincel;
+    if (document.activeElement !== entradaEscala) entradaEscala.value = String(Math.round(L.camara.escala));
     deslizador.value = String(esLuz() ? posLuz : posTinta);
     const g = grosorActual();
     const alto = Math.min(30, Math.max(1.5, g * L.camara.escala));
@@ -248,7 +306,9 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
 
   function elegirHerramienta(h: Herramienta): void {
     herramienta = h;
+    if (h !== 'seleccionar' && seleccionIds.length > 0) seleccionar([]);
     actualizarBarra();
+    panel.actualizar();
   }
 
   let temporizadorAviso = 0;
@@ -271,10 +331,18 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     previsualizar(v, o) {
       L.fijarVivo(v, o);
       transmision?.difusor.vivo(v, o);
+      // Al arrastrar una selección, el recuadro acompaña a lo que se mueve.
+      const moviendo = herramienta === 'seleccionar' && v !== null && (Array.isArray(v) ? v.length > 0 : true);
+      L.fijarSeleccion(moviendo ? (Array.isArray(v) ? (v as Elemento[]) : [v as Elemento]) : seleccionEls());
     },
     confirmar: (e) => store.emitir(OP_AGREGAR, e),
     borrar: (ids) => store.emitir(OP_BORRAR, { ids }),
     pedirTexto: (p) => editarTexto(p),
+    rolVector: () => rolVector,
+    refActual,
+    seleccion: seleccionEls,
+    seleccionar,
+    editar: (c) => store.emitir(OP_LOTE, c),
   });
 
   // --- Texto ----------------------------------------------------------------------
@@ -461,7 +529,12 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     if (esCampoDeTexto(e.target)) return;
     const k = e.key.toLowerCase();
     const mod = e.ctrlKey || e.metaKey;
-    if (mod && k === 'z') {
+    if ((k === 'delete' || k === 'backspace') && seleccionIds.length > 0) {
+      e.preventDefault();
+      store.emitir(OP_LOTE, { borrar: [...seleccionIds] });
+    } else if (k === 'escape' && seleccionIds.length > 0) {
+      seleccionar([]);
+    } else if (mod && k === 'z') {
       e.preventDefault();
       if (e.shiftKey) store.rehacer();
       else store.deshacer();
@@ -489,5 +562,8 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     }
   });
 
-  store.suscribir(() => L.invalidar());
+  store.suscribir(() => {
+    L.invalidar();
+    refrescarSeleccion();
+  });
 }

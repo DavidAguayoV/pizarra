@@ -3,7 +3,7 @@ import type { Op } from '../core/ops';
 import { PERIODO_LOTE_MS, PERIODO_VISTA_MS, SNAPSHOT_CADA } from './protocolo';
 import type { VistaMsg } from './protocolo';
 import type { Emisor } from './transport';
-import { ProductorVivo } from './vivo';
+import { comoLista, ProductorVivo } from './vivo';
 
 /** Lo que el difusor necesita de la pizarra del profesor. */
 export interface FuenteOps {
@@ -24,7 +24,7 @@ export class Difusor {
   private readonly baja: () => void;
   private readonly productor = new ProductorVivo();
 
-  private vivoPendiente: { el: Elemento | null; ocultos: ReadonlySet<string> } | null = null;
+  private vivoPendiente: { els: readonly Elemento[]; ocultos: ReadonlySet<string> } | null = null;
   private temporizadorVivo: ReturnType<typeof setTimeout> | null = null;
   private ultimoEnvioVivo = -Infinity;
   private hayVivoEnSala = false;
@@ -71,8 +71,9 @@ export class Difusor {
   }
 
   /** El elemento en construcción cambió (null = ya no hay). Se agrupa en lotes. */
-  vivo(el: Elemento | null, ocultos: ReadonlySet<string>): void {
-    if (!el && ocultos.size === 0) {
+  vivo(vivos: Elemento | readonly Elemento[] | null, ocultos: ReadonlySet<string>): void {
+    const els = comoLista(vivos);
+    if (els.length === 0 && ocultos.size === 0) {
       this.cancelarTemporizador();
       this.vivoPendiente = null;
       this.productor.reiniciar();
@@ -82,7 +83,7 @@ export class Difusor {
       }
       return;
     }
-    this.vivoPendiente = { el, ocultos: new Set(ocultos) };
+    this.vivoPendiente = { els, ocultos: new Set(ocultos) };
     const espera = this.ultimoEnvioVivo + PERIODO_LOTE_MS - this.ahora();
     if (espera <= 0) this.enviarVivo();
     else if (!this.temporizadorVivo) this.temporizadorVivo = setTimeout(() => this.enviarVivo(), espera);
@@ -95,7 +96,7 @@ export class Difusor {
     this.vivoPendiente = null;
     this.ultimoEnvioVivo = this.ahora();
     this.hayVivoEnSala = true;
-    this.emisor.publicarVivo(this.productor.lote(p.el, p.ocultos));
+    this.emisor.publicarVivo(this.productor.lote(p.els, p.ocultos));
   }
 
   private cancelarTemporizador(): void {

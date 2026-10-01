@@ -1,4 +1,6 @@
+import type { RolFisico } from '../ui/tokens';
 import type { Punto } from './camara';
+import { componerLinea } from './matematica';
 
 /**
  * Elementos de la escena. Todo en coordenadas del mundo (metros, y hacia arriba):
@@ -64,7 +66,48 @@ export interface Imagen {
   src: string;
 }
 
-export type Elemento = Trazo | Linea | Caja | Texto | Imagen;
+/** Sistema de referencia: dos ejes perpendiculares, rotable (para planos inclinados). */
+export interface Ejes extends Base {
+  tipo: 'ejes';
+  origen: Punto;
+  /** Ángulo del eje x respecto del horizontal, en radianes (antihorario). */
+  angulo: number;
+  /** Largo de cada semieje positivo, en metros. */
+  largo: number;
+  grosor: number;
+  etiquetaX: string;
+  etiquetaY: string;
+}
+
+/**
+ * Vector físico. La geometría (a → b) está en metros de pizarra; el valor físico es
+ * `largo × porMetro` (por ejemplo, 10 N por cada metro de flecha). El color sale del rol.
+ */
+export interface Vector {
+  id: string;
+  tipo: 'vector';
+  rol: RolFisico;
+  a: Punto;
+  b: Punto;
+  grosor: number;
+  /** Etiqueta en LaTeX (sin los `$`), por ejemplo `\vec{N}`. */
+  etiqueta: string;
+  unidad: string;
+  /** Unidades físicas por metro de flecha. */
+  porMetro: number;
+  mostrarValor: boolean;
+  /** Dibuja las componentes respecto de `ref`. */
+  componentes: boolean;
+  /** Marca el ángulo entre el eje x de `ref` y el vector. */
+  angulo: boolean;
+  etiquetaAngulo: string;
+  /** Id de unos ejes (sistema de referencia); `null` = los ejes de la pizarra (horizontal y vertical). */
+  ref: string | null;
+  /** Copia punteada para el polígono de suma (punta con cola). */
+  fantasma: boolean;
+}
+
+export type Elemento = Trazo | Linea | Caja | Texto | Imagen | Ejes | Vector;
 
 export interface Caja2D {
   x0: number;
@@ -85,8 +128,8 @@ export function lineasDe(t: Texto): string[] {
 
 export function dimensionesTexto(t: Texto): { ancho: number; alto: number } {
   const lineas = lineasDe(t);
-  const maxCar = Math.max(1, ...lineas.map((l) => l.length));
-  return { ancho: maxCar * ANCHO_CARACTER * t.tam, alto: lineas.length * INTERLINEADO * t.tam };
+  const ancho = Math.max(1 * ANCHO_CARACTER, ...lineas.map((l) => componerLinea(l).ancho));
+  return { ancho: ancho * t.tam, alto: lineas.length * INTERLINEADO * t.tam };
 }
 
 let contador = 0;
@@ -122,7 +165,26 @@ export function cajaDe(e: Elemento): Caja2D {
     }
     case 'imagen':
       return { x0: e.pos.x, y0: e.pos.y - e.alto, x1: e.pos.x + e.ancho, y1: e.pos.y };
+    case 'ejes': {
+      const [px, py] = extremosEjes(e);
+      return envolver([e.origen, px.pos, px.neg, py.pos, py.neg], 0.35);
+    }
+    case 'vector': {
+      const g = Math.max(0.09, e.grosor * 4.5);
+      // Margen amplio: caben la etiqueta, las componentes y el arco, que se dibujan alrededor.
+      return envolver([e.a, e.b], g + 0.45 + (e.componentes || e.angulo ? 0.3 : 0));
+    }
   }
+}
+
+/** Extremos de los dos ejes (positivo y negativo), en metros. */
+export function extremosEjes(e: Ejes): [{ pos: Punto; neg: Punto }, { pos: Punto; neg: Punto }] {
+  const c = Math.cos(e.angulo);
+  const s = Math.sin(e.angulo);
+  const neg = e.largo * 0.25;
+  const ejeX = { pos: { x: e.origen.x + c * e.largo, y: e.origen.y + s * e.largo }, neg: { x: e.origen.x - c * neg, y: e.origen.y - s * neg } };
+  const ejeY = { pos: { x: e.origen.x - s * e.largo, y: e.origen.y + c * e.largo }, neg: { x: e.origen.x + s * neg, y: e.origen.y - c * neg } };
+  return [ejeX, ejeY];
 }
 
 function envolver(pts: Punto[], margen: number): Caja2D {
@@ -171,7 +233,7 @@ export function largoPunta(grosor: number): number {
 }
 
 /** Vértices del triángulo de la punta (en `b`) y el punto donde termina el cuerpo de la línea. */
-export function geometriaPunta(l: Linea): { cola: Punto; izq: Punto; der: Punto; base: Punto } {
+export function geometriaPunta(l: { a: Punto; b: Punto; grosor: number }): { cola: Punto; izq: Punto; der: Punto; base: Punto } {
   const dx = l.b.x - l.a.x;
   const dy = l.b.y - l.a.y;
   const largo = Math.hypot(dx, dy) || 1;
@@ -238,5 +300,40 @@ export function tocaElemento(e: Elemento, p: Punto, radio: number): boolean {
       const c = cajaDe(e);
       return p.x >= c.x0 - radio && p.x <= c.x1 + radio && p.y >= c.y0 - radio && p.y <= c.y1 + radio;
     }
+    case 'vector':
+      return distSegmento(p, e.a, e.b) <= radio + e.grosor / 2 + 0.01;
+    case 'ejes': {
+      const [x, y] = extremosEjes(e);
+      const r = radio + e.grosor / 2 + 0.01;
+      return distSegmento(p, x.neg, x.pos) <= r || distSegmento(p, y.neg, y.pos) <= r;
+    }
   }
 }
+
+/** Mueve un elemento (dx, dy) metros. Devuelve uno nuevo: los elementos son inmutables. */
+export function trasladar<T extends Elemento>(e: T, dx: number, dy: number): T {
+  const mv = (p: Punto): Punto => ({ x: redondear4(p.x + dx), y: redondear4(p.y + dy) });
+  switch (e.tipo) {
+    case 'trazo': {
+      const puntos = e.puntos.slice();
+      for (let i = 0; i + 1 < puntos.length; i += 3) {
+        puntos[i] = redondear4(puntos[i]! + dx);
+        puntos[i + 1] = redondear4(puntos[i + 1]! + dy);
+      }
+      return { ...e, puntos };
+    }
+    case 'linea':
+    case 'flecha':
+    case 'rect':
+    case 'elipse':
+    case 'vector':
+      return { ...e, a: mv(e.a), b: mv(e.b) };
+    case 'texto':
+    case 'imagen':
+      return { ...e, pos: mv(e.pos) };
+    case 'ejes':
+      return { ...e, origen: mv(e.origen) };
+  }
+}
+
+const redondear4 = (n: number): number => Math.round(n * 1e4) / 1e4;

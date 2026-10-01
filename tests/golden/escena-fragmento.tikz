@@ -1,6 +1,6 @@
 % Figura generada por Pizarra de Física (https://davidaguayov.github.io/pizarra/)
 % Requiere \usepackage{tikz} y \usepackage{graphicx}
-% Escala: 2.95 cm por metro de pizarra
+% Escala: 2.22 cm por metro de pizarra
 \begin{tikzpicture}[x=1cm, y=1cm]
   % --- colores ---
   \definecolor{pztinta}{HTML}{0B1320}
@@ -11,21 +11,47 @@
   \definecolor{pzacento}{HTML}{8A5A00}
   \definecolor{pzneutro}{HTML}{4A5A70}
   % --- trazos libres ---
-  \draw[pzcontacto, line width=2.18pt, line cap=round, line join=round] (0.148,4.43)
-    .. controls (0.271,4.529) and (0.64,4.849) .. (0.886,5.021)
-    .. controls (1.132,5.193) and (1.378,5.365) .. (1.624,5.464)
-    .. controls (1.871,5.562) and (2.117,5.636) .. (2.363,5.612)
-    .. controls (2.609,5.587) and (2.855,5.464) .. (3.101,5.316)
-    .. controls (3.347,5.169) and (3.716,4.824) .. (3.84,4.726);
-  \draw[pzacento, line width=8.4pt, opacity=0.5, line cap=round, line join=round] (0.148,3.544) -- (4.578,3.544);
+  \draw[pzcontacto, line width=1.64pt, line cap=round, line join=round] (3.101,10.611)
+    .. controls (3.194,10.685) and (3.471,10.925) .. (3.656,11.054)
+    .. controls (3.84,11.184) and (4.025,11.313) .. (4.21,11.387)
+    .. controls (4.395,11.461) and (4.579,11.516) .. (4.764,11.498)
+    .. controls (4.949,11.479) and (5.134,11.387) .. (5.319,11.276)
+    .. controls (5.503,11.165) and (5.781,10.906) .. (5.873,10.833);
+  \draw[pzacento, line width=6.31pt, opacity=0.5, line cap=round, line join=round] (3.101,9.946) -- (6.427,9.946);
   % --- formas ---
-  \draw[pztinta, line width=2.18pt, line cap=round] (0.148,2.658) -- (6.055,2.658);
-  \draw[pzcampo, line width=2.18pt, line cap=round] (7.531,7.384) -- (7.531,4.776);
-  \fill[pzcampo] (7.531,4.43) -- (7.677,4.776) -- (7.386,4.776) -- cycle;
-  \draw[pzneutro, line width=1.01pt, line join=round] (6.645,3.84) rectangle (10.19,6.202);
-  \draw[pzmovimiento, line width=2.18pt] (10.485,8.565) ellipse (1.477 and 1.181);
+  \draw[pztinta, line width=1.64pt, line cap=round] (3.101,9.28) -- (7.536,9.28);
+  \draw[pzcampo, line width=1.64pt, line cap=round] (8.645,12.828) -- (8.645,10.87);
+  \fill[pzcampo] (8.645,10.611) -- (8.754,10.87) -- (8.536,10.87) -- cycle;
+  \draw[pzneutro, line width=0.76pt, line join=round] (7.98,10.167) rectangle (10.641,11.941);
+  \draw[pzmovimiento, line width=1.64pt] (10.862,13.715) ellipse (1.109 and 0.887);
   % --- texto ---
-  \node[text=pzdisipacion, anchor=north west, inner sep=0pt, align=left, font={\fontsize{16.81}{21.01}\selectfont}] at (0.738,9.746) {f\_k = 5\% de N \\ $\vec{F}=m\vec{a}$};
+  \node[text=pzdisipacion, anchor=north west, inner sep=0pt, align=left, font={\fontsize{12.62}{15.77}\selectfont}] at (3.545,14.602) {f\_k = 5\% de N \\ $\vec{F}=m\vec{a}$};
   % --- imágenes ---
-  \node[anchor=north west, inner sep=0pt] at (0.148,1.477) {\includegraphics[width=1.477cm]{pizarra-imagen-1.png}};
+  \node[anchor=north west, inner sep=0pt] at (3.101,8.393) {\includegraphics[width=1.109cm]{pizarra-imagen-1.png}};
+  % --- sistema de referencia ---
+  \draw[pztinta, line width=0.88pt, line cap=round] (3.634,4.956) -- (6.342,6.519);
+  \fill[pztinta] (6.514,6.619) -- (6.3,6.592) -- (6.383,6.447) -- cycle;
+  \draw[pztinta, line width=0.88pt, line cap=round] (4.543,4.713) -- (2.979,7.42);
+  \fill[pztinta] (2.879,7.593) -- (2.907,7.379) -- (3.052,7.462) -- cycle;
+  \node[text=pztinta, inner sep=0pt, font={\fontsize{12.62}{15.77}\selectfont}] at (6.918,6.852) {$x$};
+  \node[text=pztinta, inner sep=0pt, font={\fontsize{12.62}{15.77}\selectfont}] at (2.702,7.901) {$y$};
+  % --- vectores ---
+  \draw[pzcampo, line width=0.95pt, dotted, opacity=0.45] (4.21,1.962) -- (2.77,4.457);
+  \draw[pzcampo, line width=1.32pt, line cap=round, dash pattern=on 3.5pt off 2pt, opacity=0.85] (4.21,5.289) -- (2.951,4.562);
+  \fill[pzcampo, opacity=0.85] (2.77,4.457) -- (2.995,4.486) -- (2.907,4.638) -- cycle;
+  \draw[pzcampo, line width=0.95pt, dotted, opacity=0.45] (4.21,1.962) -- (5.65,2.794);
+  \draw[pzcampo, line width=1.32pt, line cap=round, dash pattern=on 3.5pt off 2pt, opacity=0.85] (4.21,5.289) -- (5.545,2.976);
+  \fill[pzcampo, opacity=0.85] (5.65,2.794) -- (5.622,3.02) -- (5.469,2.932) -- cycle;
+  \node[text=pzcampo, inner sep=0pt, font={\fontsize{12.62}{15.77}\selectfont}] at (1.409,3.672) {$(m\vec{g})_x=-7{,}5\,\mathrm{N}$};
+  \node[text=pzcampo, inner sep=0pt, font={\fontsize{12.62}{15.77}\selectfont}] at (6.213,1.82) {$(m\vec{g})_y=-13\,\mathrm{N}$};
+  \draw[pzcampo, line width=1.89pt, line cap=round] (4.21,5.289) -- (4.21,2.262);
+  \fill[pzcampo] (4.21,1.962) -- (4.336,2.262) -- (4.084,2.262) -- cycle;
+  \draw[pzcampo, line width=0.95pt] (4.978,5.732) arc[start angle=30, end angle=-90, radius=0.887cm];
+  \node[text=pzcampo, inner sep=0pt, font={\fontsize{12.62}{15.77}\selectfont}] at (5.656,4.454) {$\theta=120^{\circ}$};
+  \node[text=pzcampo, inner sep=0pt, font={\fontsize{12.62}{15.77}\selectfont}] at (5.243,3.626) {$m\vec{g}=15\,\mathrm{N}$};
+  \draw[pzcontacto, line width=1.89pt, line cap=round] (4.21,5.289) -- (2.918,7.524);
+  \fill[pzcontacto] (2.769,7.783) -- (2.809,7.461) -- (3.027,7.587) -- cycle;
+  \node[text=pzcontacto, inner sep=0pt, font={\fontsize{12.62}{15.77}\selectfont}] at (3.815,6.724) {$\vec{N}$};
+  \draw[pzdisipacion, line width=1.89pt, line cap=round, dash pattern=on 3pt off 2pt, opacity=0.65] (4.21,5.289) -- (4.591,5.416);
+  \fill[pzdisipacion, opacity=0.65] (4.875,5.511) -- (4.551,5.535) -- (4.631,5.297) -- cycle;
 \end{tikzpicture}

@@ -1,4 +1,5 @@
 import type { Elemento } from '../src/core/elementos';
+import { crearEjes, crearVector } from '../src/physics/vectores';
 
 /** Un PNG de 1×1 píxel, para probar imágenes sin archivos externos. */
 export const PNG_1X1 =
@@ -23,5 +24,12 @@ export function escenaEjemplo(): Elemento[] {
     { id: 'o1', tipo: 'elipse', color: 'movimiento', grosor: 0.026, a: { x: 3, y: 1 }, b: { x: 4, y: 1.8 } },
     { id: 'x1', tipo: 'texto', color: 'disipacion', pos: { x: 0.2, y: 1.8 }, texto: 'f_k = 5% de N\n$\\vec{F}=m\\vec{a}$', tam: 0.2 },
     { id: 'i1', tipo: 'imagen', pos: { x: 0, y: -1 }, ancho: 0.5, alto: 0.5, src: PNG_1X1 },
+    // Sistema de referencia inclinado 30° y fuerzas sobre él (plano inclinado).
+    crearEjes({ x: 0.5, y: -2.4 }, Math.PI / 6, 1.2, { id: 'e1', etiquetaX: 'x', etiquetaY: 'y' }),
+    crearVector('peso', { x: 0.5, y: -2.4 }, { x: 0.5, y: -3.9 }, {
+      id: 'v1', mostrarValor: true, componentes: true, angulo: true, ref: 'e1',
+    }),
+    crearVector('normal', { x: 0.5, y: -2.4 }, { x: 0.5 - 0.65, y: -2.4 + 1.125 }, { id: 'v2', ref: 'e1' }),
+    crearVector('friccion', { x: 0.5, y: -2.4 }, { x: 0.5 + 0.3, y: -2.4 + 0.1 }, { id: 'v3', fantasma: true, etiqueta: '' }),
   ];
 }

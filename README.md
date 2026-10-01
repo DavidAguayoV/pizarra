@@ -18,6 +18,9 @@ Herramientas (también con teclado):
 | **L** · **F** | Línea · Flecha (Mayús = ángulos de 45°) |
 | **R** · **O** | Rectángulo · Elipse (Mayús = cuadrado / círculo) |
 | **T** | Texto (clic, escribir, **Enter** coloca, **Mayús+Enter** nueva línea, **Esc** cancela; `$...$` = matemática en la exportación a TikZ) |
+| **S** | Seleccionar: clic, Mayús+clic (varios), arrastrar para mover; las asas editan vectores y ejes; **Supr** borra; **Esc** suelta |
+| **X** | Ejes (sistema de referencia): arrastra para fijar el ángulo; Mayús = de 15° en 15° |
+| **V** | Vector: elige su tipo (peso, normal, tensión, roce…) y arrastra, o escribe módulo y ángulo y *Agregar por valores* |
 | **M** | Mover vista |
 | **1 2 3** | Grosor fino / medio / grueso |
 | **Ctrl+Z**, **Ctrl+Y** | Deshacer, rehacer |
@@ -25,6 +28,8 @@ Herramientas (también con teclado):
 
 - **Mover y zoom:** rueda = zoom; dos dedos = mover y zoom; barra espaciadora o botón central + arrastrar = mover.
 - **Lápiz de tablet:** si hay un lápiz cerca, los toques de dedo se ignoran (rechazo de palma).
+- **Vectores y ejes:** dibuja unos **ejes** (puedes girarlos para un plano inclinado) y luego los **vectores**: su ángulo se mide desde el eje x de esos ejes. Selecciona un vector para escribir su módulo y ángulo exactos, mostrar su valor, sus **componentes** y el **ángulo**, o cambiar su sistema de referencia. Selecciona varios para **sumarlos** punta con cola.
+- **Etiquetas:** en el texto libre y en las etiquetas de los vectores se escribe LaTeX entre `$...$` (`$\vec{F}_g$`, `$\theta$`, `$\frac{a}{b}$`).
 - **Imágenes:** pegar con Ctrl+V, arrastrar un archivo al lienzo, o el botón *Imagen*.
 - **Exportar:** menú *Exportar* (PNG 1x/2x/4x con fondo blanco o transparente, SVG, proyecto .json, TikZ). *Abrir* recupera un proyecto .json con todo su historial.
 

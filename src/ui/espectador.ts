@@ -115,6 +115,11 @@ export async function montarEspectador(raiz: HTMLElement, codigo: string, transp
     confirmar: () => {},
     borrar: () => {},
     pedirTexto: () => {},
+    rolVector: () => 'aplicada',
+    refActual: () => null,
+    seleccion: () => [],
+    seleccionar: () => {},
+    editar: () => {},
   });
 
   const receptor = await transport.unirse(codigo);
@@ -135,7 +140,7 @@ export async function montarEspectador(raiz: HTMLElement, codigo: string, transp
   receptor.alVivo((l) => {
     if (l) {
       const r = vivo.aplicar(l);
-      L.fijarVivo(r.elemento, r.ocultos);
+      L.fijarVivo(r.elementos, r.ocultos);
     } else {
       vivo.limpiar();
       L.fijarVivo(null, new Set());

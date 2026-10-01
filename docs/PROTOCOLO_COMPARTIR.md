@@ -28,9 +28,9 @@ Pizarra del profesor ──ops──▶ Difusor ──▶ Emisor ──▶ [ Tra
 
 * **Snapshot** `{ epoca, seq, ops[] }`: el registro completo hasta la op `seq`.
 * **Op** `{ epoca, seq, op }`: una op nueva. `seq` = posición en el registro (1, 2, 3…).
-* **Lote vivo** `{ id, ocultos[], base?, desde?, pts? , el? }`: el elemento que se está dibujando.
-  Un trazo envía **solo los puntos nuevos** (`pts` desde la posición `desde`); una forma, entera; el borrador,
-  solo qué ids está tocando. Se agrupan cada **50 ms** como máximo.
+* **Lote vivo** `{ id, ocultos[], base?, desde?, pts?, els? }`: lo que se está dibujando o arrastrando.
+  Un trazo envía **solo los puntos nuevos** (`pts` desde la posición `desde`); una forma o una selección que se arrastra,
+  entera (`els`, con `ocultos` = los originales); el borrador, solo qué ids está tocando. Se agrupan cada **50 ms** como máximo.
 * **Vista** `{ cx, cy, escala, ancho, alto }`: el encuadre del profesor, como máximo cada 120 ms y solo si cambió.
 
 ### Épocas

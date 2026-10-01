@@ -1,5 +1,25 @@
 # Cambios
 
+## Etapa 3 — Sistema de referencia y vectores (2026-10-01)
+
+### Agregado
+- **Ejes** (sistema de referencia) movibles y rotables; **vectores** con rol físico (peso, normal, tensión, roce, aplicada, velocidad, aceleración, momento, resultante), color y letra de la convención de los videos.
+- Vectores por arrastre **o por valores** (módulo y ángulo respecto del sistema de referencia); escala configurable por vector (unidades por metro) y de la vista (px/m).
+- **Componentes** (flechas punteadas y proyecciones), **ángulo marcado** y **suma punta con cola** con su resultante.
+- Herramienta **Seleccionar**: mover, asas de edición, selección múltiple, Supr; panel de propiedades con números exactos. Editar es una op `elemento/lote` (un solo deshacer) y también se transmite en vivo.
+- **Etiquetas matemáticas** (subíndices, `\vec`, griegas, fracciones) compuestas con las mismas medidas en pantalla, PNG, SVG y celular, incluso dentro del texto libre (`$...$`).
+- TikZ de todo lo anterior, **compilado con pdflatex**; el recuadro de exportación incluye las etiquetas.
+- ADR 0005; 172 pruebas unitarias (física de vectores contra cálculo directo) y 26 e2e.
+
+### Cambiado
+- El texto libre con `$...$` ahora se ve compuesto en pantalla (antes solo en TikZ).
+- La barra de herramientas es más compacta.
+
+### Corregido
+- Las unidades se exportaban con `\text`, que exige amsmath: ahora `\mathrm` (LaTeX básico).
+
+### Pendiente
+- Etiquetas arrastrables (hoy se colocan automáticamente), polígono de suma con más de dos vectores en una sola figura con etiquetas propias, y la Etapa 4 (objetos, DCL).
 ## Etapa 2 — Compartir en vivo (2026-10-01)
 
 ### Agregado

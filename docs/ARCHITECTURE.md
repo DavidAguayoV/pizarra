@@ -7,7 +7,7 @@ src/
   core/        registro de ops, store, escena, cámara, tema          (Etapa 0)
   ink/         herramientas, entrada (Pointer Events), suavizado, dibujo (Etapa 1)
   share/       transportes, difusor, sincronizador, salas             (Etapa 2)
-  physics/     marco de referencia, vectores, objetos, fuerzas, DCL   (Etapas 3-4)
+  physics/     vectores y ejes, edición (Etapa 3); objetos, DCL (Etapa 4)
   sim/         integrador RK4, eventos, energía, trayectoria          (Etapa 5)
   recognize/   reconocimiento de formas y de escena                   (Etapa 6)
   export/      png, svg, json, tikz (Etapa 1); pdf (Etapa 7)
@@ -30,6 +30,26 @@ servicio en [FIREBASE.md](FIREBASE.md); decisión en el [ADR 0004](decisiones/00
 - `ui/espectador.ts`: `?sala=CODIGO`; solo mira, "Seguir al profesor", "Copiar a mi pizarra".
 - `ui/compartir.ts`: botón y panel con código grande y QR, pensado para proyectar.
 - Sin configuración de Firebase (`src/share/firebaseBd.ts`) todo funciona en modo demostración local.
+
+## Sistema de referencia y vectores (Etapa 3)
+
+Dos elementos nuevos: **ejes** (sistema de referencia, rotable para planos inclinados) y **vector** (con rol físico,
+etiqueta, unidad y escala). Todo en metros de pizarra; el valor físico de un vector es `largo × porMetro` (por ejemplo,
+10 N por cada metro de flecha, ajustable). El color sale del rol (peso, normal, tensión, roce, aplicada, velocidad,
+aceleración, momento, resultante), con la misma convención de los videos.
+
+- `physics/vectores.ts`: geometría y física **puras** (módulo, ángulo respecto de unos ejes, descomposición,
+  vector por valores, suma punta con cola, posiciones de etiquetas y arcos). Pruebas contra cálculo directo.
+- `physics/edicion.ts`: asas de edición (vector: origen y punta; ejes: origen y puntas de x e y, que giran).
+- `core/matematica.ts`: compositor de etiquetas (subíndices, `\vec`, griegas, fracciones…) con las **mismas
+  medidas** en pantalla, PNG, SVG y celular; TikZ lleva el LaTeX original. Decisión en el [ADR 0005](decisiones/0005-etiquetas-matematicas.md).
+- **Seleccionar** (herramienta `S`): clic, Mayús+clic para varios, arrastrar para mover, asas para editar, Supr para borrar.
+  Editar es una op `elemento/lote` (`actualizar`, `agregar`, `borrar`): **un solo deshacer** revierte todo el cambio, y viaja por
+  la red como cualquier otra op. Mientras se arrastra, el profesor transmite la vista previa (`LoteVivo.els`).
+- `ui/propiedades.ts`: panel flotante con números exactos (módulo, ángulo, unidades por metro, sistema de referencia,
+  mostrar valor / componentes / ángulo) y la **suma**: con dos o más vectores seleccionados dibuja copias punteadas punta
+  con cola y la resultante desde el origen del primero. Los manejadores siempre parten del elemento vigente (no de una copia).
+- Los vectores nuevos usan como sistema de referencia los **últimos ejes dibujados** (o la pizarra si no hay).
 
 ## Elementos de la pizarra (Etapa 1)
 

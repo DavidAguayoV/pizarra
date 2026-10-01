@@ -2,7 +2,7 @@ import type { Punto } from '../core/camara';
 import type { Caja, ColorTinta, Elemento, Imagen, Linea, Texto, Trazo } from '../core/elementos';
 import { nuevoIdElemento } from '../core/elementos';
 
-export const HERRAMIENTAS = ['lapiz', 'resaltador', 'borrador', 'linea', 'flecha', 'rect', 'elipse', 'texto', 'mano'] as const;
+export const HERRAMIENTAS = ['seleccionar', 'lapiz', 'resaltador', 'borrador', 'linea', 'flecha', 'rect', 'elipse', 'texto', 'ejes', 'vector', 'mano'] as const;
 export type Herramienta = (typeof HERRAMIENTAS)[number];
 
 export interface DefHerramienta {
@@ -12,6 +12,7 @@ export interface DefHerramienta {
 }
 
 export const DEFS_HERRAMIENTAS: readonly DefHerramienta[] = [
+  { clave: 'seleccionar', etiqueta: 'Seleccionar', atajo: 'S' },
   { clave: 'lapiz', etiqueta: 'Lápiz', atajo: 'P' },
   { clave: 'resaltador', etiqueta: 'Resaltador', atajo: 'H' },
   { clave: 'borrador', etiqueta: 'Borrador', atajo: 'B' },
@@ -20,6 +21,8 @@ export const DEFS_HERRAMIENTAS: readonly DefHerramienta[] = [
   { clave: 'rect', etiqueta: 'Rectángulo', atajo: 'R' },
   { clave: 'elipse', etiqueta: 'Elipse', atajo: 'O' },
   { clave: 'texto', etiqueta: 'Texto', atajo: 'T' },
+  { clave: 'ejes', etiqueta: 'Ejes', atajo: 'X' },
+  { clave: 'vector', etiqueta: 'Vector', atajo: 'V' },
   { clave: 'mano', etiqueta: 'Mover vista', atajo: 'M' },
 ];
 
@@ -125,7 +128,7 @@ export function crearImagen(pos: Punto, ancho: number, alto: number, src: string
 
 /** ¿Vale la pena guardar esta forma? Descarta toques sin arrastre. */
 export function formaValida(e: Elemento): boolean {
-  if (e.tipo === 'linea' || e.tipo === 'flecha' || e.tipo === 'rect' || e.tipo === 'elipse') {
+  if (e.tipo === 'linea' || e.tipo === 'flecha' || e.tipo === 'rect' || e.tipo === 'elipse' || e.tipo === 'vector') {
     return Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y) > 1e-3;
   }
   return true;
