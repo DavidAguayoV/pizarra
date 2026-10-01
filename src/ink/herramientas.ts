@@ -68,9 +68,15 @@ export function grosorMedio(t: Trazo): number {
 
 const redondear = (n: number): number => Math.round(n * 1e4) / 1e4;
 
-export function crearTrazo(puntos: number[], color: ColorTinta, grosor: number, resaltador: boolean): Trazo {
+export function crearTrazo(
+  puntos: number[],
+  color: ColorTinta,
+  grosor: number,
+  resaltador: boolean,
+  id: string = nuevoIdElemento(),
+): Trazo {
   return {
-    id: nuevoIdElemento(),
+    id,
     tipo: 'trazo',
     color,
     grosor,
@@ -95,10 +101,17 @@ export function restringir(tipo: TipoForma, a: Punto, b: Punto): Punto {
   return { x: a.x + Math.cos(ang) * l, y: a.y + Math.sin(ang) * l };
 }
 
-export function crearForma(tipo: TipoForma, a: Punto, b: Punto, color: ColorTinta, grosor: number): Linea | Caja {
+export function crearForma(
+  tipo: TipoForma,
+  a: Punto,
+  b: Punto,
+  color: ColorTinta,
+  grosor: number,
+  id: string = nuevoIdElemento(),
+): Linea | Caja {
   const pa = { x: redondear(a.x), y: redondear(a.y) };
   const pb = { x: redondear(b.x), y: redondear(b.y) };
-  const base = { id: nuevoIdElemento(), color, grosor };
+  const base = { id, color, grosor };
   return tipo === 'linea' || tipo === 'flecha' ? { ...base, tipo, a: pa, b: pb } : { ...base, tipo, a: pa, b: pb };
 }
 

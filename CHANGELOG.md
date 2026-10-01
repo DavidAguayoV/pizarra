@@ -1,5 +1,25 @@
 # Cambios
 
+## Etapa 2 — Compartir en vivo (2026-10-01)
+
+### Agregado
+- Sala con código de 5 caracteres (sin `0 O 1 I`) y **QR**; panel grande para proyectar. Botón *Compartir* con indicador "En vivo".
+- **Modo espectador** (`?sala=CODIGO`), pensado para celular vertical: un dedo mueve, dos dedos hacen zoom, **Seguir al profesor** (se desacopla al mover), **Copiar a mi pizarra**, aviso visible de conexión.
+- El trazo del profesor se ve **mientras lo dibuja**, en lotes de 50 ms con solo los puntos nuevos.
+- `Transport` intercambiable: `FirebaseTransport` (Realtime Database + inicio anónimo, SDK cargado solo al compartir) y `LocalTransport` (BroadcastChannel, demostración sin cuenta).
+- Sincronización robusta: ops repetidas o fuera de orden, huecos, época nueva al abrir otro proyecto, reconexión con snapshot.
+- Reglas de seguridad (`database.rules.json`): lectura por código, escritura solo del dueño.
+- `docs/FIREBASE.md` (alta paso a paso y lista de comprobación), `docs/PROTOCOLO_COMPARTIR.md`, ADR 0004.
+- 21 pruebas unitarias de sincronización (base en memoria) y 9 e2e con dos pestañas (profesor y celular).
+
+### Cambiado
+- El elemento en construcción conserva el mismo id al confirmarse (así el trazo en vivo y el definitivo son el mismo).
+- El dibujo (cámara, caché, vista previa) se extrajo a `ui/lienzo.ts` para compartirlo con el modo espectador.
+
+### Pendiente
+- **Probar contra el servicio real de Firebase** (hoy verificado con una base en memoria y con el transporte local); falta crear el proyecto (guía en `docs/FIREBASE.md`).
+- Contador de estudiantes conectados; las reglas de seguridad no se prueban en la CI (requieren el emulador).
+
 ## Etapa 1 — Pizarra (2026-10-01)
 
 ### Agregado

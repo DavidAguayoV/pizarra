@@ -4,7 +4,7 @@ Pizarra web para resolver problemas de física en clase: dibujo libre, sistema d
 
 Sitio: https://davidaguayov.github.io/pizarra/ (cuando el repositorio esté publicado).
 
-> **Estado:** Etapa 1 (pizarra): lápiz, resaltador, borrador, líneas, flechas, formas, texto e imágenes; exporta PNG, SVG, JSON y TikZ. La transmisión en vivo llega en la Etapa 2. Ver [CHANGELOG](CHANGELOG.md) y la hoja de ruta en [docs/PROMPT_MAESTRO.md](docs/PROMPT_MAESTRO.md).
+> **Estado:** Etapa 1 (pizarra): lápiz, resaltador, borrador, líneas, flechas, formas, texto e imágenes; exporta PNG, SVG, JSON y TikZ. Comparte en vivo con los estudiantes (Etapa 2). Ver [CHANGELOG](CHANGELOG.md) y la hoja de ruta en [docs/PROMPT_MAESTRO.md](docs/PROMPT_MAESTRO.md).
 
 ## Usarla en clase
 
@@ -28,6 +28,18 @@ Herramientas (también con teclado):
 - **Imágenes:** pegar con Ctrl+V, arrastrar un archivo al lienzo, o el botón *Imagen*.
 - **Exportar:** menú *Exportar* (PNG 1x/2x/4x con fondo blanco o transparente, SVG, proyecto .json, TikZ). *Abrir* recupera un proyecto .json con todo su historial.
 
+## Compartir en vivo con los estudiantes
+
+1. **Compartir → Crear sala**: aparece un código de 5 caracteres y un QR grandes, para proyectar.
+2. Los estudiantes escanean el QR o escriben el código en la misma pantalla de *Compartir*. Ven la pizarra en el
+   celular **mientras la dibujas**, y solo tú puedes dibujar.
+3. En el celular: un dedo mueve, dos dedos hacen zoom; **Seguir al profesor** acompaña tu encuadre; **Copiar a mi
+   pizarra** les da una copia para dibujar sin afectar la clase.
+4. **Dejar de compartir** cierra la sala.
+
+> Hasta que se configure Firebase ([docs/FIREBASE.md](docs/FIREBASE.md)) funciona en **modo demostración**: la sala
+> solo se ve en otras pestañas del mismo navegador. Para clase real hay que seguir esa guía (10 minutos).
+
 ## Desarrollar
 
 Requiere Node 20 o superior.
@@ -50,6 +62,7 @@ Cada push a `main` ejecuta lint, tipos, pruebas y build, y despliega en GitHub P
 
 - [Arquitectura](docs/ARCHITECTURE.md)
 - [Exportación a TikZ](docs/TIKZ.md)
+- [Protocolo para compartir en vivo](docs/PROTOCOLO_COMPARTIR.md) y [alta de Firebase](docs/FIREBASE.md)
 - [Estilo heredado del proyecto Insta](docs/ESTILO_INSTA.md) y decisiones pendientes
 - [Decisiones (ADR)](docs/decisiones/)
 - [Prompt maestro](docs/PROMPT_MAESTRO.md)

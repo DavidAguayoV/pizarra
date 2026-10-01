@@ -1,17 +1,17 @@
-import type { Camara, Punto } from '../core/camara';
+import type { Punto } from '../core/camara';
 import { camaraInicial } from '../core/camara';
 import { OPCIONES_COLOR, OPCIONES_RESALTADOR, colorDeTinta } from '../core/colores';
 import type { ColorTinta, Elemento } from '../core/elementos';
 import { escenaInicial, OP_AGREGAR, OP_BORRAR, reductoresEscena } from '../core/escena';
 import type { Escena } from '../core/escena';
 import { Store } from '../core/store';
+import type { Op } from '../core/ops';
 import { alternarTema, temaActual } from '../core/tema';
 import { aPng } from '../export/png';
 import { dataUrlABlob, copiarTexto, descargarBlob, descargarTexto } from '../export/descarga';
 import { leerProyecto, serializarProyecto } from '../export/json';
 import { aSvg } from '../export/svg';
 import { ANCHO_CM_POR_DEFECTO, aTikz } from '../export/tikz';
-import { aplicarCamara, CacheImagenes, dibujarElemento, dibujarElementos, dibujarGrilla, cajaVisible } from '../ink/dibujo';
 import { Entrada, esCampoDeTexto } from '../ink/entrada';
 import type { Herramienta } from '../ink/herramientas';
 import {
@@ -24,7 +24,11 @@ import {
   RANGO_TINTA,
   tamTextoDeGrosor,
 } from '../ink/herramientas';
+import { elegirTransport } from '../share';
+import { crearCompartir } from './compartir';
+import type { Transmision } from './compartir';
 import { cargarImagen, primeraImagen } from './imagenes';
+import { Lienzo } from './lienzo';
 import { PALETAS } from './tokens';
 
 const CURSORES: Record<Herramienta, string> = {
@@ -64,9 +68,9 @@ function marcaFecha(): string {
 }
 
 /** Pizarra: herramientas de dibujo, cámara, temas y exportación (Etapa 1). */
-export function montarApp(raiz: HTMLElement): void {
+export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } = {}): void {
   const store = new Store<Escena>(escenaInicial, reductoresEscena);
-  let camara: Camara = camaraInicial();
+  if (opciones.ops) store.cargar(opciones.ops);
 
   let herramienta: Herramienta = 'lapiz';
   let colorTinta: ColorTinta = 'tinta';
@@ -79,8 +83,6 @@ export function montarApp(raiz: HTMLElement): void {
   const grosorActual = (): number =>
     esLuz() ? grosorDePosicion(posLuz, RANGO_RESALTADOR) : grosorDePosicion(posTinta, RANGO_TINTA);
   const grosorTexto = (): number => tamTextoDeGrosor(grosorDePosicion(posTinta, RANGO_TINTA));
-  let vivo: Elemento | null = null;
-  let ocultos: ReadonlySet<string> = new Set();
 
   // --- Estructura -------------------------------------------------------------
   const barra = document.createElement('header');
@@ -138,12 +140,11 @@ export function montarApp(raiz: HTMLElement): void {
 
   const bDeshacer = boton('Deshacer', 'Deshacer (Ctrl+Z)', () => store.deshacer());
   const bRehacer = boton('Rehacer', 'Rehacer (Ctrl+Y)', () => store.rehacer());
-  const bVista = boton('Centrar', 'Volver a la vista inicial (0)', () => ponerCamara(camaraInicial()));
+  const bVista = boton('Centrar', 'Volver a la vista inicial (0)', () => L.ponerCamara(camaraInicial()));
   const bTema = boton('', 'Alternar tema claro / oscuro', () => {
     alternarTema();
-    baseSucia = true;
+    L.invalidar();
     actualizarBarra();
-    pedirCuadro();
   });
 
   const entradaArchivo = document.createElement('input');
@@ -164,6 +165,26 @@ export function montarApp(raiz: HTMLElement): void {
   const bImagen = boton('Imagen', 'Insertar una imagen (también se puede pegar o arrastrar)', () => entradaImagen.click());
 
   const menu = construirMenuExportar();
+  let transmision: Transmision | null = null;
+  const compartir = crearCompartir({
+    store,
+    transport: elegirTransport(),
+    alCambiar: (t) => {
+      transmision = t;
+      ultimaVistaEnviada = '';
+    },
+    avisar: (t) => avisar(t),
+  });
+  let ultimaVistaEnviada = '';
+  /** El encuadre del profesor viaja a los estudiantes que lo siguen. */
+  function publicarVista(): void {
+    if (!transmision) return;
+    const { camara, ancho, alto } = L;
+    const clave = `${camara.cx}|${camara.cy}|${camara.escala}|${ancho}|${alto}`;
+    if (clave === ultimaVistaEnviada) return;
+    ultimaVistaEnviada = clave;
+    transmision.difusor.vista({ cx: camara.cx, cy: camara.cy, escala: camara.escala, ancho, alto });
+  }
 
   const estado = document.createElement('span');
   estado.className = 'estado';
@@ -183,81 +204,16 @@ export function montarApp(raiz: HTMLElement): void {
   );
   const fila2 = document.createElement('div');
   fila2.className = 'fila';
-  fila2.append(bDeshacer, bRehacer, bVista, bImagen, bAbrir, menu.elemento, bTema, estado, aviso, entradaArchivo, entradaImagen);
+  fila2.append(bDeshacer, bRehacer, bVista, bImagen, bAbrir, menu.elemento, compartir.boton, bTema, estado, aviso, entradaArchivo, entradaImagen);
   barra.append(fila1, fila2);
 
   const lienzo = document.createElement('canvas');
   lienzo.className = 'lienzo';
   lienzo.setAttribute('aria-label', 'Lienzo de la pizarra');
   raiz.append(barra, lienzo);
-  const ctx = lienzo.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D no disponible');
-
-  // --- Dibujo con caché ---------------------------------------------------------
-  // Los elementos ya confirmados se dibujan en un lienzo aparte que solo se rehace cuando
-  // cambia la escena, la cámara, el tema o el tamaño. Mientras se traza, cada cuadro es
-  // copiar ese lienzo y dibujar encima el elemento en construcción.
-  const base = document.createElement('canvas');
-  const ctxBase = base.getContext('2d');
-  if (!ctxBase) throw new Error('Canvas 2D no disponible');
-  let baseSucia = true;
-  let ancho = 0;
-  let alto = 0;
-  let dpr = 1;
-  let cuadroPendiente = false;
-  const imagenes = new CacheImagenes(() => {
-    baseSucia = true;
-    pedirCuadro();
-  });
-
-  function pedirCuadro(): void {
-    if (cuadroPendiente) return;
-    cuadroPendiente = true;
-    requestAnimationFrame(() => {
-      cuadroPendiente = false;
-      pintar();
-    });
-  }
-
-  function ponerCamara(c: Camara): void {
-    camara = c;
-    baseSucia = true;
-    pedirCuadro();
-  }
-
-  function ajustarTamano(): void {
-    dpr = window.devicePixelRatio || 1;
-    ancho = lienzo.clientWidth;
-    alto = lienzo.clientHeight;
-    for (const c of [lienzo, base]) {
-      c.width = Math.max(1, Math.round(ancho * dpr));
-      c.height = Math.max(1, Math.round(alto * dpr));
-    }
-    baseSucia = true;
-    pedirCuadro();
-  }
-
-  function pintar(): void {
-    const paleta = PALETAS[temaActual()];
-    const vista = { ancho, alto };
-    const opciones = { paleta, imagenes, escala: camara.escala, ocultos };
-    if (baseSucia) {
-      ctxBase!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctxBase!.fillStyle = paleta.fondo;
-      ctxBase!.fillRect(0, 0, ancho, alto);
-      dibujarGrilla(ctxBase!, camara, vista, { grilla: paleta.grilla, fuerte: paleta.grillaFuerte });
-      aplicarCamara(ctxBase!, camara, vista, dpr);
-      dibujarElementos(ctxBase!, store.estado.elementos, opciones, cajaVisible(camara, vista));
-      baseSucia = false;
-    }
-    ctx!.setTransform(1, 0, 0, 1, 0, 0);
-    ctx!.drawImage(base, 0, 0);
-    if (vivo) {
-      aplicarCamara(ctx!, camara, vista, dpr);
-      dibujarElemento(ctx!, vivo, opciones);
-    }
-    actualizarBarra();
-  }
+  // --- Lienzo (cámara, caché de dibujo, elemento en construcción) --------------------------
+  const L = new Lienzo(lienzo, () => store.estado.elementos, { alCuadro: () => { actualizarBarra(); publicarVista(); } });
+  const ponerCamara = L.ponerCamara.bind(L);
 
   // --- Barra --------------------------------------------------------------------
   function actualizarBarra(): void {
@@ -279,7 +235,7 @@ export function montarApp(raiz: HTMLElement): void {
     grupoGrosor.hidden = herramienta === 'mano' || herramienta === 'borrador';
     deslizador.value = String(esLuz() ? posLuz : posTinta);
     const g = grosorActual();
-    const alto = Math.min(30, Math.max(1.5, g * camara.escala));
+    const alto = Math.min(30, Math.max(1.5, g * L.camara.escala));
     vistaGrosor.style.height = `${alto}px`;
     vistaGrosor.style.background = colorDeTinta(paleta, colorActual());
     vistaGrosor.style.opacity = esLuz() ? '0.6' : '1';
@@ -287,7 +243,7 @@ export function montarApp(raiz: HTMLElement): void {
     lienzo.style.cursor = CURSORES[herramienta];
     const n = store.estado.elementos.length;
     menu.habilitar(n > 0);
-    estado.textContent = `${n} elemento${n === 1 ? '' : 's'} · ${store.ops.length} ops · ${camara.escala.toFixed(0)} px/m`;
+    estado.textContent = `${n} elemento${n === 1 ? '' : 's'} · ${store.ops.length} ops · ${L.camara.escala.toFixed(0)} px/m`;
   }
 
   function elegirHerramienta(h: Herramienta): void {
@@ -304,20 +260,17 @@ export function montarApp(raiz: HTMLElement): void {
 
   // --- Entrada ------------------------------------------------------------------
   new Entrada(lienzo, {
-    camara: () => camara,
+    camara: () => L.camara,
     ponerCamara,
-    vista: () => ({ ancho, alto }),
+    vista: () => L.vista,
     herramienta: () => herramienta,
     color: colorActual,
     grosor: grosorActual,
     tamTexto: grosorTexto,
     elementos: () => store.estado.elementos,
     previsualizar(v, o) {
-      const cambioOcultos = o.size !== ocultos.size;
-      vivo = v;
-      ocultos = o;
-      if (cambioOcultos) baseSucia = true;
-      pedirCuadro();
+      L.fijarVivo(v, o);
+      transmision?.difusor.vivo(v, o);
     },
     confirmar: (e) => store.emitir(OP_AGREGAR, e),
     borrar: (ids) => store.emitir(OP_BORRAR, { ids }),
@@ -330,15 +283,16 @@ export function montarApp(raiz: HTMLElement): void {
     cerrarEditor(true);
     const tam = grosorTexto();
     const r = lienzo.getBoundingClientRect();
-    const sx = ancho / 2 + (p.x - camara.cx) * camara.escala;
-    const sy = alto / 2 - (p.y - camara.cy) * camara.escala;
+    const { camara } = L;
+    const sx = L.ancho / 2 + (p.x - camara.cx) * camara.escala;
+    const sy = L.alto / 2 - (p.y - camara.cy) * camara.escala;
     const ta = document.createElement('textarea');
     ta.className = 'editor-texto';
     ta.setAttribute('aria-label', 'Texto nuevo (Enter para colocar, Mayús+Enter para otra línea, Esc para cancelar)');
     ta.rows = 1;
     ta.style.left = `${r.left + sx}px`;
     ta.style.top = `${r.top + sy}px`;
-    ta.style.fontSize = `${Math.max(12, tam * camara.escala)}px`;
+    ta.style.fontSize = `${Math.max(12, tam * L.camara.escala)}px`;
     ta.style.color = colorDeTinta(PALETAS[temaActual()], colorTinta);
     ta.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -382,8 +336,9 @@ export function montarApp(raiz: HTMLElement): void {
   async function colocarImagen(archivo: Blob): Promise<void> {
     try {
       const img = await cargarImagen(archivo);
-      const maxAncho = (0.6 * ancho) / camara.escala;
-      const maxAlto = (0.6 * alto) / camara.escala;
+      const camara = L.camara;
+      const maxAncho = (0.6 * L.ancho) / camara.escala;
+      const maxAlto = (0.6 * L.alto) / camara.escala;
       const proporcion = img.ancho / img.alto;
       const anchoM = Math.min(maxAncho, maxAlto * proporcion);
       const altoM = anchoM / proporcion;
@@ -534,10 +489,5 @@ export function montarApp(raiz: HTMLElement): void {
     }
   });
 
-  store.suscribir(() => {
-    baseSucia = true;
-    pedirCuadro();
-  });
-  new ResizeObserver(ajustarTamano).observe(lienzo);
-  ajustarTamano();
+  store.suscribir(() => L.invalidar());
 }

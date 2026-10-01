@@ -1,0 +1,31 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$codigo": {
+        ".read": true,
+        ".write": "auth != null && $codigo.matches(/^[A-HJ-NP-Z2-9]{5}$/) && (data.child('meta/owner').val() === auth.uid || (!data.child('meta').exists() && newData.child('meta/owner').val() === auth.uid))",
+        "meta": {
+          ".validate": "newData.hasChildren(['owner', 'creado']) && newData.child('owner').val() === auth.uid"
+        },
+        "snapshot": {
+          ".validate": "newData.hasChildren(['epoca', 'seq', 'datos'])",
+          "datos": {
+            ".validate": "newData.isString() && newData.val().length < 9000000"
+          }
+        },
+        "ops": {
+          "$seq": {
+            ".validate": "newData.isString() && newData.val().length < 4000000"
+          }
+        },
+        "vivo": {
+          "$n": {
+            ".validate": "newData.isString() && newData.val().length < 200000"
+          }
+        }
+      }
+    }
+  }
+}

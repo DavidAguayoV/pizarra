@@ -1,7 +1,7 @@
 import type { Camara, Punto, Vista } from '../core/camara';
 import { acercarEn, desplazar, pantallaAMundo } from '../core/camara';
 import type { ColorTinta, Elemento } from '../core/elementos';
-import { cajaCacheada, tocaElemento } from '../core/elementos';
+import { cajaCacheada, nuevoIdElemento, tocaElemento } from '../core/elementos';
 import type { Herramienta, TipoForma } from './herramientas';
 import {
   crearForma,
@@ -44,6 +44,8 @@ interface Activo {
   ultimaPantalla: Punto;
   ocultos: Set<string>;
   vivo: Elemento | null;
+  /** Id del elemento en construcción: el mismo en la vista previa, en la transmisión y al confirmarlo. */
+  idVivo: string;
 }
 
 /**
@@ -160,6 +162,7 @@ export class Entrada {
       ultimaPantalla: p,
       ocultos: new Set(),
       vivo: null,
+      idVivo: nuevoIdElemento(),
     };
     this.agregarPunto(this.activo, e, p, w, true);
     this.actualizarVivo(this.activo, e.shiftKey);
@@ -287,7 +290,7 @@ export class Entrada {
     switch (a.herramienta) {
       case 'lapiz':
       case 'resaltador':
-        a.vivo = crearTrazo(duplicarSiUno(a.pts), this.host.color(), this.host.grosor(), a.herramienta === 'resaltador');
+        a.vivo = crearTrazo(duplicarSiUno(a.pts), this.host.color(), this.host.grosor(), a.herramienta === 'resaltador', a.idVivo);
         break;
       case 'borrador':
         a.vivo = null;
@@ -298,19 +301,21 @@ export class Entrada {
         const fin = a.ultimaPantalla;
         let b = this.mundo(fin);
         if (shift) b = restringir(tipo, a.inicio, b);
-        a.vivo = crearForma(tipo, a.inicio, b, this.host.color(), this.host.grosor());
+        a.vivo = crearForma(tipo, a.inicio, b, this.host.color(), this.host.grosor(), a.idVivo);
       }
     }
     this.host.previsualizar(a.vivo, a.ocultos);
   }
 
   private terminar(a: Activo): void {
-    this.host.previsualizar(null, VACIO);
+    // Primero se confirma y después se retira la vista previa: así quien mira por la red
+    // recibe el elemento definitivo antes de que desaparezca el trazo en construcción.
     if (a.herramienta === 'borrador') {
       if (a.ocultos.size > 0) this.host.borrar([...a.ocultos]);
-      return;
+    } else if (a.vivo && formaValida(a.vivo)) {
+      this.host.confirmar(a.vivo);
     }
-    if (a.vivo && formaValida(a.vivo)) this.host.confirmar(a.vivo);
+    this.host.previsualizar(null, VACIO);
   }
 
   private cancelarActivo(): void {

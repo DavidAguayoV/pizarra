@@ -6,7 +6,7 @@
 src/
   core/        registro de ops, store, escena, cámara, tema          (Etapa 0)
   ink/         herramientas, entrada (Pointer Events), suavizado, dibujo (Etapa 1)
-  share/       Transport, salas, QR                                   (Etapa 2)
+  share/       transportes, difusor, sincronizador, salas             (Etapa 2)
   physics/     marco de referencia, vectores, objetos, fuerzas, DCL   (Etapas 3-4)
   sim/         integrador RK4, eventos, energía, trayectoria          (Etapa 5)
   recognize/   reconocimiento de formas y de escena                   (Etapa 6)
@@ -17,6 +17,19 @@ assets/        activos versionados (personajes del proyecto Insta)
 ```
 
 Las carpetas aún sin código tienen un `index.ts` vacío para fijar la estructura.
+
+## Compartir en vivo (Etapa 2)
+
+Un emisor (el profesor) y muchos receptores; lo que viaja es el mismo registro de ops. Detalle del protocolo,
+estructura en la base, reconexión y consumo de datos en [PROTOCOLO_COMPARTIR.md](PROTOCOLO_COMPARTIR.md); alta del
+servicio en [FIREBASE.md](FIREBASE.md); decisión en el [ADR 0004](decisiones/0004-compartir-en-vivo.md).
+
+- `share/transport.ts`: interfaces `Transport`, `Emisor`, `Receptor`. Dos implementaciones: `FirebaseTransport` (producción) y `LocalTransport` (BroadcastChannel, solo para demostración entre pestañas).
+- `share/difusor.ts` (profesor) y `share/sincronizador.ts` (estudiante) son lógica pura, sin red, y están probadas con una base en memoria (`share/bd.ts`).
+- `ui/lienzo.ts`: cámara, caché de dibujo y elemento en construcción, compartidos por el modo profesor y el modo espectador.
+- `ui/espectador.ts`: `?sala=CODIGO`; solo mira, "Seguir al profesor", "Copiar a mi pizarra".
+- `ui/compartir.ts`: botón y panel con código grande y QR, pensado para proyectar.
+- Sin configuración de Firebase (`src/share/firebaseBd.ts`) todo funciona en modo demostración local.
 
 ## Elementos de la pizarra (Etapa 1)
 

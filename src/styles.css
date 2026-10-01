@@ -220,3 +220,149 @@ button:disabled {
   display: block;
   touch-action: none; /* el gesto lo manejamos nosotros (pan/zoom/dibujo) */
 }
+
+/* --- Compartir en vivo --------------------------------------------------------------- */
+button.en-vivo {
+  background: var(--pz-rol-peso);
+  border-color: var(--pz-rol-peso);
+  color: var(--pz-fondo);
+}
+
+.dialogo-compartir {
+  width: min(34rem, 94vw);
+  max-height: 94vh;
+  overflow: auto;
+  padding: 20px;
+  color: var(--texto);
+  background: var(--fondo);
+  border: 3px solid var(--borde);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.dialogo-compartir::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.dialogo-compartir h2 {
+  margin: 0 0 12px;
+}
+
+.cerrar-dialogo {
+  float: right;
+}
+
+.codigo-sala {
+  font: 700 clamp(3rem, 14vw, 6rem) / 1.1 Consolas, 'Courier New', monospace;
+  letter-spacing: 0.18em;
+  margin: 8px 0 12px;
+  padding-left: 0.18em;
+}
+
+.qr-sala {
+  width: min(18rem, 70vw);
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.qr-sala svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.enlace-sala {
+  word-break: break-all;
+  font-size: 0.85rem;
+  color: var(--borde);
+}
+
+.acciones-sala {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nota-demo {
+  padding: 8px 12px;
+  background: var(--superficie);
+  border-left: 5px solid var(--pz-rol-resultante);
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.unirse {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--borde);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.campo-codigo {
+  font: 700 1.3rem Consolas, monospace;
+  width: 7rem;
+  min-height: 44px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  text-align: center;
+  color: var(--texto);
+  background: var(--fondo);
+  border: 2px solid var(--borde);
+  border-radius: 8px;
+}
+
+/* --- Espectador (celular en vertical primero) ------------------------------------------ */
+.barra-espectador {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
+}
+
+.barra-espectador h1 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.estado-conexion {
+  font-size: 0.8rem;
+  margin-right: auto;
+}
+
+.estado-conexion[data-estado='reconectando'],
+.estado-conexion[data-estado='sin-conexion'],
+.estado-conexion[data-estado='sin-sala'] {
+  font-weight: 700;
+}
+
+.barra-espectador button {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 0.9rem;
+}
+
+.aviso-sala {
+  padding: 8px 12px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--fondo);
+  background: var(--pz-rol-peso);
+}
+
+.mensaje {
+  max-width: 30rem;
+  margin: 3rem auto;
+  padding: 0 1rem;
+  text-align: center;
+}
+
+.mensaje a {
+  color: var(--foco);
+}
