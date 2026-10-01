@@ -18,8 +18,10 @@ export function temaActual(): Tema {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro';
 }
 
-export function aplicarTema(tema: Tema): void {
+/** Aplica el tema; solo lo guarda como preferencia si `guardar` (cuando la persona lo elige). */
+export function aplicarTema(tema: Tema, guardar = true): void {
   document.documentElement.dataset.theme = tema;
+  if (!guardar) return;
   try {
     localStorage.setItem(CLAVE, tema);
   } catch {

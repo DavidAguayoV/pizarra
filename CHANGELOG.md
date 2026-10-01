@@ -1,5 +1,22 @@
 # Cambios
 
+## Etapa 1 — Pizarra (2026-10-01)
+
+### Agregado
+- Elementos: trazo (lápiz y resaltador), línea, flecha, rectángulo, elipse, texto e imagen, en metros, con color por rol de tinta que se adapta a cada tema.
+- Herramientas con teclado, 3 grosores, 7 colores con nombre (no depende solo del color), Mayús para 45°/cuadrado/círculo.
+- Entrada con Pointer Events: presión del lápiz, rechazo de palma, dos dedos = pan/zoom, rueda, espacio/botón central, botón borrador del lápiz.
+- Imágenes pegadas, arrastradas o insertadas (se reducen a 1600 px).
+- Exportación: PNG (1x/2x/4x, fondo blanco o transparente), SVG, JSON de proyecto versionado (`schemaVersion` 1) y **TikZ** (fragmento y documento) con RDP + Bézier; verificado compilando con pdflatex.
+- Caché de dibujo con recorte por vista: 3000 trazos a 60 fps.
+- `docs/TIKZ.md` y ADR 0003; 88 pruebas unitarias (incluye archivos de referencia de TikZ y SVG) y 12 e2e.
+
+### Corregido
+- El tema del sistema se guardaba como preferencia al primer arranque y después ya no seguía al sistema; ahora solo se guarda al alternarlo.
+
+### Pendiente
+- PDF (Etapa 7), mover/editar elementos ya dibujados, y probar presión y rechazo de palma con hardware real (hoy se verifican con eventos sintéticos).
+
 ## Sin publicar
 
 ### Etapa 0 — Cimientos (2026-10-01)

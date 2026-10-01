@@ -4,14 +4,29 @@ Pizarra web para resolver problemas de física en clase: dibujo libre, sistema d
 
 Sitio: https://davidaguayov.github.io/pizarra/ (cuando el repositorio esté publicado).
 
-> **Estado:** Etapa 0 (cimientos). El lienzo actual es solo una demostración del núcleo (ops, deshacer/rehacer, cámara, temas). La pizarra real llega en la Etapa 1. Ver [CHANGELOG](CHANGELOG.md) y la hoja de ruta en [docs/PROMPT_MAESTRO.md](docs/PROMPT_MAESTRO.md).
+> **Estado:** Etapa 1 (pizarra): lápiz, resaltador, borrador, líneas, flechas, formas, texto e imágenes; exporta PNG, SVG, JSON y TikZ. La transmisión en vivo llega en la Etapa 2. Ver [CHANGELOG](CHANGELOG.md) y la hoja de ruta en [docs/PROMPT_MAESTRO.md](docs/PROMPT_MAESTRO.md).
 
 ## Usarla en clase
 
-Por ahora, en la demostración:
+Herramientas (también con teclado):
 
-- **Clic / toque:** agrega una marca. **Arrastrar:** desplaza la vista. **Rueda:** zoom.
-- **Ctrl+Z** deshace, **Ctrl+Y** (o Ctrl+Shift+Z) rehace, **T** cambia el tema, **0** centra la vista.
+| Tecla | Herramienta |
+|---|---|
+| **P** | Lápiz (con presión si el lápiz la entrega) |
+| **H** | Resaltador |
+| **B** | Borrador (borra el objeto completo que toca) |
+| **L** · **F** | Línea · Flecha (Mayús = ángulos de 45°) |
+| **R** · **O** | Rectángulo · Elipse (Mayús = cuadrado / círculo) |
+| **T** | Texto (clic, escribir, **Enter** coloca, **Mayús+Enter** nueva línea, **Esc** cancela; `$...$` = matemática en la exportación a TikZ) |
+| **M** | Mover vista |
+| **1 2 3** | Grosor fino / medio / grueso |
+| **Ctrl+Z**, **Ctrl+Y** | Deshacer, rehacer |
+| **0** | Centrar la vista |
+
+- **Mover y zoom:** rueda = zoom; dos dedos = mover y zoom; barra espaciadora o botón central + arrastrar = mover.
+- **Lápiz de tablet:** si hay un lápiz cerca, los toques de dedo se ignoran (rechazo de palma).
+- **Imágenes:** pegar con Ctrl+V, arrastrar un archivo al lienzo, o el botón *Imagen*.
+- **Exportar:** menú *Exportar* (PNG 1x/2x/4x con fondo blanco o transparente, SVG, proyecto .json, TikZ). *Abrir* recupera un proyecto .json con todo su historial.
 
 ## Desarrollar
 
@@ -34,6 +49,7 @@ Cada push a `main` ejecuta lint, tipos, pruebas y build, y despliega en GitHub P
 ## Documentación
 
 - [Arquitectura](docs/ARCHITECTURE.md)
+- [Exportación a TikZ](docs/TIKZ.md)
 - [Estilo heredado del proyecto Insta](docs/ESTILO_INSTA.md) y decisiones pendientes
 - [Decisiones (ADR)](docs/decisiones/)
 - [Prompt maestro](docs/PROMPT_MAESTRO.md)

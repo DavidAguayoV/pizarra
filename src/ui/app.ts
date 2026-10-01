@@ -1,11 +1,36 @@
 import type { Camara, Punto } from '../core/camara';
-import { acercarEn, camaraInicial, desplazar, mundoAPantalla, pantallaAMundo } from '../core/camara';
-import { escenaInicial, OP_MARCA, reductoresEscena } from '../core/escena';
+import { camaraInicial } from '../core/camara';
+import { OPCIONES_COLOR, colorDeTinta } from '../core/colores';
+import type { ColorTinta, Elemento } from '../core/elementos';
+import { escenaInicial, OP_AGREGAR, OP_BORRAR, reductoresEscena } from '../core/escena';
 import type { Escena } from '../core/escena';
 import { Store } from '../core/store';
-import { alternarTema, colorCss, temaActual } from '../core/tema';
+import { alternarTema, temaActual } from '../core/tema';
+import { aPng } from '../export/png';
+import { dataUrlABlob, copiarTexto, descargarBlob, descargarTexto } from '../export/descarga';
+import { leerProyecto, serializarProyecto } from '../export/json';
+import { aSvg } from '../export/svg';
+import { ANCHO_CM_POR_DEFECTO, aTikz } from '../export/tikz';
+import { aplicarCamara, CacheImagenes, dibujarElemento, dibujarElementos, dibujarGrilla, cajaVisible } from '../ink/dibujo';
+import { Entrada, esCampoDeTexto } from '../ink/entrada';
+import type { Herramienta } from '../ink/herramientas';
+import { crearImagen, crearTexto, DEFS_HERRAMIENTAS, GROSORES, TAMANOS_TEXTO } from '../ink/herramientas';
+import { cargarImagen, primeraImagen } from './imagenes';
+import { PALETAS } from './tokens';
 
-const UMBRAL_ARRASTRE_PX = 5;
+const CURSORES: Record<Herramienta, string> = {
+  lapiz: 'crosshair',
+  resaltador: 'crosshair',
+  borrador: 'cell',
+  linea: 'crosshair',
+  flecha: 'crosshair',
+  rect: 'crosshair',
+  elipse: 'crosshair',
+  texto: 'text',
+  mano: 'grab',
+};
+
+const GROSOR_NOMBRES = ['Fino', 'Medio', 'Grueso'] as const;
 
 function boton(texto: string, titulo: string, onClick: () => void): HTMLButtonElement {
   const b = document.createElement('button');
@@ -16,35 +41,111 @@ function boton(texto: string, titulo: string, onClick: () => void): HTMLButtonEl
   return b;
 }
 
-/**
- * Pantalla de la Etapa 0: lienzo con grilla en metros, clic = marca de prueba,
- * arrastre = desplazar, rueda = zoom. Sirve para verificar ops, deshacer/rehacer,
- * cámara y temas; la pizarra real llega en la Etapa 1.
- */
+function grupo(etiqueta: string, ...hijos: HTMLElement[]): HTMLDivElement {
+  const g = document.createElement('div');
+  g.className = 'grupo';
+  g.setAttribute('role', 'group');
+  g.setAttribute('aria-label', etiqueta);
+  g.append(...hijos);
+  return g;
+}
+
+function marcaFecha(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+/** Pizarra: herramientas de dibujo, cámara, temas y exportación (Etapa 1). */
 export function montarApp(raiz: HTMLElement): void {
   const store = new Store<Escena>(escenaInicial, reductoresEscena);
   let camara: Camara = camaraInicial();
 
+  let herramienta: Herramienta = 'lapiz';
+  let color: ColorTinta = 'tinta';
+  let grosorIdx = 1;
+  let vivo: Elemento | null = null;
+  let ocultos: ReadonlySet<string> = new Set();
+
+  // --- Estructura -------------------------------------------------------------
   const barra = document.createElement('header');
   barra.className = 'barra';
   const titulo = document.createElement('h1');
   titulo.textContent = 'Pizarra de Física';
-  const estado = document.createElement('span');
-  estado.className = 'estado';
-  estado.setAttribute('role', 'status');
+
+  const botonesHerr = new Map<Herramienta, HTMLButtonElement>();
+  for (const d of DEFS_HERRAMIENTAS) {
+    const b = boton(d.etiqueta, `${d.etiqueta} (${d.atajo})`, () => elegirHerramienta(d.clave));
+    b.dataset['herramienta'] = d.clave;
+    botonesHerr.set(d.clave, b);
+  }
+
+  const botonesColor = new Map<ColorTinta, HTMLButtonElement>();
+  for (const o of OPCIONES_COLOR) {
+    const b = boton('', o.etiqueta, () => {
+      color = o.clave;
+      actualizarBarra();
+    });
+    b.className = 'muestra';
+    b.setAttribute('aria-label', o.etiqueta);
+    botonesColor.set(o.clave, b);
+  }
+
+  const botonesGrosor = GROSOR_NOMBRES.map((n, i) =>
+    boton(n, `Grosor ${n.toLowerCase()} (${i + 1})`, () => {
+      grosorIdx = i;
+      actualizarBarra();
+    }),
+  );
 
   const bDeshacer = boton('Deshacer', 'Deshacer (Ctrl+Z)', () => store.deshacer());
   const bRehacer = boton('Rehacer', 'Rehacer (Ctrl+Y)', () => store.rehacer());
-  const bVista = boton('Centrar', 'Volver a la vista inicial (0)', () => {
-    camara = camaraInicial();
-    pintar();
-  });
-  const bTema = boton('', 'Alternar tema claro / oscuro (T)', () => {
+  const bVista = boton('Centrar', 'Volver a la vista inicial (0)', () => ponerCamara(camaraInicial()));
+  const bTema = boton('', 'Alternar tema claro / oscuro', () => {
     alternarTema();
+    baseSucia = true;
     actualizarBarra();
-    pintar();
+    pedirCuadro();
   });
-  barra.append(titulo, bDeshacer, bRehacer, bVista, bTema, estado);
+
+  const entradaArchivo = document.createElement('input');
+  entradaArchivo.type = 'file';
+  entradaArchivo.accept = 'application/json,.json';
+  entradaArchivo.hidden = true;
+  entradaArchivo.addEventListener('change', () => void abrirProyecto(entradaArchivo));
+  const entradaImagen = document.createElement('input');
+  entradaImagen.type = 'file';
+  entradaImagen.accept = 'image/*';
+  entradaImagen.hidden = true;
+  entradaImagen.addEventListener('change', () => {
+    const f = entradaImagen.files?.[0];
+    entradaImagen.value = '';
+    if (f) void colocarImagen(f);
+  });
+  const bAbrir = boton('Abrir', 'Abrir un proyecto (.json)', () => entradaArchivo.click());
+  const bImagen = boton('Imagen', 'Insertar una imagen (también se puede pegar o arrastrar)', () => entradaImagen.click());
+
+  const menu = construirMenuExportar();
+
+  const estado = document.createElement('span');
+  estado.className = 'estado';
+  estado.setAttribute('role', 'status');
+  const aviso = document.createElement('span');
+  aviso.className = 'aviso';
+  aviso.setAttribute('role', 'alert');
+
+  const fila1 = document.createElement('div');
+  fila1.className = 'fila';
+  fila1.append(
+    titulo,
+    grupo('Herramientas', ...botonesHerr.values()),
+    grupo('Color', ...botonesColor.values()),
+    grupo('Grosor', ...botonesGrosor),
+  );
+  const fila2 = document.createElement('div');
+  fila2.className = 'fila';
+  fila2.append(bDeshacer, bRehacer, bVista, bImagen, bAbrir, menu.elemento, bTema, estado, aviso, entradaArchivo, entradaImagen);
+  barra.append(fila1, fila2);
 
   const lienzo = document.createElement('canvas');
   lienzo.className = 'lienzo';
@@ -53,128 +154,330 @@ export function montarApp(raiz: HTMLElement): void {
   const ctx = lienzo.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D no disponible');
 
+  // --- Dibujo con caché ---------------------------------------------------------
+  // Los elementos ya confirmados se dibujan en un lienzo aparte que solo se rehace cuando
+  // cambia la escena, la cámara, el tema o el tamaño. Mientras se traza, cada cuadro es
+  // copiar ese lienzo y dibujar encima el elemento en construcción.
+  const base = document.createElement('canvas');
+  const ctxBase = base.getContext('2d');
+  if (!ctxBase) throw new Error('Canvas 2D no disponible');
+  let baseSucia = true;
   let ancho = 0;
   let alto = 0;
-  const vista = () => ({ ancho, alto });
+  let dpr = 1;
+  let cuadroPendiente = false;
+  const imagenes = new CacheImagenes(() => {
+    baseSucia = true;
+    pedirCuadro();
+  });
 
-  function ajustarTamano(): void {
-    const dpr = window.devicePixelRatio || 1;
-    ancho = lienzo.clientWidth;
-    alto = lienzo.clientHeight;
-    lienzo.width = Math.round(ancho * dpr);
-    lienzo.height = Math.round(alto * dpr);
-    ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-    pintar();
+  function pedirCuadro(): void {
+    if (cuadroPendiente) return;
+    cuadroPendiente = true;
+    requestAnimationFrame(() => {
+      cuadroPendiente = false;
+      pintar();
+    });
   }
 
-  function actualizarBarra(): void {
-    bDeshacer.disabled = !store.puedeDeshacer;
-    bRehacer.disabled = !store.puedeRehacer;
-    bTema.textContent = temaActual() === 'oscuro' ? 'Tema claro' : 'Tema oscuro';
-    const n = store.estado.marcas.length;
-    estado.textContent = `${n} marca${n === 1 ? '' : 's'} · ${store.ops.length} ops · ${camara.escala.toFixed(0)} px/m`;
+  function ponerCamara(c: Camara): void {
+    camara = c;
+    baseSucia = true;
+    pedirCuadro();
+  }
+
+  function ajustarTamano(): void {
+    dpr = window.devicePixelRatio || 1;
+    ancho = lienzo.clientWidth;
+    alto = lienzo.clientHeight;
+    for (const c of [lienzo, base]) {
+      c.width = Math.max(1, Math.round(ancho * dpr));
+      c.height = Math.max(1, Math.round(alto * dpr));
+    }
+    baseSucia = true;
+    pedirCuadro();
   }
 
   function pintar(): void {
-    const c = ctx!;
-    c.fillStyle = colorCss('--lienzo-fondo');
-    c.fillRect(0, 0, ancho, alto);
-
-    // Grilla: una línea por metro, más marcada cada 5 m; se omite si quedaría muy densa.
-    const v = vista();
-    const min = pantallaAMundo(camara, v, { x: 0, y: alto });
-    const max = pantallaAMundo(camara, v, { x: ancho, y: 0 });
-    if (camara.escala >= 12) {
-      for (let x = Math.floor(min.x); x <= Math.ceil(max.x); x++) {
-        const px = mundoAPantalla(camara, v, { x, y: 0 }).x;
-        c.strokeStyle = colorCss(x % 5 === 0 ? '--grilla-fuerte' : '--grilla');
-        c.lineWidth = x === 0 ? 2 : 1;
-        c.beginPath();
-        c.moveTo(px, 0);
-        c.lineTo(px, alto);
-        c.stroke();
-      }
-      for (let y = Math.floor(min.y); y <= Math.ceil(max.y); y++) {
-        const py = mundoAPantalla(camara, v, { x: 0, y }).y;
-        c.strokeStyle = colorCss(y % 5 === 0 ? '--grilla-fuerte' : '--grilla');
-        c.lineWidth = y === 0 ? 2 : 1;
-        c.beginPath();
-        c.moveTo(0, py);
-        c.lineTo(ancho, py);
-        c.stroke();
-      }
+    const paleta = PALETAS[temaActual()];
+    const vista = { ancho, alto };
+    const opciones = { paleta, imagenes, escala: camara.escala, ocultos };
+    if (baseSucia) {
+      ctxBase!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctxBase!.fillStyle = paleta.fondo;
+      ctxBase!.fillRect(0, 0, ancho, alto);
+      dibujarGrilla(ctxBase!, camara, vista, { grilla: paleta.grilla, fuerte: paleta.grillaFuerte });
+      aplicarCamara(ctxBase!, camara, vista, dpr);
+      dibujarElementos(ctxBase!, store.estado.elementos, opciones, cajaVisible(camara, vista));
+      baseSucia = false;
     }
-
-    c.fillStyle = colorCss('--tinta');
-    for (const m of store.estado.marcas) {
-      const p = mundoAPantalla(camara, v, m);
-      c.beginPath();
-      c.arc(p.x, p.y, 7, 0, Math.PI * 2);
-      c.fill();
+    ctx!.setTransform(1, 0, 0, 1, 0, 0);
+    ctx!.drawImage(base, 0, 0);
+    if (vivo) {
+      aplicarCamara(ctx!, camara, vista, dpr);
+      dibujarElemento(ctx!, vivo, opciones);
     }
     actualizarBarra();
   }
 
-  // --- Entrada: Pointer Events unificados (mouse, lápiz, dedo) ---
-  let inicio: Punto | null = null;
-  let ultimo: Punto | null = null;
-  let arrastrando = false;
+  // --- Barra --------------------------------------------------------------------
+  function actualizarBarra(): void {
+    const paleta = PALETAS[temaActual()];
+    bDeshacer.disabled = !store.puedeDeshacer;
+    bRehacer.disabled = !store.puedeRehacer;
+    bTema.textContent = temaActual() === 'oscuro' ? 'Tema claro' : 'Tema oscuro';
+    for (const [k, b] of botonesHerr) b.setAttribute('aria-pressed', String(k === herramienta));
+    for (const [k, b] of botonesColor) {
+      b.style.setProperty('--muestra', colorDeTinta(paleta, k));
+      b.setAttribute('aria-pressed', String(k === color));
+    }
+    botonesGrosor.forEach((b, i) => b.setAttribute('aria-pressed', String(i === grosorIdx)));
+    lienzo.style.cursor = CURSORES[herramienta];
+    const n = store.estado.elementos.length;
+    menu.habilitar(n > 0);
+    estado.textContent = `${n} elemento${n === 1 ? '' : 's'} · ${store.ops.length} ops · ${camara.escala.toFixed(0)} px/m`;
+  }
 
-  lienzo.addEventListener('pointerdown', (e) => {
-    lienzo.setPointerCapture(e.pointerId);
-    inicio = ultimo = { x: e.offsetX, y: e.offsetY };
-    arrastrando = false;
-  });
-  lienzo.addEventListener('pointermove', (e) => {
-    if (!inicio || !ultimo) return;
-    const p = { x: e.offsetX, y: e.offsetY };
-    if (!arrastrando && Math.hypot(p.x - inicio.x, p.y - inicio.y) > UMBRAL_ARRASTRE_PX) {
-      arrastrando = true;
-    }
-    if (arrastrando) {
-      camara = desplazar(camara, p.x - ultimo.x, p.y - ultimo.y);
-      pintar();
-    }
-    ultimo = p;
-  });
-  lienzo.addEventListener('pointerup', (e) => {
-    if (inicio && !arrastrando) {
-      store.emitir(OP_MARCA, pantallaAMundo(camara, vista(), { x: e.offsetX, y: e.offsetY }));
-    }
-    inicio = ultimo = null;
-  });
-  lienzo.addEventListener('pointercancel', () => {
-    inicio = ultimo = null;
-  });
-  lienzo.addEventListener(
-    'wheel',
-    (e) => {
-      e.preventDefault();
-      camara = acercarEn(camara, vista(), { x: e.offsetX, y: e.offsetY }, Math.exp(-e.deltaY * 0.0015));
-      pintar();
+  function elegirHerramienta(h: Herramienta): void {
+    herramienta = h;
+    actualizarBarra();
+  }
+
+  let temporizadorAviso = 0;
+  function avisar(texto: string): void {
+    aviso.textContent = texto;
+    window.clearTimeout(temporizadorAviso);
+    temporizadorAviso = window.setTimeout(() => (aviso.textContent = ''), 6000);
+  }
+
+  // --- Entrada ------------------------------------------------------------------
+  new Entrada(lienzo, {
+    camara: () => camara,
+    ponerCamara,
+    vista: () => ({ ancho, alto }),
+    herramienta: () => herramienta,
+    color: () => color,
+    grosor: () => GROSORES[grosorIdx]!,
+    tamTexto: () => TAMANOS_TEXTO[grosorIdx]!,
+    elementos: () => store.estado.elementos,
+    previsualizar(v, o) {
+      const cambioOcultos = o.size !== ocultos.size;
+      vivo = v;
+      ocultos = o;
+      if (cambioOcultos) baseSucia = true;
+      pedirCuadro();
     },
-    { passive: false },
-  );
+    confirmar: (e) => store.emitir(OP_AGREGAR, e),
+    borrar: (ids) => store.emitir(OP_BORRAR, { ids }),
+    pedirTexto: (p) => editarTexto(p),
+  });
 
+  // --- Texto ----------------------------------------------------------------------
+  let editor: HTMLTextAreaElement | null = null;
+  function editarTexto(p: Punto): void {
+    cerrarEditor(true);
+    const tam = TAMANOS_TEXTO[grosorIdx]!;
+    const r = lienzo.getBoundingClientRect();
+    const sx = ancho / 2 + (p.x - camara.cx) * camara.escala;
+    const sy = alto / 2 - (p.y - camara.cy) * camara.escala;
+    const ta = document.createElement('textarea');
+    ta.className = 'editor-texto';
+    ta.setAttribute('aria-label', 'Texto nuevo (Enter para colocar, Mayús+Enter para otra línea, Esc para cancelar)');
+    ta.rows = 1;
+    ta.style.left = `${r.left + sx}px`;
+    ta.style.top = `${r.top + sy}px`;
+    ta.style.fontSize = `${Math.max(12, tam * camara.escala)}px`;
+    ta.style.color = colorDeTinta(PALETAS[temaActual()], color);
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        cerrarEditor(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cerrarEditor(false);
+      }
+    });
+    ta.addEventListener('input', () => {
+      ta.rows = ta.value.split('\n').length;
+    });
+    ta.addEventListener('blur', () => cerrarEditor(true));
+    ta.dataset['x'] = String(p.x);
+    ta.dataset['y'] = String(p.y);
+    ta.dataset['tam'] = String(tam);
+    ta.dataset['color'] = color;
+    document.body.append(ta);
+    editor = ta;
+    ta.focus();
+    // Tras soltar el clic el navegador puede devolver el foco al lienzo: se reafirma.
+    window.setTimeout(() => {
+      if (editor === ta && document.activeElement !== ta) ta.focus();
+    }, 30);
+  }
+
+  function cerrarEditor(colocar: boolean): void {
+    const ta = editor;
+    if (!ta) return;
+    editor = null;
+    const texto = ta.value.replace(/\s+$/, '');
+    if (colocar && texto.trim() !== '') {
+      const pos = { x: Number(ta.dataset['x']), y: Number(ta.dataset['y']) };
+      store.emitir(OP_AGREGAR, crearTexto(pos, texto, ta.dataset['color'] as ColorTinta, Number(ta.dataset['tam'])));
+    }
+    ta.remove();
+  }
+
+  // --- Imágenes ---------------------------------------------------------------------
+  async function colocarImagen(archivo: Blob): Promise<void> {
+    try {
+      const img = await cargarImagen(archivo);
+      const maxAncho = (0.6 * ancho) / camara.escala;
+      const maxAlto = (0.6 * alto) / camara.escala;
+      const proporcion = img.ancho / img.alto;
+      const anchoM = Math.min(maxAncho, maxAlto * proporcion);
+      const altoM = anchoM / proporcion;
+      store.emitir(OP_AGREGAR, crearImagen({ x: camara.cx - anchoM / 2, y: camara.cy + altoM / 2 }, anchoM, altoM, img.src));
+    } catch (err) {
+      avisar(err instanceof Error ? err.message : 'No se pudo insertar la imagen.');
+    }
+  }
+
+  window.addEventListener('paste', (e) => {
+    if (esCampoDeTexto(e.target)) return;
+    const f = primeraImagen(e.clipboardData);
+    if (f) {
+      e.preventDefault();
+      void colocarImagen(f);
+    }
+  });
+  lienzo.addEventListener('dragover', (e) => e.preventDefault());
+  lienzo.addEventListener('drop', (e) => {
+    const f = primeraImagen(e.dataTransfer);
+    if (f) {
+      e.preventDefault();
+      void colocarImagen(f);
+    }
+  });
+
+  // --- Proyectos y exportación -----------------------------------------------------------
+  async function abrirProyecto(input: HTMLInputElement): Promise<void> {
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    try {
+      const ops = leerProyecto(await f.text());
+      if (store.ops.length > 0 && !window.confirm('Se reemplazará la pizarra actual por el proyecto abierto. ¿Continuar?')) return;
+      store.cargar(ops);
+      ponerCamara(camaraInicial());
+      avisar(`Proyecto abierto: ${f.name}`);
+    } catch (err) {
+      avisar(err instanceof Error ? err.message : 'No se pudo abrir el proyecto.');
+    }
+  }
+
+  function construirMenuExportar(): { elemento: HTMLDetailsElement; habilitar: (v: boolean) => void } {
+    const det = document.createElement('details');
+    det.className = 'menu';
+    const resumen = document.createElement('summary');
+    resumen.textContent = 'Exportar';
+    const caja = document.createElement('div');
+    caja.className = 'menu-caja';
+
+    const selRes = document.createElement('select');
+    selRes.setAttribute('aria-label', 'Resolución del PNG');
+    for (const [v, t] of [['1', 'PNG 1×'], ['2', 'PNG 2×'], ['4', 'PNG 4×']] as const) selRes.append(new Option(t, v));
+    const chkTransp = document.createElement('input');
+    chkTransp.type = 'checkbox';
+    const etTransp = document.createElement('label');
+    etTransp.append(chkTransp, ' Fondo transparente');
+    const inpAncho = document.createElement('input');
+    inpAncho.type = 'number';
+    inpAncho.min = '1';
+    inpAncho.max = '60';
+    inpAncho.step = '0.5';
+    inpAncho.value = String(ANCHO_CM_POR_DEFECTO);
+    inpAncho.setAttribute('aria-label', 'Ancho de la figura TikZ en centímetros');
+    const etAncho = document.createElement('label');
+    etAncho.append('Ancho TikZ (cm) ', inpAncho);
+
+    const anchoCm = (): number => {
+      const v = Number(inpAncho.value);
+      return Number.isFinite(v) && v > 0 ? v : ANCHO_CM_POR_DEFECTO;
+    };
+    const elementos = (): readonly Elemento[] => store.estado.elementos;
+
+    const acciones: HTMLButtonElement[] = [
+      boton('Descargar PNG', 'Imagen PNG con la resolución elegida', () => {
+        void aPng(elementos(), { resolucion: Number(selRes.value) as 1 | 2 | 4, transparente: chkTransp.checked })
+          .then((b) => descargarBlob(`pizarra-${marcaFecha()}.png`, b))
+          .catch((err: unknown) => avisar(err instanceof Error ? err.message : 'No se pudo generar el PNG.'));
+      }),
+      boton('Descargar SVG', 'Imagen vectorial', () => {
+        descargarTexto(`pizarra-${marcaFecha()}.svg`, aSvg(elementos()), 'image/svg+xml');
+      }),
+      boton('Descargar proyecto (.json)', 'Proyecto completo, con historial; se puede abrir de nuevo', () => {
+        descargarTexto(`pizarra-${marcaFecha()}.json`, serializarProyecto(store.ops), 'application/json');
+      }),
+      boton('Copiar TikZ (fragmento)', 'Para pegar en Beamer o apuntes', () => {
+        const r = aTikz(elementos(), { modo: 'fragmento', anchoCm: anchoCm() });
+        void copiarTexto(r.codigo).then((ok) =>
+          avisar(ok ? 'TikZ copiado al portapapeles.' : 'No se pudo copiar; usa "Descargar .tex".'),
+        );
+        entregarImagenes(r.imagenes);
+      }),
+      boton('Descargar .tex (fragmento)', 'Solo el entorno tikzpicture', () => {
+        const r = aTikz(elementos(), { modo: 'fragmento', anchoCm: anchoCm() });
+        descargarTexto(`pizarra-${marcaFecha()}.tikz.tex`, r.codigo, 'application/x-tex');
+        entregarImagenes(r.imagenes);
+      }),
+      boton('Descargar .tex (documento)', 'Documento standalone que compila solo', () => {
+        const r = aTikz(elementos(), { modo: 'documento', anchoCm: anchoCm() });
+        descargarTexto(`pizarra-${marcaFecha()}.tex`, r.codigo, 'application/x-tex');
+        entregarImagenes(r.imagenes);
+      }),
+    ];
+
+    function entregarImagenes(imgs: readonly { nombre: string; src: string }[]): void {
+      for (const i of imgs) descargarBlob(i.nombre, dataUrlABlob(i.src));
+      if (imgs.length > 0) avisar('Las imágenes se descargaron aparte: déjalas junto al .tex.');
+    }
+
+    caja.append(selRes, etTransp, etAncho, ...acciones);
+    det.append(resumen, caja);
+    return {
+      elemento: det,
+      habilitar: (v) => acciones.forEach((a) => (a.disabled = !v)),
+    };
+  }
+
+  // --- Teclado ------------------------------------------------------------------------
   window.addEventListener('keydown', (e) => {
+    if (esCampoDeTexto(e.target)) return;
     const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && k === 'z') {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && k === 'z') {
       e.preventDefault();
       if (e.shiftKey) store.rehacer();
       else store.deshacer();
-    } else if ((e.ctrlKey || e.metaKey) && k === 'y') {
+    } else if (mod && k === 'y') {
       e.preventDefault();
       store.rehacer();
-    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && k === 't') {
-      alternarTema();
-      pintar();
-    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && k === '0') {
-      camara = camaraInicial();
-      pintar();
+    } else if (!mod && !e.altKey) {
+      const d = DEFS_HERRAMIENTAS.find((x) => x.atajo.toLowerCase() === k);
+      if (d) {
+        elegirHerramienta(d.clave);
+      } else if (k >= '1' && k <= '3') {
+        grosorIdx = Number(k) - 1;
+        actualizarBarra();
+      } else if (k === '0') {
+        ponerCamara(camaraInicial());
+      }
     }
   });
 
-  store.suscribir(pintar);
+  store.suscribir(() => {
+    baseSucia = true;
+    pedirCuadro();
+  });
   new ResizeObserver(ajustarTamano).observe(lienzo);
   ajustarTamano();
 }

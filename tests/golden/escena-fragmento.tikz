@@ -1,0 +1,31 @@
+% Figura generada por Pizarra de Física (https://davidaguayov.github.io/pizarra/)
+% Requiere \usepackage{tikz} y \usepackage{graphicx}
+% Escala: 2.95 cm por metro de pizarra
+\begin{tikzpicture}[x=1cm, y=1cm]
+  % --- colores ---
+  \definecolor{pztinta}{HTML}{0B1320}
+  \definecolor{pzcampo}{HTML}{C2343F}
+  \definecolor{pzcontacto}{HTML}{0B6FA8}
+  \definecolor{pzdisipacion}{HTML}{6B45C9}
+  \definecolor{pzmovimiento}{HTML}{0B7A4B}
+  \definecolor{pzacento}{HTML}{8A5A00}
+  \definecolor{pzneutro}{HTML}{4A5A70}
+  % --- trazos libres ---
+  \draw[pzcontacto, line width=2.18pt, line cap=round, line join=round] (0.148,4.43)
+    .. controls (0.271,4.529) and (0.64,4.849) .. (0.886,5.021)
+    .. controls (1.132,5.193) and (1.378,5.365) .. (1.624,5.464)
+    .. controls (1.871,5.562) and (2.117,5.636) .. (2.363,5.612)
+    .. controls (2.609,5.587) and (2.855,5.464) .. (3.101,5.316)
+    .. controls (3.347,5.169) and (3.716,4.824) .. (3.84,4.726);
+  \draw[pzacento, line width=8.4pt, opacity=0.35, line cap=round, line join=round] (0.148,3.544) -- (4.578,3.544);
+  % --- formas ---
+  \draw[pztinta, line width=2.18pt, line cap=round] (0.148,2.658) -- (6.055,2.658);
+  \draw[pzcampo, line width=2.18pt, line cap=round] (7.531,7.384) -- (7.531,4.776);
+  \fill[pzcampo] (7.531,4.43) -- (7.677,4.776) -- (7.386,4.776) -- cycle;
+  \draw[pzneutro, line width=1.01pt, line join=round] (6.645,3.84) rectangle (10.19,6.202);
+  \draw[pzmovimiento, line width=2.18pt] (10.485,8.565) ellipse (1.477 and 1.181);
+  % --- texto ---
+  \node[text=pzdisipacion, anchor=north west, inner sep=0pt, align=left, font={\fontsize{16.81}{21.01}\selectfont}] at (0.738,9.746) {f\_k = 5\% de N \\ $\vec{F}=m\vec{a}$};
+  % --- imágenes ---
+  \node[anchor=north west, inner sep=0pt] at (0.148,1.477) {\includegraphics[width=1.477cm]{pizarra-imagen-1.png}};
+\end{tikzpicture}
