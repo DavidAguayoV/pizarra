@@ -5,6 +5,8 @@ import { cajaCacheada, nuevoIdElemento, tocaElemento, trasladar } from '../core/
 import type { LotePayload } from '../core/escena';
 import type { NombreAsa } from '../physics/edicion';
 import { ajustarAngulo, asasDe, moverAsa } from '../physics/edicion';
+import type { TipoObjeto } from '../physics/objetos';
+import { crearBloque, crearCuerda, crearEsfera, crearPolea, crearResorte, crearSuperficie } from '../physics/objetos';
 import type { RolVector } from '../physics/vectores';
 import { crearEjes, crearVector } from '../physics/vectores';
 import type { Herramienta, TipoForma } from './herramientas';
@@ -35,6 +37,9 @@ export interface Anfitrion {
   pedirTexto(p: Punto): void;
   /** Rol físico con el que se crean los vectores y sistema de referencia que se les asigna. */
   rolVector(): RolVector;
+  tipoObjeto(): TipoObjeto;
+  /** Apoya un cuerpo suelto sobre la superficie que tenga cerca (y lo devuelve igual si no hay). */
+  acomodar(e: Elemento): Elemento;
   refActual(): string | null;
   /** Selección (edición). */
   seleccion(): readonly Elemento[];
@@ -339,6 +344,12 @@ export class Entrada {
         a.vivo = crearVector(this.host.rolVector(), a.inicio, b, { id: a.idVivo, ref: this.host.refActual() });
         break;
       }
+      case 'objeto': {
+        let b = this.mundo(a.ultimaPantalla);
+        if (shift) b = ajustarAngulo(a.inicio, b);
+        a.vivo = this.crearObjeto(this.host.tipoObjeto(), a.inicio, b, a.idVivo);
+        break;
+      }
       case 'ejes': {
         let b = this.mundo(a.ultimaPantalla);
         if (shift) b = ajustarAngulo(a.inicio, b);
@@ -370,7 +381,7 @@ export class Entrada {
     if (a.herramienta === 'borrador') {
       if (a.ocultos.size > 0) this.host.borrar([...a.ocultos]);
     } else if (a.vivo && formaValida(a.vivo)) {
-      this.host.confirmar(a.vivo);
+      this.host.confirmar(a.herramienta === 'objeto' ? this.host.acomodar(a.vivo) : a.vivo);
     }
     this.host.previsualizar(null, VACIO);
   }
@@ -436,7 +447,7 @@ export class Entrada {
   }
 
   private terminarSeleccion(a: Activo): void {
-    if (a.movido && a.vivos.length > 0) this.host.editar({ actualizar: [...a.vivos] });
+    if (a.movido && a.vivos.length > 0) this.host.editar({ actualizar: a.vivos.map((v) => this.host.acomodar(v)) });
     this.host.previsualizar(null, VACIO);
   }
 
@@ -444,6 +455,35 @@ export class Entrada {
     const c = this.host.camara();
     const v = this.host.vista();
     return { x: v.ancho / 2 + (w.x - c.cx) * c.escala, y: v.alto / 2 - (w.y - c.cy) * c.escala };
+  }
+
+  /** Objeto físico según la herramienta: un clic lo coloca con tamaño estándar; arrastrar lo dimensiona. */
+  private crearObjeto(tipo: TipoObjeto, a: Punto, b: Punto, id: string): Elemento {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy);
+    const arrastro = dist > 0.12;
+    const r = (n: number) => Math.round(n * 1e4) / 1e4;
+    switch (tipo) {
+      case 'bloque':
+        return arrastro
+          ? crearBloque({ x: r((a.x + b.x) / 2), y: r((a.y + b.y) / 2) }, r(Math.max(0.25, Math.abs(dx))), r(Math.max(0.25, Math.abs(dy))), { id })
+          : crearBloque(a, 0.9, 0.6, { id });
+      case 'esfera':
+        return crearEsfera(arrastro ? { x: a.x, y: a.y } : a, arrastro ? r(Math.max(0.15, dist)) : 0.35, { id });
+      case 'polea':
+        return crearPolea(a, arrastro ? r(Math.max(0.15, dist)) : 0.3, { id });
+      case 'superficie':
+        return arrastro ? crearSuperficie(a, b, { id }) : crearSuperficie({ x: a.x - 1.5, y: a.y }, { x: a.x + 1.5, y: a.y }, { id });
+      case 'plano':
+        return arrastro
+          ? crearSuperficie(a, b, { id, relleno: 'cuna' })
+          : crearSuperficie({ x: a.x - 1.5, y: a.y - 0.87 }, { x: a.x + 1.5, y: a.y + 0.87 }, { id, relleno: 'cuna' });
+      case 'cuerda':
+        return arrastro ? crearCuerda(a, b, { id }) : crearCuerda({ x: a.x - 1, y: a.y }, { x: a.x + 1, y: a.y }, { id });
+      case 'resorte':
+        return arrastro ? crearResorte(a, b, { id }) : crearResorte({ x: a.x - 1, y: a.y }, { x: a.x + 1, y: a.y }, { id });
+    }
   }
 
   private cancelarActivo(): void {

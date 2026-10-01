@@ -7,7 +7,7 @@ src/
   core/        registro de ops, store, escena, cámara, tema          (Etapa 0)
   ink/         herramientas, entrada (Pointer Events), suavizado, dibujo (Etapa 1)
   share/       transportes, difusor, sincronizador, salas             (Etapa 2)
-  physics/     vectores y ejes, edición (Etapa 3); objetos, DCL (Etapa 4)
+  physics/     vectores, ejes, edición (Etapa 3); objetos y DCL (Etapa 4)
   sim/         integrador RK4, eventos, energía, trayectoria          (Etapa 5)
   recognize/   reconocimiento de formas y de escena                   (Etapa 6)
   export/      png, svg, json, tikz (Etapa 1); pdf (Etapa 7)
@@ -30,6 +30,20 @@ servicio en [FIREBASE.md](FIREBASE.md); decisión en el [ADR 0004](decisiones/00
 - `ui/espectador.ts`: `?sala=CODIGO`; solo mira, "Seguir al profesor", "Copiar a mi pizarra".
 - `ui/compartir.ts`: botón y panel con código grande y QR, pensado para proyectar.
 - Sin configuración de Firebase (`src/share/firebaseBd.ts`) todo funciona en modo demostración local.
+
+## Objetos y diagrama de cuerpo libre (Etapa 4)
+
+Seis elementos nuevos: **bloque**, **esfera**, **superficie** (suelo, plano inclinado, pared; con μs y μk), **polea**, **cuerda** y
+**resorte**. Son figuras geométricas con propiedades físicas; el modelo, las convenciones y las fórmulas verificadas están en
+[PHYSICS.md](PHYSICS.md), y la decisión de inferir los contactos por cercanía en el [ADR 0006](decisiones/0006-dcl-por-cercania.md).
+
+- `physics/objetos.ts`: constructores, geometría (achurado, cuña, zigzag del resorte) y `acomodarSobreSuperficie` (el imán).
+- `physics/dcl.ts`: **lógica pura** sin DOM: `resolverDcl` (contactos, normal, roce estático o cinético, aceleración),
+  `planteamiento` (ΣF = m a con símbolos y valores) y `construirDcl` (los elementos del diagrama).
+- Herramienta **Cuerpos** (`C`) con paleta de objetos; asas nuevas: girar y redimensionar el bloque, radio de esferas y poleas, extremos de cuerdas, resortes y superficies.
+- El panel de un bloque o esfera muestra **en vivo** las fuerzas detectadas y la aceleración, y el botón *Generar diagrama de cuerpo libre* dibuja, de una vez
+  (una sola op `elemento/lote`, un solo deshacer), el cuerpo aislado, los ejes alineados con la superficie, las fuerzas a **escala común** y el planteamiento.
+- Los vectores del diagrama llevan la etiqueta pasada su punta (`etiquetaEn: 'punta'`) para no montarse entre sí.
 
 ## Sistema de referencia y vectores (Etapa 3)
 

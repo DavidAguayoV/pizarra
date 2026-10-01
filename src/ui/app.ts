@@ -24,6 +24,8 @@ import {
   RANGO_TINTA,
   tamTextoDeGrosor,
 } from '../ink/herramientas';
+import { acomodarSobreSuperficie } from '../physics/objetos';
+import type { TipoObjeto } from '../physics/objetos';
 import type { RolVector } from '../physics/vectores';
 import { elegirTransport } from '../share';
 import { crearCompartir } from './compartir';
@@ -34,6 +36,7 @@ import { PanelPropiedades } from './propiedades';
 import { PALETAS } from './tokens';
 
 const CURSORES: Record<Herramienta, string> = {
+  objeto: 'crosshair',
   seleccionar: 'default',
   ejes: 'crosshair',
   vector: 'crosshair',
@@ -80,6 +83,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   let herramienta: Herramienta = 'lapiz';
   let seleccionIds: string[] = [];
   let rolVector: RolVector = 'aplicada';
+  let tipoObjeto: TipoObjeto = 'bloque';
   let colorTinta: ColorTinta = 'tinta';
   let colorLuz: ColorTinta = 'luzAmarillo';
   /** Posición (0 a 100) del deslizador de grosor, una por tipo de herramienta. */
@@ -253,6 +257,12 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       rolVector = r;
       panel.actualizar();
     },
+    tipoObjeto: () => tipoObjeto,
+    ponerTipoObjeto: (t) => {
+      tipoObjeto = t;
+      panel.actualizar();
+    },
+    version: () => store.ops.length,
     refActual,
     centroVista: () => ({ x: L.camara.cx, y: L.camara.cy }),
     avisar: (t) => avisar(t),
@@ -286,7 +296,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       b.style.setProperty('--muestra', colorDeTinta(paleta, k));
       b.setAttribute('aria-pressed', String(k === colorLuz));
     }
-    const sinPincel = ['seleccionar', 'mano', 'borrador', 'vector', 'ejes'].includes(herramienta);
+    const sinPincel = ['seleccionar', 'mano', 'borrador', 'vector', 'ejes', 'objeto'].includes(herramienta);
     grupoTinta.hidden = esLuz() || sinPincel;
     grupoLuz.hidden = !esLuz();
     grupoGrosor.hidden = sinPincel;
@@ -339,6 +349,8 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     borrar: (ids) => store.emitir(OP_BORRAR, { ids }),
     pedirTexto: (p) => editarTexto(p),
     rolVector: () => rolVector,
+    tipoObjeto: () => tipoObjeto,
+    acomodar: (e) => (e.tipo === 'bloque' || e.tipo === 'esfera' ? acomodarSobreSuperficie(e, store.estado.elementos.filter((x) => x.id !== e.id)) : e),
     refActual,
     seleccion: seleccionEls,
     seleccionar,

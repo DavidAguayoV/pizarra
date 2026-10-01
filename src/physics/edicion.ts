@@ -1,6 +1,6 @@
 import type { Punto } from '../core/camara';
-import type { Ejes, Elemento, Vector } from '../core/elementos';
-import { extremosEjes } from '../core/elementos';
+import type { Bloque, Ejes, Elemento, Esfera, Polea, Vector } from '../core/elementos';
+import { esquinasBloque, extremosEjes } from '../core/elementos';
 
 /**
  * Asas de edición: los puntos que se arrastran para modificar un elemento.
@@ -8,7 +8,7 @@ import { extremosEjes } from '../core/elementos';
  * Las demás figuras se mueven enteras.
  */
 
-export type NombreAsa = 'a' | 'b' | 'origen' | 'x' | 'y';
+export type NombreAsa = 'a' | 'b' | 'origen' | 'x' | 'y' | 'rotar' | 'tam' | 'radio';
 
 export interface Asa {
   nombre: NombreAsa;
@@ -32,6 +32,26 @@ export function asasDe(e: Elemento): Asa[] {
         { nombre: 'y', p: y.pos },
       ];
     }
+    case 'superficie':
+    case 'cuerda':
+    case 'resorte':
+      return [
+        { nombre: 'a', p: e.a },
+        { nombre: 'b', p: e.b },
+      ];
+    case 'bloque': {
+      const c2 = esquinasBloque(e)[2];
+      const u = { x: Math.cos(e.angulo), y: Math.sin(e.angulo) };
+      const v = { x: -u.y, y: u.x };
+      const arriba = { x: e.centro.x + v.x * (e.alto / 2 + 0.28), y: e.centro.y + v.y * (e.alto / 2 + 0.28) };
+      return [
+        { nombre: 'rotar', p: arriba },
+        { nombre: 'tam', p: c2 },
+      ];
+    }
+    case 'esfera':
+    case 'polea':
+      return [{ nombre: 'radio', p: { x: e.centro.x + e.radio, y: e.centro.y } }];
     default:
       return [];
   }
@@ -69,6 +89,29 @@ export function moverAsa(e: Elemento, asa: NombreAsa, p: Punto, ajustar = false)
       if (asa === 'y') angulo -= Math.PI / 2;
       return { ...ej, angulo: redondear(angulo), largo: redondear(largo) };
     }
+  }
+  if (e.tipo === 'superficie' || e.tipo === 'cuerda' || e.tipo === 'resorte') {
+    if (asa === 'a') return { ...e, a: pt(ajustar ? ajustarAngulo(e.b, p) : p) };
+    if (asa === 'b') return { ...e, b: pt(ajustar ? ajustarAngulo(e.a, p) : p) };
+  }
+  if (e.tipo === 'bloque') {
+    const b: Bloque = e;
+    if (asa === 'rotar') {
+      let ang = Math.atan2(p.y - b.centro.y, p.x - b.centro.x) - Math.PI / 2;
+      if (ajustar) ang = Math.round(ang / PASO_ANGULO) * PASO_ANGULO;
+      return { ...b, angulo: redondear(ang) };
+    }
+    if (asa === 'tam') {
+      const dx = p.x - b.centro.x;
+      const dy = p.y - b.centro.y;
+      const co = Math.cos(-b.angulo);
+      const si = Math.sin(-b.angulo);
+      return { ...b, ancho: redondear(Math.max(0.2, 2 * Math.abs(dx * co - dy * si))), alto: redondear(Math.max(0.2, 2 * Math.abs(dx * si + dy * co))) };
+    }
+  }
+  if ((e.tipo === 'esfera' || e.tipo === 'polea') && asa === 'radio') {
+    const c: Esfera | Polea = e;
+    return { ...c, radio: redondear(Math.max(0.1, Math.hypot(p.x - c.centro.x, p.y - c.centro.y))) };
   }
   return e;
 }

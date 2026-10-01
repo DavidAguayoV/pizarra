@@ -1,11 +1,12 @@
 import type { Camara, Vista } from '../core/camara';
 import { pantallaAMundo } from '../core/camara';
 import { colorDeElemento } from '../core/colores';
-import type { Caja2D, Ejes, Elemento, Imagen, Trazo, Vector } from '../core/elementos';
-import { ASCENSO, cajaCacheada, cajasSeCruzan, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import type { Bloque, Caja2D, Ejes, Elemento, Esfera, Imagen, Polea, Resorte, Superficie, Trazo, Vector } from '../core/elementos';
+import { ASCENSO, cajaCacheada, cajasSeCruzan, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import { achurado, puntosResorte, trianguloCuna } from '../physics/objetos';
 import type { AnclaEtiqueta } from '../physics/vectores';
 import { dibujarMat, componerLinea } from '../core/matematica';
-import { anclaEtiquetaVector, anclasEjes, arcoAngulo, geometriaComponentes } from '../physics/vectores';
+import { anclarCaja, anclaEtiquetaVector, anclasEjes, arcoAngulo, geometriaComponentes } from '../physics/vectores';
 import type { PaletaTema } from '../ui/tokens';
 import { TIPOGRAFIA } from '../ui/tokens';
 import { factorPresion } from './herramientas';
@@ -162,6 +163,28 @@ export function dibujarElemento(ctx: CanvasRenderingContext2D, e: Elemento, op: 
       break;
     case 'ejes':
       dibujarEjes(ctx, e, op);
+      break;
+    case 'bloque':
+      dibujarBloque(ctx, e, op);
+      break;
+    case 'esfera':
+      dibujarEsfera(ctx, e, op);
+      break;
+    case 'superficie':
+      dibujarSuperficie(ctx, e, op);
+      break;
+    case 'polea':
+      dibujarPolea(ctx, e, op);
+      break;
+    case 'cuerda':
+      ctx.lineWidth = Math.max(e.grosor, 1 / op.escala);
+      ctx.beginPath();
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.lineTo(e.b.x, e.b.y);
+      ctx.stroke();
+      break;
+    case 'resorte':
+      dibujarResorte(ctx, e, op);
       break;
     case 'imagen': {
       const img = op.imagenes.obtener(e);
@@ -342,4 +365,93 @@ function dibujarEjes(ctx: CanvasRenderingContext2D, e: Ejes, op: OpcionesDibujo)
   const a = anclasEjes(e);
   etiqueta(ctx, a.x);
   etiqueta(ctx, a.y);
+}
+
+// --- Objetos físicos ---------------------------------------------------------------------------------
+
+const GROSOR_CONTORNO = 0.025;
+
+function rellenoCuerpo(ctx: CanvasRenderingContext2D, op: OpcionesDibujo, texto: string): void {
+  ctx.fillStyle = op.paleta.cuerpo;
+  ctx.fill();
+  ctx.strokeStyle = op.paleta.cuerpoBorde;
+  ctx.lineWidth = Math.max(GROSOR_CONTORNO, 1.5 / op.escala);
+  ctx.stroke();
+  ctx.fillStyle = texto;
+}
+
+function dibujarBloque(ctx: CanvasRenderingContext2D, b: Bloque, op: OpcionesDibujo): void {
+  const texto = ctx.fillStyle as string;
+  const [p0, ...resto] = esquinasBloque(b);
+  ctx.beginPath();
+  ctx.moveTo(p0.x, p0.y);
+  for (const p of resto) ctx.lineTo(p.x, p.y);
+  ctx.closePath();
+  rellenoCuerpo(ctx, op, texto);
+  if (b.etiqueta.trim() !== '') etiqueta(ctx, anclarCaja(b.etiqueta, b.centro));
+}
+
+function dibujarEsfera(ctx: CanvasRenderingContext2D, e: Esfera, op: OpcionesDibujo): void {
+  const texto = ctx.fillStyle as string;
+  ctx.beginPath();
+  ctx.arc(e.centro.x, e.centro.y, e.radio, 0, Math.PI * 2);
+  rellenoCuerpo(ctx, op, texto);
+  if (e.etiqueta.trim() !== '') etiqueta(ctx, anclarCaja(e.etiqueta, e.centro));
+}
+
+function dibujarSuperficie(ctx: CanvasRenderingContext2D, s: Superficie, op: OpcionesDibujo): void {
+  if (s.relleno === 'cuna') {
+    const [a, b, c] = trianguloCuna(s);
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = op.paleta.cuerpo;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.lineTo(c.x, c.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.lineWidth = Math.max(s.grosor * 0.6, 1 / op.escala);
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(c.x, c.y);
+    ctx.lineTo(a.x, a.y);
+    ctx.stroke();
+  } else if (s.relleno === 'achurado') {
+    ctx.lineWidth = Math.max(s.grosor * 0.5, 1 / op.escala);
+    ctx.beginPath();
+    for (const [d, h] of achurado(s)) {
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(h.x, h.y);
+    }
+    ctx.stroke();
+  }
+  ctx.lineWidth = Math.max(s.grosor, 1.5 / op.escala);
+  ctx.beginPath();
+  ctx.moveTo(s.a.x, s.a.y);
+  ctx.lineTo(s.b.x, s.b.y);
+  ctx.stroke();
+}
+
+function dibujarPolea(ctx: CanvasRenderingContext2D, p: Polea, op: OpcionesDibujo): void {
+  const texto = ctx.fillStyle as string;
+  ctx.beginPath();
+  ctx.arc(p.centro.x, p.centro.y, p.radio, 0, Math.PI * 2);
+  rellenoCuerpo(ctx, op, texto);
+  ctx.lineWidth = Math.max(p.grosor * 0.6, 1 / op.escala);
+  ctx.beginPath();
+  ctx.arc(p.centro.x, p.centro.y, p.radio * 0.72, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(p.centro.x, p.centro.y, Math.max(p.radio * 0.1, 0.02), 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function dibujarResorte(ctx: CanvasRenderingContext2D, r: Resorte, op: OpcionesDibujo): void {
+  ctx.lineWidth = Math.max(r.grosor, 1 / op.escala);
+  const pts = puntosResorte(r);
+  ctx.beginPath();
+  pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+  ctx.stroke();
 }

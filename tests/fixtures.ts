@@ -1,4 +1,5 @@
 import type { Elemento } from '../src/core/elementos';
+import { crearBloque, crearCuerda, crearEsfera, crearPolea, crearResorte, crearSuperficie } from '../src/physics/objetos';
 import { crearEjes, crearVector } from '../src/physics/vectores';
 
 /** Un PNG de 1×1 píxel, para probar imágenes sin archivos externos. */
@@ -31,5 +32,13 @@ export function escenaEjemplo(): Elemento[] {
     }),
     crearVector('normal', { x: 0.5, y: -2.4 }, { x: 0.5 - 0.65, y: -2.4 + 1.125 }, { id: 'v2', ref: 'e1' }),
     crearVector('friccion', { x: 0.5, y: -2.4 }, { x: 0.5 + 0.3, y: -2.4 + 0.1 }, { id: 'v3', fantasma: true, etiqueta: '' }),
+    // Objetos físicos: plano inclinado con un bloque, una polea con su cuerda, una esfera y un resorte.
+    crearSuperficie({ x: 5, y: -3 }, { x: 8, y: -1.5 }, { id: 's1', relleno: 'cuna', muS: 0.3, muK: 0.2 }),
+    crearBloque({ x: 6.6, y: -1.7 }, 0.6, 0.4, { id: 'b1', angulo: 0.4636, masa: 2, etiqueta: 'm_1' }),
+    crearSuperficie({ x: 5, y: -3.3 }, { x: 8.5, y: -3.3 }, { id: 's2', relleno: 'achurado' }),
+    crearPolea({ x: 6, y: 0.4 }, 0.3, { id: 'p1' }),
+    crearCuerda({ x: 6, y: 0.7 }, { x: 8, y: 0.7 }, { id: 'c1' }),
+    crearEsfera({ x: 4.6, y: 0 }, 0.3, { id: 'q1', masa: 1, etiqueta: 'M' }),
+    crearResorte({ x: 4.2, y: -1.2 }, { x: 5.8, y: -1.2 }, { id: 'rs1', espiras: 6 }),
   ];
 }

@@ -105,9 +105,83 @@ export interface Vector {
   ref: string | null;
   /** Copia punteada para el polígono de suma (punta con cola). */
   fantasma: boolean;
+  /** Dónde va la etiqueta: al costado, a media flecha (por defecto), o pasada la punta. */
+  etiquetaEn?: 'medio' | 'punta';
 }
 
-export type Elemento = Trazo | Linea | Caja | Texto | Imagen | Ejes | Vector;
+/** Cuerpo rectangular con masa. `angulo` lo gira alrededor de su centro (radianes, antihorario). */
+export interface Bloque extends Base {
+  tipo: 'bloque';
+  centro: Punto;
+  ancho: number;
+  alto: number;
+  angulo: number;
+  /** Masa en kg. */
+  masa: number;
+  /** Etiqueta en LaTeX (sin `$`), por ejemplo `m_1`. */
+  etiqueta: string;
+}
+
+export interface Esfera extends Base {
+  tipo: 'esfera';
+  centro: Punto;
+  radio: number;
+  masa: number;
+  etiqueta: string;
+}
+
+/** Superficie de apoyo (suelo, plano inclinado, pared) con sus coeficientes de roce. */
+export interface Superficie extends Base {
+  tipo: 'superficie';
+  a: Punto;
+  b: Punto;
+  muS: number;
+  muK: number;
+  /** `achurado`: rayitas del lado de abajo; `cuna`: relleno de triángulo (plano inclinado); `ninguno`. */
+  relleno: 'achurado' | 'cuna' | 'ninguno';
+  grosor: number;
+}
+
+/** Polea ideal: sin masa ni roce; solo cambia la dirección de la cuerda. */
+export interface Polea extends Base {
+  tipo: 'polea';
+  centro: Punto;
+  radio: number;
+  grosor: number;
+}
+
+/** Cuerda ideal: inextensible y sin masa (un segmento recto entre dos puntos). */
+export interface Cuerda extends Base {
+  tipo: 'cuerda';
+  a: Punto;
+  b: Punto;
+  grosor: number;
+}
+
+/** Resorte ideal: fuerza `k (largo − largoNatural)`. */
+export interface Resorte extends Base {
+  tipo: 'resorte';
+  a: Punto;
+  b: Punto;
+  /** Constante elástica en N/m. */
+  k: number;
+  /** Largo natural en metros. */
+  largoNatural: number;
+  espiras: number;
+  grosor: number;
+}
+
+export type Elemento = Trazo | Linea | Caja | Texto | Imagen | Ejes | Vector | Bloque | Esfera | Superficie | Polea | Cuerda | Resorte;
+
+/** Los cuatro vértices del bloque girado. */
+export function esquinasBloque(b: Bloque): [Punto, Punto, Punto, Punto] {
+  const c = Math.cos(b.angulo);
+  const s = Math.sin(b.angulo);
+  const hx = b.ancho / 2;
+  const hy = b.alto / 2;
+  const v = (x: number, y: number): Punto => ({ x: b.centro.x + x * c - y * s, y: b.centro.y + x * s + y * c });
+  return [v(-hx, -hy), v(hx, -hy), v(hx, hy), v(-hx, hy)];
+}
 
 export interface Caja2D {
   x0: number;
@@ -174,6 +248,18 @@ export function cajaDe(e: Elemento): Caja2D {
       // Margen amplio: caben la etiqueta, las componentes y el arco, que se dibujan alrededor.
       return envolver([e.a, e.b], g + 0.45 + (e.componentes || e.angulo ? 0.3 : 0));
     }
+    case 'bloque':
+      return envolver(esquinasBloque(e), 0.03);
+    case 'esfera':
+      return envolver([{ x: e.centro.x - e.radio, y: e.centro.y - e.radio }, { x: e.centro.x + e.radio, y: e.centro.y + e.radio }], 0.03);
+    case 'polea':
+      return envolver([{ x: e.centro.x - e.radio, y: e.centro.y - e.radio }, { x: e.centro.x + e.radio, y: e.centro.y + e.radio }], 0.06);
+    case 'superficie':
+      return envolver([e.a, e.b], e.relleno === 'ninguno' ? 0.05 : 0.4);
+    case 'cuerda':
+      return envolver([e.a, e.b], e.grosor + 0.03);
+    case 'resorte':
+      return envolver([e.a, e.b], 0.14);
   }
 }
 
@@ -307,6 +393,25 @@ export function tocaElemento(e: Elemento, p: Punto, radio: number): boolean {
       const r = radio + e.grosor / 2 + 0.01;
       return distSegmento(p, x.neg, x.pos) <= r || distSegmento(p, y.neg, y.pos) <= r;
     }
+    case 'bloque': {
+      // Se pasa el punto al sistema del bloque (sin girar) y se ve si cae dentro, con margen.
+      const dx = p.x - e.centro.x;
+      const dy = p.y - e.centro.y;
+      const c = Math.cos(-e.angulo);
+      const s = Math.sin(-e.angulo);
+      const lx = dx * c - dy * s;
+      const ly = dx * s + dy * c;
+      return Math.abs(lx) <= e.ancho / 2 + radio && Math.abs(ly) <= e.alto / 2 + radio;
+    }
+    case 'esfera':
+    case 'polea':
+      return Math.hypot(p.x - e.centro.x, p.y - e.centro.y) <= e.radio + radio;
+    case 'superficie':
+      return distSegmento(p, e.a, e.b) <= radio + e.grosor / 2 + 0.03;
+    case 'cuerda':
+      return distSegmento(p, e.a, e.b) <= radio + e.grosor / 2 + 0.02;
+    case 'resorte':
+      return distSegmento(p, e.a, e.b) <= radio + 0.08;
   }
 }
 
@@ -327,7 +432,14 @@ export function trasladar<T extends Elemento>(e: T, dx: number, dy: number): T {
     case 'rect':
     case 'elipse':
     case 'vector':
+    case 'superficie':
+    case 'cuerda':
+    case 'resorte':
       return { ...e, a: mv(e.a), b: mv(e.b) };
+    case 'bloque':
+    case 'esfera':
+    case 'polea':
+      return { ...e, centro: mv(e.centro) };
     case 'texto':
     case 'imagen':
       return { ...e, pos: mv(e.pos) };

@@ -502,3 +502,21 @@ button.en-vivo {
 .barra .fila:first-child h1 {
   font-size: 1rem;
 }
+
+/* --- Diagrama de cuerpo libre (Etapa 4) ------------------------------------------------------- */
+.propiedades h3 {
+  margin: 12px 0 6px;
+  padding-top: 8px;
+  font-size: 0.95rem;
+  border-top: 1px solid var(--borde);
+}
+
+.propiedades .fuerzas {
+  margin: 4px 0 6px;
+  padding-left: 1.1rem;
+}
+
+.propiedades .aviso-dcl {
+  color: var(--texto);
+  font-weight: 600;
+}

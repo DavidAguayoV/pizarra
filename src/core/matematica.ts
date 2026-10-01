@@ -174,9 +174,12 @@ function textoPlano(n: Nodo): string {
 
 // --- Medidas (estimadas, iguales en todas las salidas) ------------------------------------------
 
-const ANCHO_BASE = 0.55;
+const ANCHO_BASE = 0.49;
+const ANCHO_MAYUSCULA = 0.62;
+const ANCHO_DIGITO = 0.55;
 const ESTRECHOS = new Set([...'iljt;:!\'|()[]fI1']);
 const PUNTUACION = new Set([...'.,']);
+const SEMIANGOSTOS = new Set([...'rszc']);
 const ANCHOS = new Set([...'mwMWQ%@∑']);
 const OPERADORES = new Set([...'=+−<>≈≠≤≥→±∓×']);
 
@@ -184,9 +187,20 @@ export function anchoGlifo(c: string): number {
   if (OPERADORES.has(c)) return 0.62;
   if (PUNTUACION.has(c)) return 0.24;
   if (ESTRECHOS.has(c)) return 0.34;
+  if (SEMIANGOSTOS.has(c)) return 0.42;
   if (ANCHOS.has(c)) return 0.85;
   if (c === '·' || c === '°') return 0.32;
+  if (c === ' ') return 0.27;
+  if (/[0-9]/.test(c)) return ANCHO_DIGITO;
+  if (/[A-ZÁÉÍÓÚÑ]/.test(c)) return ANCHO_MAYUSCULA;
   return ANCHO_BASE;
+}
+
+/** Ancho estimado de una cadena de texto recto (em). */
+export function anchoTexto(s: string): number {
+  let w = 0;
+  for (const c of s) w += anchoGlifo(c);
+  return w;
 }
 
 const CON_COLA = new Set([...'gjpqyμβγρφψζ']);
@@ -231,9 +245,11 @@ function nodo(n: Nodo, x: number, y: number, s: number, c: Cursor): Medida {
       return { ancho: w + (op ? 2 * pad : 0), asc: ALTURA * s, desc: CON_COLA.has(car) ? 0.22 * s : 0 };
     }
     case 'texto': {
-      c.prims.push({ k: 't', x, y, s: n.s, tam: s, cursiva: false });
-      const sufijo = FUNCIONES.has(n.s) ? 0.12 * s : 0;
-      return { ancho: n.s.length * ANCHO_BASE * s + sufijo, asc: ALTURA * s, desc: /[gjpqy]/.test(n.s) ? 0.22 * s : 0 };
+      const esFuncion = FUNCIONES.has(n.s);
+      const antes = esFuncion && x > 0 ? 0.14 * s : 0;
+      c.prims.push({ k: 't', x: x + antes, y, s: n.s, tam: s, cursiva: false });
+      const sufijo = esFuncion ? 0.14 * s + antes : 0;
+      return { ancho: anchoTexto(n.s) * s + sufijo, asc: ALTURA * s, desc: /[gjpqy]/.test(n.s) ? 0.22 * s : 0 };
     }
     case 'esp':
       return { ancho: n.w * s, asc: 0, desc: 0 };
@@ -374,7 +390,7 @@ export function componerLinea(linea: string): CajaMat {
       desc = Math.max(desc, m.descenso);
     } else if (t.length > 0) {
       prims.push({ k: 't', x, y: 0, s: t, tam: 1, cursiva: false });
-      x += t.length * ANCHO_BASE;
+      x += anchoTexto(t);
     }
   });
   return { ancho: x, ascenso: asc, descenso: desc, prims };

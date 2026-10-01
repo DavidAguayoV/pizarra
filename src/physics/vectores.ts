@@ -279,7 +279,7 @@ export function anclaPunta(fuente: string, a: Punto, b: Punto, tam = TAM_ETIQUET
 export function anclaEtiquetaVector(v: Vector): AnclaEtiqueta | null {
   const fuente = etiquetaCompleta(v);
   if (fuente === '' || v.fantasma) return null;
-  return anclaLateral(fuente, v.a, v.b, v.grosor);
+  return v.etiquetaEn === 'punta' ? anclaPunta(fuente, v.a, v.b) : anclaLateral(fuente, v.a, v.b, v.grosor);
 }
 
 /** Etiqueta centrada a un costado del segmento a→b, a una distancia que depende del tamaño de la caja. */

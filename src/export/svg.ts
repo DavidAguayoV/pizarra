@@ -1,9 +1,10 @@
 import { colorDeElemento, PALETA_EXPORTACION } from '../core/colores';
-import type { Caja2D, Ejes, Elemento, Trazo, Vector } from '../core/elementos';
-import { ASCENSO, cajaDe, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe, unirCajas } from '../core/elementos';
+import type { Bloque, Caja2D, Ejes, Elemento, Esfera, Polea, Resorte, Superficie, Trazo, Vector } from '../core/elementos';
+import { ASCENSO, cajaDe, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe, unirCajas } from '../core/elementos';
 import { componerLinea, matASvg } from '../core/matematica';
+import { achurado, puntosResorte, trianguloCuna } from '../physics/objetos';
 import type { AnclaEtiqueta } from '../physics/vectores';
-import { anclaEtiquetaVector, anclasEjes, arcoAngulo, cajaConEtiquetas, cajaConEtiquetasEjes, geometriaComponentes } from '../physics/vectores';
+import { anclarCaja, anclaEtiquetaVector, anclasEjes, arcoAngulo, cajaConEtiquetas, cajaConEtiquetasEjes, geometriaComponentes } from '../physics/vectores';
 import { grosorMedio } from '../ink/herramientas';
 import { OPACIDAD_RESALTADOR } from '../ink/dibujo';
 import type { PaletaTema } from '../ui/tokens';
@@ -105,6 +106,18 @@ function elementoSvg(e: Elemento, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv,
       return vectorSvg(e, c, X, Y, L, ejesDe);
     case 'ejes':
       return ejesSvg(e, c, X, Y, L);
+    case 'bloque':
+      return bloqueSvg(e, c, paleta, X, Y, L);
+    case 'esfera':
+      return esferaSvg(e, c, paleta, X, Y, L);
+    case 'superficie':
+      return superficieSvg(e, c, paleta, X, Y, L);
+    case 'polea':
+      return poleaSvg(e, c, paleta, X, Y, L);
+    case 'cuerda':
+      return `<line x1="${X(e.a.x)}" y1="${Y(e.a.y)}" x2="${X(e.b.x)}" y2="${Y(e.b.y)}" ${trazo(e.grosor)}/>`;
+    case 'resorte':
+      return resorteSvg(e, c, X, Y, L);
   }
 }
 
@@ -179,4 +192,42 @@ function trazoSvg(t: Trazo, color: string, X: Conv, Y: Conv, L: Conv): string {
   d += ` L${X(u.x)} ${Y(u.y)}`;
   const op = t.resaltador ? ` stroke-opacity="${OPACIDAD_RESALTADOR}"` : '';
   return `<path d="${d}" stroke="${color}" stroke-width="${L(g)}" stroke-linecap="round" stroke-linejoin="round" fill="none"${op}/>`;
+}
+
+const cuerpoAttrs = (paleta: PaletaTema, L: Conv) =>
+  `fill="${paleta.cuerpo}" stroke="${paleta.cuerpoBorde}" stroke-width="${L(0.025)}" stroke-linejoin="round"`;
+
+function bloqueSvg(b: Bloque, c: string, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv): string {
+  const pts = esquinasBloque(b).map((p) => `${X(p.x)},${Y(p.y)}`).join(' ');
+  return [`<polygon points="${pts}" ${cuerpoAttrs(paleta, L)}/>`, b.etiqueta.trim() ? etiquetaSvg(anclarCaja(b.etiqueta, b.centro), c, X, Y, L) : ''].filter((x) => x !== '').join('\n');
+}
+
+function esferaSvg(e: Esfera, c: string, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv): string {
+  return [`<circle cx="${X(e.centro.x)}" cy="${Y(e.centro.y)}" r="${L(e.radio)}" ${cuerpoAttrs(paleta, L)}/>`, e.etiqueta.trim() ? etiquetaSvg(anclarCaja(e.etiqueta, e.centro), c, X, Y, L) : ''].filter((x) => x !== '').join('\n');
+}
+
+function superficieSvg(s: Superficie, c: string, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv): string {
+  const partes: string[] = [];
+  if (s.relleno === 'cuna') {
+    const t = trianguloCuna(s);
+    partes.push(`<polygon points="${t.map((p) => `${X(p.x)},${Y(p.y)}`).join(' ')}" fill="${paleta.cuerpo}" fill-opacity="0.5" stroke="${c}" stroke-width="${L(s.grosor * 0.6)}" stroke-linejoin="round"/>`);
+  } else if (s.relleno === 'achurado') {
+    const d = achurado(s).map(([a, b]) => `M${X(a.x)} ${Y(a.y)} L${X(b.x)} ${Y(b.y)}`).join(' ');
+    if (d) partes.push(`<path d="${d}" stroke="${c}" stroke-width="${L(s.grosor * 0.5)}" fill="none"/>`);
+  }
+  partes.push(`<line x1="${X(s.a.x)}" y1="${Y(s.a.y)}" x2="${X(s.b.x)}" y2="${Y(s.b.y)}" stroke="${c}" stroke-width="${L(s.grosor)}" stroke-linecap="round"/>`);
+  return partes.join('\n');
+}
+
+function poleaSvg(p: Polea, c: string, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv): string {
+  return [
+    `<circle cx="${X(p.centro.x)}" cy="${Y(p.centro.y)}" r="${L(p.radio)}" ${cuerpoAttrs(paleta, L)}/>`,
+    `<circle cx="${X(p.centro.x)}" cy="${Y(p.centro.y)}" r="${L(p.radio * 0.72)}" fill="none" stroke="${c}" stroke-width="${L(p.grosor * 0.6)}"/>`,
+    `<circle cx="${X(p.centro.x)}" cy="${Y(p.centro.y)}" r="${L(Math.max(p.radio * 0.1, 0.02))}" fill="${c}"/>`,
+  ].join('\n');
+}
+
+function resorteSvg(r: Resorte, c: string, X: Conv, Y: Conv, L: Conv): string {
+  const pts = puntosResorte(r).map((p) => `${X(p.x)},${Y(p.y)}`).join(' ');
+  return `<polyline points="${pts}" stroke="${c}" stroke-width="${L(r.grosor)}" stroke-linejoin="round" stroke-linecap="round" fill="none"/>`;
 }

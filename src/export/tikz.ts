@@ -1,9 +1,10 @@
 import type { Punto } from '../core/camara';
 import { claveColor, colorDeTinta, PALETA_EXPORTACION } from '../core/colores';
-import type { ColorTinta, Ejes, Elemento, Imagen, Linea, Texto, Trazo, Vector } from '../core/elementos';
-import { COLORES_RESALTADOR, COLORES_TINTA, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import type { Bloque, ColorTinta, Ejes, Elemento, Esfera, Imagen, Linea, Polea, Resorte, Superficie, Texto, Trazo, Vector } from '../core/elementos';
+import { COLORES_RESALTADOR, COLORES_TINTA, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
+import { achurado, puntosResorte, trianguloCuna } from '../physics/objetos';
 import type { AnclaEtiqueta } from '../physics/vectores';
-import { aGrados, anclaEtiquetaVector, anclasEjes, arcoAngulo, geometriaComponentes } from '../physics/vectores';
+import { aGrados, anclarCaja, anclaEtiquetaVector, anclasEjes, arcoAngulo, geometriaComponentes } from '../physics/vectores';
 import { OPACIDAD_RESALTADOR } from '../ink/dibujo';
 import { grosorMedio } from '../ink/herramientas';
 import { bezierPorPuntos, simplificarRdp } from '../ink/suavizado';
@@ -54,6 +55,12 @@ const NOMBRES_CAPA: Record<Elemento['tipo'], string> = {
   imagen: 'imágenes',
   ejes: 'sistema de referencia',
   vector: 'vectores',
+  bloque: 'objetos',
+  esfera: 'objetos',
+  superficie: 'objetos',
+  polea: 'objetos',
+  cuerda: 'objetos',
+  resorte: 'objetos',
 };
 
 export function nombreColor(c: ColorTinta): string {
@@ -108,9 +115,16 @@ export function aTikz(elementos: readonly Elemento[], op: OpcionesTikz = {}): Re
   }
 
   const usados = [...COLORES_TINTA, ...COLORES_RESALTADOR].filter((c) => elementos.some((e) => claveColor(e) === c));
-  const colores = usados.map(
+  const usaCuerpo = elementos.some((e) => e.tipo === 'bloque' || e.tipo === 'esfera' || e.tipo === 'polea' || (e.tipo === 'superficie' && e.relleno === 'cuna'));
+  const coloresCuerpo = usaCuerpo
+    ? [
+        `  \\definecolor{pzcuerpo}{HTML}{${paleta.cuerpo.slice(1).toUpperCase()}}`,
+        `  \\definecolor{pzborde}{HTML}{${paleta.cuerpoBorde.slice(1).toUpperCase()}}`,
+      ]
+    : [];
+  const colores = [...coloresCuerpo, ...usados.map(
     (c) => `  \\definecolor{${nombreColor(c)}}{HTML}{${colorDeTinta(paleta, c).slice(1).toUpperCase()}}`,
-  );
+  )];
 
   const figura = [
     '% Figura generada por Pizarra de Física (https://davidaguayov.github.io/pizarra/)',
@@ -172,6 +186,18 @@ function elementoTikz(
       return vectorTikz(e, escala, P, grosorPt, ejesDe);
     case 'ejes':
       return ejesTikz(e, escala, P, grosorPt);
+    case 'bloque':
+      return bloqueTikz(e, escala, P, grosorPt);
+    case 'esfera':
+      return esferaTikz(e, escala, P, grosorPt);
+    case 'superficie':
+      return superficieTikz(e, P, grosorPt);
+    case 'polea':
+      return poleaTikz(e, escala, P, grosorPt);
+    case 'cuerda':
+      return [`  \\draw[${nombreColor(e.color)}, ${grosorPt(e.grosor)}, line cap=round] ${P(e.a)} -- ${P(e.b)};`];
+    case 'resorte':
+      return resorteTikz(e, P, grosorPt);
   }
 }
 
@@ -282,4 +308,53 @@ function ejesTikz(e: Ejes, escala: number, P: (p: Punto) => string, grosorPt: (g
     ...nodoEtiqueta(a.x, col, escala, P),
     ...nodoEtiqueta(a.y, col, escala, P),
   ];
+}
+
+const RELLENO_CUERPO = 'fill=pzcuerpo, draw=pzborde';
+
+function bloqueTikz(b: Bloque, escala: number, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
+  const [a, c, d, e] = esquinasBloque(b);
+  return [
+    `  \\filldraw[${RELLENO_CUERPO}, ${grosorPt(0.025)}, line join=round] ${P(a)} -- ${P(c)} -- ${P(d)} -- ${P(e)} -- cycle;`,
+    ...(b.etiqueta.trim() ? nodoEtiqueta(anclarCaja(b.etiqueta, b.centro), nombreColor(b.color), escala, P) : []),
+  ];
+}
+
+function esferaTikz(s: Esfera, escala: number, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
+  return [
+    `  \\filldraw[${RELLENO_CUERPO}, ${grosorPt(0.025)}] ${P(s.centro)} circle (${num(s.radio * escala)});`,
+    ...(s.etiqueta.trim() ? nodoEtiqueta(anclarCaja(s.etiqueta, s.centro), nombreColor(s.color), escala, P) : []),
+  ];
+}
+
+function superficieTikz(s: Superficie, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
+  const col = nombreColor(s.color);
+  const out: string[] = [];
+  if (s.relleno === 'cuna') {
+    const [a, b, c] = trianguloCuna(s);
+    out.push(`  \\fill[pzcuerpo, opacity=0.5] ${P(a)} -- ${P(b)} -- ${P(c)} -- cycle;`);
+    out.push(`  \\draw[${col}, ${grosorPt(s.grosor * 0.6)}, line join=round] ${P(b)} -- ${P(c)} -- ${P(a)};`);
+  } else if (s.relleno === 'achurado') {
+    const rayas = achurado(s).map(([d, h]) => `${P(d)} -- ${P(h)}`).join(' ');
+    if (rayas) out.push(`  \\draw[${col}, ${grosorPt(s.grosor * 0.5)}] ${rayas};`);
+  }
+  out.push(`  \\draw[${col}, ${grosorPt(s.grosor)}, line cap=round] ${P(s.a)} -- ${P(s.b)};`);
+  return out;
+}
+
+function poleaTikz(p: Polea, escala: number, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
+  const col = nombreColor(p.color);
+  return [
+    `  \\filldraw[${RELLENO_CUERPO}, ${grosorPt(0.025)}] ${P(p.centro)} circle (${num(p.radio * escala)});`,
+    `  \\draw[${col}, ${grosorPt(p.grosor * 0.6)}] ${P(p.centro)} circle (${num(p.radio * 0.72 * escala)});`,
+    `  \\fill[${col}] ${P(p.centro)} circle (${num(Math.max(p.radio * 0.1, 0.02) * escala)});`,
+  ];
+}
+
+function resorteTikz(r: Resorte, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
+  const pts = puntosResorte(r);
+  const lineas = [`  \\draw[${nombreColor(r.color)}, ${grosorPt(r.grosor)}, line join=round, line cap=round] ${P(pts[0]!)}`];
+  for (const p of pts.slice(1)) lineas.push(`    -- ${P(p)}`);
+  lineas[lineas.length - 1] += ';';
+  return lineas;
 }

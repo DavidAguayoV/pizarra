@@ -116,6 +116,8 @@ export async function montarEspectador(raiz: HTMLElement, codigo: string, transp
     borrar: () => {},
     pedirTexto: () => {},
     rolVector: () => 'aplicada',
+    tipoObjeto: () => 'bloque',
+    acomodar: (e) => e,
     refActual: () => null,
     seleccion: () => [],
     seleccionar: () => {},

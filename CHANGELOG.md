@@ -1,5 +1,26 @@
 # Cambios
 
+## Etapa 4 — Objetos y diagrama de cuerpo libre (2026-10-01)
+
+### Agregado
+- Objetos físicos: **bloque, esfera, superficie** (suelo, plano inclinado, pared; con μs y μk), **polea, cuerda y resorte**. Herramienta *Cuerpos* con paleta; un cuerpo soltado cerca de una superficie **se apoya solo**.
+- **Diagrama de cuerpo libre automático**: detecta peso, normal, roce, tensión, fuerza elástica y fuerzas aplicadas; resuelve normal y roce (**estático o cinético**) y la aceleración cuando no hay incógnitas; dibuja el cuerpo aislado con los ejes alineados a la superficie, las fuerzas a escala común y **ΣF = m a por componente** (símbolos y valores). Una sola op: un solo deshacer.
+- Vista previa en vivo de fuerzas y aceleración en el panel del cuerpo; g editable (9,80 por defecto) y modo de roce (automático, estático, cinético, sin roce).
+- Asas: girar y redimensionar el bloque, radio de esferas y poleas, extremos de cuerdas, resortes y superficies.
+- Exportación a SVG, PNG y TikZ de todos los objetos (compilado con pdflatex).
+- Física verificada contra las fórmulas del curso: `a = g (sen θ − μk cos θ)`, reposo si `tan θ ≤ μs`, barrido de ángulos y coeficientes, piso con fuerza aplicada, resorte, caída libre. `docs/PHYSICS.md`, ADR 0006.
+- 237 pruebas unitarias y 39 e2e.
+
+### Cambiado
+- Medidas de texto más finas en el compositor de etiquetas (letras angostas, espacios, funciones con espacio fino).
+
+### Corregido
+- La vista previa del panel no se refrescaba mientras se escribía en un campo.
+
+### Pendiente (Etapa 5 en adelante)
+- **Tensiones y sistemas de varios cuerpos** (Atwood, bloques unidos por cuerdas) quedan como incógnitas: necesitan uniones vivas entre objetos y la simulación.
+- Más de una superficie de contacto, rodadura y roce con velocidad inicial.
+
 ## Etapa 3 — Sistema de referencia y vectores (2026-10-01)
 
 ### Agregado

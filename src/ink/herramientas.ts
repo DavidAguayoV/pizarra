@@ -2,7 +2,7 @@ import type { Punto } from '../core/camara';
 import type { Caja, ColorTinta, Elemento, Imagen, Linea, Texto, Trazo } from '../core/elementos';
 import { nuevoIdElemento } from '../core/elementos';
 
-export const HERRAMIENTAS = ['seleccionar', 'lapiz', 'resaltador', 'borrador', 'linea', 'flecha', 'rect', 'elipse', 'texto', 'ejes', 'vector', 'mano'] as const;
+export const HERRAMIENTAS = ['seleccionar', 'lapiz', 'resaltador', 'borrador', 'linea', 'flecha', 'rect', 'elipse', 'texto', 'ejes', 'vector', 'objeto', 'mano'] as const;
 export type Herramienta = (typeof HERRAMIENTAS)[number];
 
 export interface DefHerramienta {
@@ -23,6 +23,7 @@ export const DEFS_HERRAMIENTAS: readonly DefHerramienta[] = [
   { clave: 'texto', etiqueta: 'Texto', atajo: 'T' },
   { clave: 'ejes', etiqueta: 'Ejes', atajo: 'X' },
   { clave: 'vector', etiqueta: 'Vector', atajo: 'V' },
+  { clave: 'objeto', etiqueta: 'Cuerpos', atajo: 'C' },
   { clave: 'mano', etiqueta: 'Mover vista', atajo: 'M' },
 ];
 

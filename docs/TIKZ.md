@@ -43,6 +43,19 @@ descargan aparte: hay que dejarlas junto al `.tex`.
 | Texto | `\node[anchor=north west, align=left, font={\fontsize{..}{..}\selectfont}] at (..) {línea 1 \\ línea 2};` |
 | Imagen | `\node[anchor=north west] at (..) {\includegraphics[width=..cm]{pizarra-imagen-N.png}};` |
 
+### Objetos físicos
+
+| Elemento | TikZ |
+|---|---|
+| Bloque | `\filldraw[fill=pzcuerpo, draw=pzborde, ...]` sobre sus cuatro vértices (ya girados) y su etiqueta como `\node` con `$m_1$`. |
+| Esfera | `\filldraw[...] (c) circle (r);` y su etiqueta. |
+| Superficie | Línea gruesa; achurado como rayitas en un solo `\draw`; la **cuña** del plano inclinado como `\fill[pzcuerpo, opacity=0.5]` más su contorno. |
+| Polea | Disco, circunferencia interior y punto central. |
+| Cuerda | `\draw ... -- ...;` |
+| Resorte | Línea quebrada explícita (zigzag): no necesita la biblioteca `decorations`. |
+
+Los colores `pzcuerpo` y `pzborde` (relleno y contorno de los cuerpos, tomados del tema claro) se definen solo si hay cuerpos que los usen.
+
 ### Sistema de referencia y vectores
 
 | Elemento | TikZ |
