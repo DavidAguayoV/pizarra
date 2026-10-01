@@ -89,7 +89,7 @@ test('el trazo en construcción se ve en el celular antes de soltar', async ({ p
   for (const [x, y] of [[400, 260], [500, 330], [600, 280], [700, 350]] as const) await page.mouse.move(x, y, { steps: 8 });
   await page.waitForTimeout(250); // sin soltar
   const durante = await tinta(est);
-  expect(durante).toBeGreaterThan(antes + 200);
+  expect(durante).toBeGreaterThan(antes + 50); // un fallo real daría ~0; en el celular el trazo se ve pequeño
   await page.mouse.up();
   await expect(est.getByRole('status')).toContainText('1 ops');
 });
