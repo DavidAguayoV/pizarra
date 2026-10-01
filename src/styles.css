@@ -1,52 +1,28 @@
+@import './ui/tokens.css';
+
 /*
- * Tokens de color. Pares texto/fondo con contraste >= 4.5:1 (WCAG AA) en ambos temas.
- * El tema se fija con data-theme; sin él se usa la preferencia del sistema.
+ * Los colores vienen de src/ui/tokens.css (generado desde tokens.ts: paleta del
+ * proyecto Insta, contraste AA verificado por pruebas). Aquí solo se les da el
+ * nombre corto que usa el resto de la interfaz. El tema se fija con data-theme;
+ * sin él se usa la preferencia del sistema.
  */
 :root {
-  color-scheme: light;
-  --fondo: #ffffff;
-  --superficie: #f1f4f9;
-  --texto: #14213d;
-  --borde: #8a97ad;
-  --acento: #1f3a68;
-  --acento-texto: #ffffff;
-  --foco: #b3124f;
-  --lienzo-fondo: #ffffff;
-  --grilla: #e3e8f0;
-  --grilla-fuerte: #b8c3d6;
-  --tinta: #14213d;
+  --fondo: var(--pz-fondo);
+  --superficie: var(--pz-panel);
+  --texto: var(--pz-texto);
+  --borde: var(--pz-texto-suave);
+  --acento: var(--pz-cuerpo-borde);
+  --acento-texto: var(--pz-fondo);
+  --foco: var(--pz-activo);
+  --lienzo-fondo: var(--pz-fondo);
+  --grilla: var(--pz-grilla);
+  --grilla-fuerte: var(--pz-grilla-fuerte);
+  --tinta: var(--pz-texto);
 }
-
-:root[data-theme='oscuro'] {
-  color-scheme: dark;
-  --fondo: #10151f;
-  --superficie: #1b2332;
-  --texto: #eef2f9;
-  --borde: #7d8aa3;
-  --acento: #9db8ee;
-  --acento-texto: #10151f;
-  --foco: #ffb3cf;
-  --lienzo-fondo: #10151f;
-  --grilla: #1f2937;
-  --grilla-fuerte: #34425a;
-  --tinta: #eef2f9;
-}
-
+:root { color-scheme: light; }
+:root[data-theme='oscuro'] { color-scheme: dark; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    color-scheme: dark;
-    --fondo: #10151f;
-    --superficie: #1b2332;
-    --texto: #eef2f9;
-    --borde: #7d8aa3;
-    --acento: #9db8ee;
-    --acento-texto: #10151f;
-    --foco: #ffb3cf;
-    --lienzo-fondo: #10151f;
-    --grilla: #1f2937;
-    --grilla-fuerte: #34425a;
-    --tinta: #eef2f9;
-  }
+  :root:not([data-theme]) { color-scheme: dark; }
 }
 
 * {
@@ -63,7 +39,7 @@ body,
 body {
   background: var(--fondo);
   color: var(--texto);
-  font: 16px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 16px/1.4 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
 }
 
 #app {

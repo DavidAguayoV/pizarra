@@ -1,4 +1,4 @@
-﻿name: CI y despliegue
+name: CI y despliegue
 
 on:
   push:
@@ -29,6 +29,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Pruebas de interfaz (Playwright)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

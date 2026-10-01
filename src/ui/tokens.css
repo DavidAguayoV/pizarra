@@ -1,0 +1,101 @@
+/* GENERADO por scripts/generar-tokens.mjs desde tokens.ts — no editar a mano. */
+:root {
+  --pz-fondo: #FFFFFF;
+  --pz-panel: #F1F5F9;
+  --pz-grilla: #E2E8F0;
+  --pz-grilla-fuerte: #C3CFDF;
+  --pz-texto: #0B1320;
+  --pz-texto-suave: #4A5A70;
+  --pz-activo: #00708F;
+  --pz-cuerpo: #E6EEF8;
+  --pz-cuerpo-borde: #2C3E57;
+  --pz-fam-acento: #8A5A00;
+  --pz-fam-campo: #C2343F;
+  --pz-fam-contacto: #0B6FA8;
+  --pz-fam-disipacion: #6B45C9;
+  --pz-fam-movimiento: #0B7A4B;
+  --pz-fam-neutro: #4A5A70;
+  --pz-rol-peso: #C2343F;
+  --pz-rol-potencial: #C2343F;
+  --pz-rol-normal: #0B6FA8;
+  --pz-rol-tension: #0B6FA8;
+  --pz-rol-aplicada: #0B6FA8;
+  --pz-rol-momento: #0B6FA8;
+  --pz-rol-friccion: #6B45C9;
+  --pz-rol-termica: #6B45C9;
+  --pz-rol-calor: #6B45C9;
+  --pz-rol-trabajo: #6B45C9;
+  --pz-rol-acel: #0B7A4B;
+  --pz-rol-velocidad: #0B7A4B;
+  --pz-rol-cinetica: #0B7A4B;
+  --pz-rol-dato: #4A5A70;
+  --pz-rol-resultante: #8A5A00;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --pz-fondo: #0A1320;
+    --pz-panel: #15263D;
+    --pz-grilla: #18304D;
+    --pz-grilla-fuerte: #2A4A70;
+    --pz-texto: #F4F7FB;
+    --pz-texto-suave: #8FA3BF;
+    --pz-activo: #00AFD8;
+    --pz-cuerpo: #1C3352;
+    --pz-cuerpo-borde: #8CB8E8;
+    --pz-fam-acento: #FFC53D;
+    --pz-fam-campo: #FF6B6B;
+    --pz-fam-contacto: #4FC3F7;
+    --pz-fam-disipacion: #B79CFF;
+    --pz-fam-movimiento: #3DDC97;
+    --pz-fam-neutro: #B8C7DA;
+    --pz-rol-peso: #FF6B6B;
+    --pz-rol-potencial: #FF6B6B;
+    --pz-rol-normal: #4FC3F7;
+    --pz-rol-tension: #4FC3F7;
+    --pz-rol-aplicada: #4FC3F7;
+    --pz-rol-momento: #4FC3F7;
+    --pz-rol-friccion: #B79CFF;
+    --pz-rol-termica: #B79CFF;
+    --pz-rol-calor: #B79CFF;
+    --pz-rol-trabajo: #B79CFF;
+    --pz-rol-acel: #3DDC97;
+    --pz-rol-velocidad: #3DDC97;
+    --pz-rol-cinetica: #3DDC97;
+    --pz-rol-dato: #B8C7DA;
+    --pz-rol-resultante: #FFC53D;
+  }
+}
+
+:root[data-theme='oscuro'] {
+  --pz-fondo: #0A1320;
+  --pz-panel: #15263D;
+  --pz-grilla: #18304D;
+  --pz-grilla-fuerte: #2A4A70;
+  --pz-texto: #F4F7FB;
+  --pz-texto-suave: #8FA3BF;
+  --pz-activo: #00AFD8;
+  --pz-cuerpo: #1C3352;
+  --pz-cuerpo-borde: #8CB8E8;
+  --pz-fam-acento: #FFC53D;
+  --pz-fam-campo: #FF6B6B;
+  --pz-fam-contacto: #4FC3F7;
+  --pz-fam-disipacion: #B79CFF;
+  --pz-fam-movimiento: #3DDC97;
+  --pz-fam-neutro: #B8C7DA;
+  --pz-rol-peso: #FF6B6B;
+  --pz-rol-potencial: #FF6B6B;
+  --pz-rol-normal: #4FC3F7;
+  --pz-rol-tension: #4FC3F7;
+  --pz-rol-aplicada: #4FC3F7;
+  --pz-rol-momento: #4FC3F7;
+  --pz-rol-friccion: #B79CFF;
+  --pz-rol-termica: #B79CFF;
+  --pz-rol-calor: #B79CFF;
+  --pz-rol-trabajo: #B79CFF;
+  --pz-rol-acel: #3DDC97;
+  --pz-rol-velocidad: #3DDC97;
+  --pz-rol-cinetica: #3DDC97;
+  --pz-rol-dato: #B8C7DA;
+  --pz-rol-resultante: #FFC53D;
+}

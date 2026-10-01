@@ -15,6 +15,19 @@ Construir una aplicación web **estática** (GitHub Pages) que sirva como pizarr
 4. **Compartir:** el profesor proyecta en clase y los estudiantes ven **en vivo desde su celular**. Solo el profesor transmite.
 5. **Exportar:** PNG, SVG, PDF, JSON (proyecto) y, sobre todo, **TikZ** listo para pegar en LaTeX/Beamer.
 
+## 1b. Proyecto hermano: cuenta de Instagram de física (@problemasfisicauai)
+
+Esta pizarra es **proyecto hermano** del proyecto de Instagram/TikTok/YouTube con animaciones de física (videos verticales de ~30 s, estilo @astropedri, pipeline en Manim). **Los personajes y los estilos de ese proyecto se deben mantener**: la pizarra no inventa una identidad visual propia, hereda la del proyecto Insta.
+
+Reglas:
+
+1. **Fuente de verdad del estilo:** antes de escribir UI, leer los recursos del proyecto Insta (personajes, paleta, tipografías, estilo de trazo, fondos, formato de fórmulas, convenciones de colores de vectores/fuerzas) y consolidarlos en `docs/ESTILO_INSTA.md` + un archivo de tokens de diseño (`src/ui/tokens.ts` y variables CSS). Si falta algún recurso, **pedirlo; no inventarlo ni aproximarlo**.
+2. **Personajes:** usarlos tal como están definidos en el proyecto Insta (diseño, nombres, rol); no modificarlos ni crear variantes sin autorización de David. Se guardan como activos versionados en `assets/personajes/`.
+3. **Coherencia con los videos:** misma paleta y convención de colores de fuerzas y vectores, misma tipografía, mismo orden de desarrollo (fórmulas simbólicas primero, sustitución numérica solo en el penúltimo paso, resultado final). Los temas claro/oscuro de la pizarra son variantes del mismo sistema visual, no un estilo nuevo.
+4. **Puente entre proyectos (propuesto):** la escena de la pizarra se exporta como JSON versionado que el pipeline de Manim pueda leer (objetos, vectores, parámetros, solución), para convertir un problema resuelto en clase en un video sin rehacerlo. Y, a la inversa, poder importar la definición de un problema desde el proyecto Insta. Definir el esquema en `docs/ESQUEMA_ESCENA.md` y mantenerlo compatible entre ambos.
+5. **Exportación en formato de redes (propuesto):** además de PNG/SVG/TikZ, una exportación vertical 9:16 de la pizarra o del paso a paso, con el estilo Insta, para usarla en los videos.
+6. Cualquier cambio visual que se aparte del estilo Insta se consulta antes con David.
+
 ## 2. Decisiones ya tomadas (no reabrir sin avisar)
 
 | Tema | Decisión |
@@ -26,7 +39,7 @@ Construir una aplicación web **estática** (GitHub Pages) que sirva como pizarr
 | Contenido inicial | Dinámica de Newton y energía; luego cinemática, proyectiles, circular, etc. |
 | Dibujo → física | Reconocimiento **híbrido** (ver §6), no mágico: vocabulario acotado y confirmación del usuario |
 | Exportar | PNG, SVG, PDF, JSON, **TikZ** (prioridad alta) |
-| Estética | Fondo blanco tipo pizarra, tema **claro y oscuro**, alto contraste (WCAG AA mínimo), pensado para proyector |
+| Estética | Fondo blanco tipo pizarra, tema **claro y oscuro**, alto contraste (WCAG AA mínimo), pensado para proyector. **Hereda personajes y estilos del proyecto Insta (§1b), que se mantienen** |
 | Idioma | Interfaz, comentarios de usuario, documentación y **todo texto en figuras TikZ 100 % en español** |
 | Tecnología | Proyecto grande y documentado, no un archivo único |
 | Hosting | GitHub Pages en la cuenta `davidaguayov`, ruta `/pizarra/` |
@@ -111,7 +124,7 @@ Honestidad de alcance: un sitio estático no puede "entender" cualquier dibujo. 
 
 Cada etapa termina con: pruebas en verde, build, **captura de pantalla de verificación**, documentación actualizada, entrada en `CHANGELOG.md`, y un resumen breve para David. **Detenerse al final de cada etapa y esperar revisión.**
 
-- **Etapa 0 — Cimientos:** repo, Vite+TS, lint, tests, CI/CD a Pages, temas claro/oscuro, estructura de carpetas, README y `docs/ARCHITECTURE.md`, registro de ops con deshacer/rehacer.
+- **Etapa 0 — Cimientos:** repo, Vite+TS, lint, tests, CI/CD a Pages, estructura de carpetas, README y `docs/ARCHITECTURE.md`, registro de ops con deshacer/rehacer. **Incluye la auditoría de estilo del proyecto Insta (§1b):** `docs/ESTILO_INSTA.md`, tokens de diseño y temas claro/oscuro derivados de ellos, y la lista de recursos faltantes que David deba aportar.
 - **Etapa 1 — Pizarra:** lápiz, resaltador, borrador, líneas, flechas, formas, texto, colores/grosores, pan/zoom, imágenes pegadas, presión, rechazo de palma. Exportar PNG/SVG/JSON y **TikZ de la tinta**.
 - **Etapa 2 — Compartir en vivo:** `Transport`, `LocalTransport` (demo sin cuenta), `FirebaseTransport`, salas, QR, modo espectador móvil, reconexión. Guía `docs/FIREBASE.md`. *(Se adelanta porque permite usar la pizarra en clase desde temprano.)*
 - **Etapa 3 — Sistema de referencia y vectores:** ejes movibles/rotables, grilla, escala, vectores, componentes, suma, ángulos, etiquetas KaTeX. TikZ de todo lo anterior.
@@ -119,6 +132,7 @@ Cada etapa termina con: pruebas en verde, build, **captura de pantalla de verifi
 - **Etapa 5 — Simulación:** integrador RK4, eventos, trayectoria, vectores en vivo, gráficos, tabla, energía, comparación analítica.
 - **Etapa 6 — Interpretar dibujo:** reconocimiento de formas, inferencia de escena, panel de confirmación.
 - **Etapa 7 — Pulido y más física:** cinemática, proyectiles, circular, oscilaciones; exportación completa; rendimiento; accesibilidad; documentación final.
+- **Etapa 8 — Puente con el proyecto Insta:** exportar/importar escenas JSON compatibles con el pipeline de Manim, exportación vertical 9:16 con el estilo Insta, y revisión final de que personajes y estilos se mantienen idénticos.
 
 ## 11. Pruebas de física (obligatorias antes de dar por buena una simulación)
 
@@ -145,4 +159,4 @@ Cada etapa termina con: pruebas en verde, build, **captura de pantalla de verifi
 
 ## 14. Para empezar
 
-"Lee este prompt maestro. Ejecuta la **Etapa 0** en la carpeta del proyecto, crea el repositorio `davidaguayov/pizarra` (o prepáralo para que yo lo suba), y detente al terminar para mi revisión."
+"Lee este prompt maestro. Primero localiza y lee los recursos de estilo y personajes del proyecto Insta (§1b) y dime dónde están si no los encuentras. Ejecuta la **Etapa 0** en la carpeta del proyecto, crea el repositorio `davidaguayov/pizarra` (o prepáralo para que yo lo suba), y detente al terminar para mi revisión."

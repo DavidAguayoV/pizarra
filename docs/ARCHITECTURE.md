@@ -12,7 +12,8 @@ src/
   recognize/   reconocimiento de formas y de escena                   (Etapa 6)
   export/      png, svg, pdf, json, tikz                              (desde Etapa 1)
   ui/          barra de herramientas, paneles, modos proyector/espectador
-tests/         unitarias (Vitest); e2e con Playwright desde la Etapa 1
+tests/         unitarias (Vitest) y e2e (Playwright, tests/e2e)
+assets/        activos versionados (personajes del proyecto Insta)
 ```
 
 Las carpetas aún sin código tienen un `index.ts` vacío para fijar la estructura.
@@ -37,7 +38,7 @@ Cada elemento implementará `render()`, `toSVG()` y `toTikz()`. Ninguna etapa se
 
 ## Temas
 
-Tokens de color como variables CSS en `src/styles.css`. `data-theme="claro|oscuro"` en `<html>`; sin valor guardado se usa `prefers-color-scheme`. Un script en `index.html` aplica el tema guardado antes de pintar. El canvas lee los tokens con `colorCss()`.
+`src/ui/tokens.ts` es la fuente de verdad de la paleta (heredada del proyecto Insta, ver [ESTILO_INSTA.md](ESTILO_INSTA.md)); `npm run tokens` genera `src/ui/tokens.css` y una prueba verifica que no se desvíen y que cada rol de color alcance contraste AA en ambos temas. `styles.css` solo les da nombres cortos (`--fondo`, `--texto`...). `data-theme="claro|oscuro"` en `<html>`; sin valor guardado se usa `prefers-color-scheme`. Un script en `index.html` aplica el tema guardado antes de pintar. El canvas lee los tokens con `colorCss()`.
 
 ## Entrada
 
@@ -45,4 +46,4 @@ Pointer Events unificados (mouse, lápiz, dedo) con `touch-action: none` en el l
 
 ## Despliegue
 
-GitHub Actions: lint, tipos, pruebas, build y despliegue a Pages con `base: '/pizarra/'`. No hay servidor propio ni secretos en el repositorio.
+GitHub Actions: lint, tipos, pruebas, build, e2e (Playwright) y despliegue a Pages con `base: '/pizarra/'`. No hay servidor propio ni secretos en el repositorio.

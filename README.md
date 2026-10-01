@@ -24,6 +24,9 @@ npm test           # pruebas (Vitest)
 npm run lint       # ESLint
 npm run typecheck  # TypeScript estricto
 npm run build      # compila a dist/
+npm run check      # lint + tipos + pruebas + build (lo mismo que la CI)
+npm run test:e2e   # Playwright (la 1.ª vez: npx playwright install chromium); CAPTURAS=1 guarda capturas
+npm run tokens     # regenera src/ui/tokens.css desde tokens.ts
 ```
 
 Cada push a `main` ejecuta lint, tipos, pruebas y build, y despliega en GitHub Pages (`.github/workflows/deploy.yml`). Requiere activar **Settings → Pages → Source: GitHub Actions** en el repositorio.
@@ -31,6 +34,7 @@ Cada push a `main` ejecuta lint, tipos, pruebas y build, y despliega en GitHub P
 ## Documentación
 
 - [Arquitectura](docs/ARCHITECTURE.md)
+- [Estilo heredado del proyecto Insta](docs/ESTILO_INSTA.md) y decisiones pendientes
 - [Decisiones (ADR)](docs/decisiones/)
 - [Prompt maestro](docs/PROMPT_MAESTRO.md)
 
