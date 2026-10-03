@@ -120,6 +120,8 @@ export interface Bloque extends Base {
   masa: number;
   /** Etiqueta en LaTeX (sin `$`), por ejemplo `m_1`. */
   etiqueta: string;
+  /** Velocidad inicial para la simulación, en m/s (por defecto, en reposo). */
+  v0?: Punto;
 }
 
 export interface Esfera extends Base {
@@ -128,6 +130,8 @@ export interface Esfera extends Base {
   radio: number;
   masa: number;
   etiqueta: string;
+  /** Velocidad inicial para la simulación, en m/s (por defecto, en reposo). */
+  v0?: Punto;
 }
 
 /** Superficie de apoyo (suelo, plano inclinado, pared) con sus coeficientes de roce. */

@@ -1,2 +1,0 @@
-﻿// Módulo `sim`: se implementa en una etapa posterior (ver docs/ARCHITECTURE.md).
-export {};

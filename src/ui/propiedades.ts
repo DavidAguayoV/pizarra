@@ -301,6 +301,30 @@ export class PanelPropiedades {
     e.append(sel, nota);
   }
 
+  /** Velocidad inicial para la simulación: rapidez y dirección. */
+  private filaVelocidad(c0: Bloque | Esfera): HTMLElement {
+    const v0 = c0.v0 ?? { x: 0, y: 0 };
+    const rap = Math.hypot(v0.x, v0.y);
+    const ang = rap > 0 ? aGrados(Math.atan2(v0.y, v0.x)) : 0;
+    const fila = document.createElement('div');
+    fila.className = 'fila-campos';
+    const inRap = numerico(rap, '0.1', () => aplicar(), 'Rapidez inicial');
+    const inAng = numerico(ang, '1', () => aplicar(), 'Dirección de la velocidad inicial');
+    const aplicar = (): void => {
+      const r = Number(inRap.value.replace(',', '.'));
+      const a = Number(inAng.value.replace(',', '.'));
+      if (!Number.isFinite(r) || !Number.isFinite(a) || r < 0) return;
+      const rad = (a * Math.PI) / 180;
+      const v = r === 0 ? undefined : { x: Math.round(r * Math.cos(rad) * 1e4) / 1e4, y: Math.round(r * Math.sin(rad) * 1e4) / 1e4 };
+      const nuevo = { ...this.vigente(c0) };
+      if (v) nuevo.v0 = v;
+      else delete nuevo.v0;
+      this.host.editar({ actualizar: [nuevo] });
+    };
+    fila.append(campo('Rapidez inicial (m/s)', inRap), campo('Dirección (°)', inAng));
+    return fila;
+  }
+
   private panelBloque(b0: Bloque): void {
     const e = this.elemento;
     const cambiar = (f: (b: Bloque) => Bloque) => this.host.editar({ actualizar: [f(this.vigente(b0))] });
@@ -315,6 +339,7 @@ export class PanelPropiedades {
     );
     e.append(fila);
     e.append(campo('Ángulo (°)', numerico(aGrados(b0.angulo), '1', (x) => cambiar((b) => ({ ...b, angulo: Math.round(((x * Math.PI) / 180) * 1e4) / 1e4 })), 'Ángulo del bloque')));
+    e.append(this.filaVelocidad(b0));
     this.seccionDcl(b0);
     e.append(boton('Borrar bloque', 'Suprimir', () => this.host.editar({ borrar: [b0.id] })));
   }
@@ -328,6 +353,7 @@ export class PanelPropiedades {
       campo('Masa (kg)', numerico(s0.masa, '0.1', (x) => x > 0 && cambiar((s) => ({ ...s, masa: x })), 'Masa de la esfera')),
       campo('Radio (m)', numerico(s0.radio, '0.05', (x) => x >= 0.1 && cambiar((s) => ({ ...s, radio: x })), 'Radio de la esfera')),
     );
+    e.append(this.filaVelocidad(s0));
     this.seccionDcl(s0);
     e.append(boton('Borrar esfera', 'Suprimir', () => this.host.editar({ borrar: [s0.id] })));
   }

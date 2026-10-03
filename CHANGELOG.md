@@ -1,5 +1,21 @@
 # Cambios
 
+## Etapa 5 — Simulación (2026-10-03)
+
+### Agregado
+- **Motor de simulación propio**: RK4 de paso fijo con restricciones por multiplicadores de Lagrange. Un solo mecanismo da el contacto con superficies, el **roce estático y cinético**, las **cuerdas y poleas con tensiones reales** (Atwood, bloque en la mesa con masa colgante, péndulo) y los resortes.
+- **Eventos**: impacto, despegue, salida por el extremo, detención, estático → cinético, cambio de sentido, cuerda que se afloja o se tensa y resorte en su largo natural. El impacto y el tensado de cuerdas se ubican en su instante exacto, así que la energía se contabiliza sin error de paso.
+- **Panel *Simular***: reproducir, pausar, paso, reiniciar, velocidad de 0,1× a 4×, g editable; cuerpos animados sobre la pizarra con **vectores v y a** y **trayectoria**; **gráficos** de posición, velocidad, aceleración y energía (K, U_g, U_e, E_mec, trabajo del roce); **tabla de valores**; normal, roce y tensiones en vivo; lista de eventos; balance de energía.
+- **Comparación con la solución analítica** (aceleración constante y oscilador armónico), con la diferencia máxima.
+- **Velocidad inicial** de cada cuerpo (rapidez y dirección) en su panel.
+- Exportación a **CSV** (para Excel en español) y a **TikZ/pgfplots** (fragmento y documento standalone, compilado con pdflatex); *Dejar trayectoria en la pizarra*.
+- Los estudiantes ven la simulación en su celular por el canal en vivo.
+- `docs/SIMULACION.md` (modelo, eventos, validación, límites), ADR 0007; 61 pruebas del motor contra soluciones analíticas y 10 e2e.
+
+### Pendiente
+- Cuerpos que giran, choques entre cuerpos, poleas con masa y radio efectivo.
+- Réplica determinista de la simulación en cada celular (hoy se transmite el movimiento: ~60 KB/s por estudiante mientras corre).
+
 ## Etapa 4 — Objetos y diagrama de cuerpo libre (2026-10-01)
 
 ### Agregado

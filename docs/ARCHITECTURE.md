@@ -8,7 +8,7 @@ src/
   ink/         herramientas, entrada (Pointer Events), suavizado, dibujo (Etapa 1)
   share/       transportes, difusor, sincronizador, salas             (Etapa 2)
   physics/     vectores, ejes, edición (Etapa 3); objetos y DCL (Etapa 4)
-  sim/         integrador RK4, eventos, energía, trayectoria          (Etapa 5)
+  sim/         motor RK4 con restricciones, eventos, energía, series  (Etapa 5)
   recognize/   reconocimiento de formas y de escena                   (Etapa 6)
   export/      png, svg, json, tikz (Etapa 1); pdf (Etapa 7)
   ui/          barra de herramientas, paneles, modos proyector/espectador
@@ -30,6 +30,19 @@ servicio en [FIREBASE.md](FIREBASE.md); decisión en el [ADR 0004](decisiones/00
 - `ui/espectador.ts`: `?sala=CODIGO`; solo mira, "Seguir al profesor", "Copiar a mi pizarra".
 - `ui/compartir.ts`: botón y panel con código grande y QR, pensado para proyectar.
 - Sin configuración de Firebase (`src/share/firebaseBd.ts`) todo funciona en modo demostración local.
+
+## Simulación (Etapa 5)
+
+Un motor de partículas con restricciones (RK4 de paso fijo + multiplicadores de Lagrange) que corre sobre la escena. Detalle del modelo, los eventos, la validación y los límites en
+[SIMULACION.md](SIMULACION.md); decisiones en el [ADR 0007](decisiones/0007-motor-de-simulacion.md).
+
+- `sim/modelo.ts`: **lógica pura**. Construye el modelo dinámico desde los elementos (cuerpos, superficies, resortes, cuerdas con o sin polea, fuerzas aplicadas) infiriendo las uniones por cercanía.
+- `sim/motor.ts`: `Simulacion` (RK4, restricciones, roce estático y cinético, eventos, energías, historial). Sin DOM: se prueba en Node.
+- `sim/analitico.ts`: soluciones exactas (aceleración constante y oscilador armónico) y la diferencia con la simulación.
+- `sim/series.ts`: series para gráficos, tabla, CSV (Excel en español) y **pgfplots**.
+- `sim/animacion.ts`: los elementos que se dibujan mientras corre (copias en la posición actual, vectores v y a, trayectoria). Son elementos corrientes: el lienzo y la transmisión en vivo los tratan como cualquier otro.
+- `ui/simulacion.ts` y `ui/grafico.ts`: el panel (controles, eventos, energía, tabla) y el renderizador de gráficos.
+- La simulación **no es parte del registro de ops**: se reconstruye desde la escena y vuelve a t = 0 con cualquier edición.
 
 ## Objetos y diagrama de cuerpo libre (Etapa 4)
 

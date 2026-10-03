@@ -33,6 +33,7 @@ import type { Transmision } from './compartir';
 import { cargarImagen, primeraImagen } from './imagenes';
 import { Lienzo } from './lienzo';
 import { PanelPropiedades } from './propiedades';
+import { PanelSimulacion } from './simulacion';
 import { PALETAS } from './tokens';
 
 const CURSORES: Record<Herramienta, string> = {
@@ -186,6 +187,11 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   const etiquetaEscala = document.createElement('label');
   etiquetaEscala.className = 'etiqueta-escala';
   etiquetaEscala.append('Escala ', entradaEscala, ' px/m');
+  const bSim = boton('Simular', 'Simula el movimiento de la escena: gráficos, energía y comparación analítica', () => {
+    if (simPanel.abierto) simPanel.cerrar();
+    else simPanel.abrir();
+    actualizarBarra();
+  });
   const bAbrir = boton('Abrir', 'Abrir un proyecto (.json)', () => entradaArchivo.click());
   const bImagen = boton('Imagen', 'Insertar una imagen (también se puede pegar o arrastrar)', () => entradaImagen.click());
 
@@ -229,7 +235,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   );
   const fila2 = document.createElement('div');
   fila2.className = 'fila';
-  fila2.append(bDeshacer, bRehacer, bVista, bImagen, bAbrir, menu.elemento, compartir.boton, bTema, etiquetaEscala, estado, aviso, entradaArchivo, entradaImagen);
+  fila2.append(bDeshacer, bRehacer, bVista, bImagen, bAbrir, menu.elemento, bSim, compartir.boton, bTema, etiquetaEscala, estado, aviso, entradaArchivo, entradaImagen);
   barra.append(fila1, fila2);
 
   const lienzo = document.createElement('canvas');
@@ -269,6 +275,17 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   });
   zona.append(panel.elemento);
 
+  // --- Simulación -------------------------------------------------------------------------------------
+  const simPanel = new PanelSimulacion({
+    elementos: () => store.estado.elementos,
+    version: () => store.ops.length,
+    fijarVivo: (locales, ocultos) => L.fijarVivo(locales, ocultos),
+    transmitir: (red, ocultos) => transmision?.difusor.vivo(red, ocultos),
+    agregarElementos: (els) => store.emitir(OP_LOTE, { agregar: els }),
+    avisar: (t) => avisar(t),
+  });
+  zona.append(simPanel.elemento);
+
   function seleccionar(ids: readonly string[]): void {
     seleccionIds = [...ids];
     L.fijarSeleccion(seleccionEls());
@@ -288,6 +305,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     bRehacer.disabled = !store.puedeRehacer;
     bTema.textContent = temaActual() === 'oscuro' ? 'Tema claro' : 'Tema oscuro';
     for (const [k, b] of botonesHerr) b.setAttribute('aria-pressed', String(k === herramienta));
+    bSim.setAttribute('aria-pressed', String(simPanel.abierto));
     for (const [k, b] of botonesColor) {
       b.style.setProperty('--muestra', colorDeTinta(paleta, k));
       b.setAttribute('aria-pressed', String(k === colorTinta));
@@ -344,6 +362,8 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       // Al arrastrar una selección, el recuadro acompaña a lo que se mueve.
       const moviendo = herramienta === 'seleccionar' && v !== null && (Array.isArray(v) ? v.length > 0 : true);
       L.fijarSeleccion(moviendo ? (Array.isArray(v) ? (v as Elemento[]) : [v as Elemento]) : seleccionEls());
+      // Una vista previa que termina borra lo que había: si hay simulación, se vuelve a mostrar.
+      if (v === null || (Array.isArray(v) && v.length === 0)) simPanel.repintar();
     },
     confirmar: (e) => store.emitir(OP_AGREGAR, e),
     borrar: (ids) => store.emitir(OP_BORRAR, { ids }),
@@ -577,5 +597,6 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   store.suscribir(() => {
     L.invalidar();
     refrescarSeleccion();
+    simPanel.alCambiarEscena();
   });
 }

@@ -65,9 +65,9 @@ eso las comparaciones usan tolerancia de 10⁻³.
 
 ### Lo que NO resuelve (se plantea, pero el valor queda como incógnita)
 
-* **Tensiones** (la fuerza de una cuerda depende del movimiento de todo el sistema): se muestran en el diagrama y en ΣF = m a
-  con el símbolo `T`, sin valor, y la aceleración queda sin determinar. Sistemas de varios cuerpos (Atwood, bloques unidos)
-  llegan con la simulación (Etapa 5).
+* **Tensiones** (la fuerza de una cuerda depende del movimiento de todo el sistema): en el diagrama y en ΣF = m a
+  quedan con el símbolo `T`, sin valor. **La simulación sí las calcula** (Atwood, bloque en la mesa con masa colgante, péndulo):
+  ver [SIMULACION.md](SIMULACION.md).
 * **Más de una superficie de contacto** (bloque contra pared y piso): se dibujan las normales sin calcular su valor.
 * Roce con velocidad inicial distinta de cero, rodadura, fuerzas de arrastre.
 
