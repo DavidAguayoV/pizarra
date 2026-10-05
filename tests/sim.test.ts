@@ -66,10 +66,12 @@ describe('caída libre y proyectil (contra la solución analítica)', () => {
     const hMax = y0 + (vy * vy) / (2 * G);
     const maxY = Math.max(...s.historial.map((m) => m.cuerpos[0]!.y - r));
     expect(maxY).toBeCloseTo(hMax, 3);
-    // Alcance: x en el momento del impacto
+    // Alcance: x en el momento del impacto. Después del impacto sigue deslizando sin roce a vₓ constante
+    // (la v1 lo dejaba clavado), así que se lleva la primera muestra posterior al instante exacto del impacto.
     const alcance = v0 * Math.cos(ang) * tVuelo;
     const enImpacto = s.historial.find((m) => m.t >= impacto.t)!;
-    expect(enImpacto.cuerpos[0]!.x).toBeCloseTo(alcance, 1);
+    expect(enImpacto.cuerpos[0]!.vx).toBeCloseTo(v0 * Math.cos(ang), 6);
+    expect(enImpacto.cuerpos[0]!.x - enImpacto.cuerpos[0]!.vx * (enImpacto.t - impacto.t)).toBeCloseTo(alcance, 4);
   });
 
   it('un lanzamiento horizontal desde una mesa: x = v0 t, y = y0 − ½ g t²', () => {
@@ -284,8 +286,8 @@ describe('cuerdas y poleas (tensiones reales)', () => {
   it('el modelo junta las dos cuerdas de la polea en una sola', () => {
     const m = construirModelo(atwood(3, 2), G);
     expect(m.cuerdas).toHaveLength(1);
-    expect(m.cuerdas[0]!.polea).not.toBeNull();
-    expect(m.cuerdas[0]!.ids).toHaveLength(2);
+    expect(m.cuerdas[0]!.ruta).not.toBeNull(); // la v1 las funde en una cuerda con un paso por la polea
+    expect(m.cuerdas[0]!.ids).toHaveLength(1);
   });
 
   it('Atwood: a = (m1 − m2) g /(m1 + m2) y T = 2 m1 m2 g /(m1 + m2)', () => {

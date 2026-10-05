@@ -107,7 +107,31 @@ export interface Vector {
   fantasma: boolean;
   /** Dónde va la etiqueta: al costado, a media flecha (por defecto), o pasada la punta. */
   etiquetaEn?: 'medio' | 'punta';
+  /** Cuerpo sobre el que actúa (fuerzas aplicadas y tensiones dibujadas); `null` = ninguno. */
+  cuerpo?: string | null;
 }
+
+// --- Grafo de la escena (Nivel 2): uniones explícitas ----------------------------------------------------------
+//
+// Las relaciones entre objetos ya no se deducen por cercanía: se guardan. Un campo de relación `undefined`
+// significa "elemento de la versión 1, todavía sin procesar": `grafo/v1.ts` lo completa con las reglas de cercanía
+// de la v1, congeladas. Ver docs/decisiones/0008-modelo-de-grafo.md.
+
+/**
+ * A qué está unido un extremo de una cuerda o un resorte: a un puerto de otro elemento (`grafo/puertos.ts`)
+ * o fijo en el espacio, en la posición guardada del extremo. `null` = suelto (no ejerce fuerza).
+ */
+export type Union = { el: string; puerto: string } | { fijo: true };
+
+/**
+ * Paso de una cuerda por una polea, en orden desde el extremo `a`. `sentido` = 1 si la envuelve en sentido
+ * antihorario y −1 si en sentido horario. `fijos` solo existe en proyectos migrados de la v1: los dos puntos
+ * donde la v1 tomaba el paso por la polea (así se simulan igual que antes).
+ */
+export type Paso = { el: string; sentido: 1 | -1 } | { el: string; fijos: [Punto, Punto] };
+
+/** Tramo del camino de una cuerda (derivado: lo calcula `grafo/resolver.ts`, nunca se guarda en una op). */
+export type Tramo = { k: 'recta'; a: Punto; b: Punto } | { k: 'arco'; c: Punto; r: number; desde: number; barrido: number };
 
 /** Cuerpo rectangular con masa. `angulo` lo gira alrededor de su centro (radianes, antihorario). */
 export interface Bloque extends Base {
@@ -122,6 +146,8 @@ export interface Bloque extends Base {
   etiqueta: string;
   /** Velocidad inicial para la simulación, en m/s (por defecto, en reposo). */
   v0?: Punto;
+  /** Superficies en las que se apoya (ids; la primera es la principal). */
+  apoyo?: string[];
 }
 
 export interface Esfera extends Base {
@@ -132,6 +158,8 @@ export interface Esfera extends Base {
   etiqueta: string;
   /** Velocidad inicial para la simulación, en m/s (por defecto, en reposo). */
   v0?: Punto;
+  /** Superficies en las que se apoya (ids; la primera es la principal). */
+  apoyo?: string[];
 }
 
 /** Superficie de apoyo (suelo, plano inclinado, pared) con sus coeficientes de roce. */
@@ -154,12 +182,19 @@ export interface Polea extends Base {
   grosor: number;
 }
 
-/** Cuerda ideal: inextensible y sin masa (un segmento recto entre dos puntos). */
+/**
+ * Cuerda ideal: inextensible y sin masa. Va de `a` a `b`, pasando por las poleas de `ruta`. Si un extremo está
+ * unido, su posición sale del puerto (la guardada es solo el respaldo).
+ */
 export interface Cuerda extends Base {
   tipo: 'cuerda';
   a: Punto;
   b: Punto;
   grosor: number;
+  union?: [Union | null, Union | null];
+  ruta?: Paso[];
+  /** Derivado (solo en la escena resuelta): tramos rectos y arcos de contacto con las poleas. */
+  camino?: Tramo[];
 }
 
 /** Resorte ideal: fuerza `k (largo − largoNatural)`. */
@@ -167,6 +202,7 @@ export interface Resorte extends Base {
   tipo: 'resorte';
   a: Punto;
   b: Punto;
+  union?: [Union | null, Union | null];
   /** Constante elástica en N/m. */
   k: number;
   /** Largo natural en metros. */
@@ -261,10 +297,39 @@ export function cajaDe(e: Elemento): Caja2D {
     case 'superficie':
       return envolver([e.a, e.b], e.relleno === 'ninguno' ? 0.05 : 0.4);
     case 'cuerda':
-      return envolver([e.a, e.b], e.grosor + 0.03);
+      return envolver(e.camino ? puntosCamino(e.camino) : [e.a, e.b], e.grosor + 0.03);
     case 'resorte':
       return envolver([e.a, e.b], 0.14);
   }
+}
+
+/** Puntos que recorren un camino (los arcos, muestreados cada ~10°). */
+export function puntosCamino(camino: readonly Tramo[]): Punto[] {
+  const out: Punto[] = [];
+  for (const t of camino) {
+    if (t.k === 'recta') out.push(t.a, t.b);
+    else {
+      const n = Math.max(1, Math.ceil(Math.abs(t.barrido) / (Math.PI / 18)));
+      for (let i = 0; i <= n; i++) {
+        const ang = t.desde + (t.barrido * i) / n;
+        out.push({ x: t.c.x + t.r * Math.cos(ang), y: t.c.y + t.r * Math.sin(ang) });
+      }
+    }
+  }
+  return out;
+}
+
+/** Distancia de un punto a un tramo de cuerda. */
+export function distanciaTramo(p: Punto, t: Tramo): number {
+  if (t.k === 'recta') return distSegmento(p, t.a, t.b);
+  const ang = Math.atan2(p.y - t.c.y, p.x - t.c.x);
+  // ¿El ángulo del punto cae dentro del arco? (medido en el sentido del barrido)
+  const rel = ((((ang - t.desde) * Math.sign(t.barrido || 1)) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  if (rel <= Math.abs(t.barrido)) return Math.abs(Math.hypot(p.x - t.c.x, p.y - t.c.y) - t.r);
+  const fin = (a: number): Punto => ({ x: t.c.x + t.r * Math.cos(a), y: t.c.y + t.r * Math.sin(a) });
+  const a0 = fin(t.desde);
+  const a1 = fin(t.desde + t.barrido);
+  return Math.min(Math.hypot(p.x - a0.x, p.y - a0.y), Math.hypot(p.x - a1.x, p.y - a1.y));
 }
 
 /** Extremos de los dos ejes (positivo y negativo), en metros. */
@@ -413,6 +478,7 @@ export function tocaElemento(e: Elemento, p: Punto, radio: number): boolean {
     case 'superficie':
       return distSegmento(p, e.a, e.b) <= radio + e.grosor / 2 + 0.03;
     case 'cuerda':
+      if (e.camino) return e.camino.some((t) => distanciaTramo(p, t) <= radio + e.grosor / 2 + 0.02);
       return distSegmento(p, e.a, e.b) <= radio + e.grosor / 2 + 0.02;
     case 'resorte':
       return distSegmento(p, e.a, e.b) <= radio + 0.08;
@@ -431,13 +497,19 @@ export function trasladar<T extends Elemento>(e: T, dx: number, dy: number): T {
       }
       return { ...e, puntos };
     }
+    case 'cuerda':
+      return {
+        ...e,
+        a: mv(e.a),
+        b: mv(e.b),
+        ...(e.camino ? { camino: e.camino.map((t) => (t.k === 'recta' ? { ...t, a: mv(t.a), b: mv(t.b) } : { ...t, c: mv(t.c) })) } : {}),
+      };
     case 'linea':
     case 'flecha':
     case 'rect':
     case 'elipse':
     case 'vector':
     case 'superficie':
-    case 'cuerda':
     case 'resorte':
       return { ...e, a: mv(e.a), b: mv(e.b) };
     case 'bloque':

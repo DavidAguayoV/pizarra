@@ -1,5 +1,6 @@
 import type { Punto } from '../core/camara';
 import { apoyoEn } from '../physics/dcl';
+import { geometriaRuta } from '../grafo/ruta';
 import type { Modelo } from './modelo';
 import { posExtremo } from './modelo';
 
@@ -68,6 +69,8 @@ export interface Estado {
 const EPS_V = 1e-9;
 const EPS_F = 1e-9;
 const MAX_EVENTOS = 400;
+/** Distancia máxima entre un cuerpo y la superficie de su `apoyo` para respetarlo (la del imán al soltarlo). */
+export const APOYO_MAXIMO = 0.3;
 
 const cero = (): Punto => ({ x: 0, y: 0 });
 const dot = (a: Punto, b: Punto): number => a.x * b.x + a.y * b.y;
@@ -185,9 +188,12 @@ function dinamica(m: Modelo, _geo: Geo, p: readonly Punto[], v: readonly Punto[]
     const v1 = c.ext[1].tipo === 'cuerpo' ? v[c.ext[1].i]! : cero();
     const entradas: Fila['entradas'] = [];
     let gamma: number;
-    if (c.polea) {
-      const d0 = { x: q0.x - c.polea[0].x, y: q0.y - c.polea[0].y };
-      const d1 = { x: q1.x - c.polea[1].x, y: q1.y - c.polea[1].y };
+    if (c.ruta) {
+      // Cada extremo tira hacia su primer punto de contacto con una polea (la tangente). El largo de lo que hay
+      // entre medio no depende de la posición de los extremos más que a través de esos tramos.
+      const geo = geometriaRuta(q0, c.ruta, q1);
+      const d0 = { x: q0.x - geo.haciaA.x, y: q0.y - geo.haciaA.y };
+      const d1 = { x: q1.x - geo.haciaB.x, y: q1.y - geo.haciaB.y };
       const l0 = Math.hypot(d0.x, d0.y) || 1e-12;
       const l1 = Math.hypot(d1.x, d1.y) || 1e-12;
       const u0 = { x: d0.x / l0, y: d0.y / l0 };
@@ -359,7 +365,7 @@ interface Prev {
 function valorCuerda(c: Modelo['cuerdas'][number], p: readonly Punto[]): number {
   const q0 = posExtremo(c.ext[0], p);
   const q1 = posExtremo(c.ext[1], p);
-  if (c.polea) return Math.hypot(q0.x - c.polea[0].x, q0.y - c.polea[0].y) + Math.hypot(q1.x - c.polea[1].x, q1.y - c.polea[1].y) - c.largo;
+  if (c.ruta) return geometriaRuta(q0, c.ruta, q1).largo - c.largo;
   return Math.hypot(q0.x - q1.x, q0.y - q1.y) - c.largo;
 }
 
@@ -417,27 +423,31 @@ export class Simulacion {
     const v = m.cuerpos.map((c) => ({ ...c.v0 }));
     const modo: Modo[] = m.cuerpos.map(() => ({ k: 'libre' }));
 
-    // Contacto inicial: el cuerpo que toca una superficie se apoya exactamente sobre ella.
+    // Contacto inicial: el cuerpo se apoya exactamente sobre la primera superficie de su lista `apoyo` (grafo).
+    const indiceSup = new Map(m.superficies.map((s, k) => [s.id, k]));
     m.cuerpos.forEach((c, i) => {
-      let mejor: { s: number; lado: 1 | -1; gap: number } | null = null;
-      m.superficies.forEach((s, k) => {
-        const rel = { x: p[i]!.x - s.a.x, y: p[i]!.y - s.a.y };
-        const d = dot(rel, s.n);
+      for (const id of c.elemento.apoyo ?? []) {
+        const k = indiceSup.get(id);
+        if (k === undefined) continue;
+        const sup = m.superficies[k]!;
+        const rel = { x: p[i]!.x - sup.a.x, y: p[i]!.y - sup.a.y };
+        const d = dot(rel, sup.n);
         const lado: 1 | -1 = d >= 0 ? 1 : -1;
         const gap = lado * d - this.geo.apoyo[i]![k]!;
-        const u = dot(rel, s.t);
-        if (Math.abs(gap) <= 0.09 && u >= -0.25 && u <= s.largo + 0.25 && (!mejor || Math.abs(gap) < Math.abs(mejor.gap))) mejor = { s: k, lado, gap };
-      });
-      if (mejor) {
-        const { s, lado, gap } = mejor as { s: number; lado: 1 | -1; gap: number };
-        const sup = m.superficies[s]!;
-        p[i] = { x: p[i]!.x - lado * sup.n.x * gap, y: p[i]!.y - lado * sup.n.y * gap };
+        // Un apoyo que quedó lejos (la superficie se movió sin el cuerpo) no se respeta; el validador lo avisa.
+        if (Math.abs(gap) > APOYO_MAXIMO) continue;
+        const nOut = { x: lado * sup.n.x, y: lado * sup.n.y };
+        const vn = dot(v[i]!, nOut);
+        // Si parte alejándose de la superficie (un lanzamiento desde el suelo), no queda apoyado: vuela.
+        // (La v1 lo dejaba pegado y deslizando: es la única diferencia intencional con ella.)
+        // (Umbral relativo: una velocidad dibujada "a lo largo" del plano tiene un error de redondeo de ~1e-5.)
+        if (vn > 2e-3 * Math.hypot(v[i]!.x, v[i]!.y) + EPS_V) break;
         // La velocidad inicial no puede atravesar la superficie.
-        const vn = dot(v[i]!, { x: lado * sup.n.x, y: lado * sup.n.y });
-        if (vn < 0) v[i] = { x: v[i]!.x - vn * lado * sup.n.x, y: v[i]!.y - vn * lado * sup.n.y };
-        modo[i] = { k: 'desliza', s, lado, dir: 0 };
+        if (vn < 0) v[i] = { x: v[i]!.x - vn * nOut.x, y: v[i]!.y - vn * nOut.y };
+        p[i] = { x: p[i]!.x - nOut.x * gap, y: p[i]!.y - nOut.y * gap };
+        modo[i] = { k: 'desliza', s: k, lado, dir: 0 };
+        break;
       }
-      void c;
     });
 
     this.estado = {
@@ -590,16 +600,17 @@ export class Simulacion {
     const v0 = c.ext[0].tipo === 'cuerpo' ? e.v[c.ext[0].i]! : cero();
     const v1 = c.ext[1].tipo === 'cuerpo' ? e.v[c.ext[1].i]! : cero();
     const g: Array<{ i: number; g: Punto }> = [];
-    if (c.polea) {
-      const d0 = { x: q0.x - c.polea[0].x, y: q0.y - c.polea[0].y };
-      const d1 = { x: q1.x - c.polea[1].x, y: q1.y - c.polea[1].y };
+    if (c.ruta) {
+      const geo = geometriaRuta(q0, c.ruta, q1);
+      const d0 = { x: q0.x - geo.haciaA.x, y: q0.y - geo.haciaA.y };
+      const d1 = { x: q1.x - geo.haciaB.x, y: q1.y - geo.haciaB.y };
       const l0 = Math.hypot(d0.x, d0.y) || 1e-12;
       const l1 = Math.hypot(d1.x, d1.y) || 1e-12;
       const u0 = { x: d0.x / l0, y: d0.y / l0 };
       const u1 = { x: d1.x / l1, y: d1.y / l1 };
       if (c.ext[0].tipo === 'cuerpo') g.push({ i: c.ext[0].i, g: u0 });
       if (c.ext[1].tipo === 'cuerpo') g.push({ i: c.ext[1].i, g: u1 });
-      return { phi: l0 + l1 - c.largo, dphi: dot(u0, v0) + dot(u1, v1), g };
+      return { phi: geo.largo - c.largo, dphi: dot(u0, v0) + dot(u1, v1), g };
     }
     const d = { x: q0.x - q1.x, y: q0.y - q1.y };
     const l = Math.hypot(d.x, d.y) || 1e-12;
@@ -714,7 +725,9 @@ export class Simulacion {
       e.W.impactos = prev.W.impactos + 0.5 * m.cuerpos[i]!.masa * dot(e.v[i]!, e.v[i]!) - kAntes;
       e.modo[i] = { k: 'desliza', s, lado, dir: 0 };
       this.evento(e.t, 'impacto', i, `${this.nombre(i)} llega a la superficie y queda apoyado`);
-      this.reconciliar(new Set([i]), true);
+      // Solo puede quedar adherido si llega sin velocidad a lo largo de la superficie. (La v1 lo probaba siempre:
+      // en un piso sin roce, un cuerpo que aterrizaba deslizando quedaba clavado.)
+      if (Math.abs(dot(e.v[i]!, sup.t)) < EPS_V) this.reconciliar(new Set([i]), true);
       this.terminarPaso(h * (1 - frac), profundidad);
       return true;
     }

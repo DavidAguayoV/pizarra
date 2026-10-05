@@ -27,7 +27,7 @@ function registrar(elementos: Elemento[], t: number): Registro {
   const ext = (e: (typeof m.cuerdas)[number]['ext'][number]) => (e.tipo === 'cuerpo' ? `cuerpo:${idCuerpo(e.i)}` : 'fijo');
   const modelo = {
     cuerpos: m.cuerpos.map((c) => c.id),
-    cuerdas: m.cuerdas.map((c) => ({ id: c.ids[0], conPolea: c.polea !== null, ext: c.ext.map(ext), largo: r9(c.largo) })),
+    cuerdas: m.cuerdas.map((c) => ({ id: c.ids[0], conPolea: c.ruta !== null, ext: c.ext.map(ext), largo: r9(c.largo) })),
     resortes: m.resortes.map((x) => ({ id: x.id, ext: x.ext.map(ext) })),
     fuerzas: m.fuerzas.map((f) => ({ id: f.id, cuerpo: idCuerpo(f.cuerpo), F: pt(f.F) })),
   };
@@ -87,6 +87,31 @@ function comparar(a: unknown, b: unknown, ruta: string, tol: number): void {
   if (a !== b) throw new Error(`${ruta}: ${JSON.stringify(a)} ≠ ${JSON.stringify(b)}`);
 }
 
+/**
+ * Las únicas escenas en que la v2 se aparta de la v1 a propósito, con el motivo. Cada una tiene su propia
+ * prueba con el comportamiento correcto.
+ */
+const DIFERENCIAS: Record<string, string> = {
+  'proyectil al suelo':
+    'Dos errores de la v1: un cuerpo apoyado que parte alejándose de la superficie quedaba pegado a ella (perdía su velocidad normal), ' +
+    'y un cuerpo que aterriza deslizando sobre un piso sin roce quedaba clavado.',
+};
+
+describe('diferencias intencionales con la v1', () => {
+  it('un proyectil lanzado desde el suelo vuela: alcance y tiempo de vuelo de la teoría', () => {
+    const escena = ESCENAS_V1.find((e) => e.nombre === 'proyectil al suelo')!.elementos;
+    const s = new Simulacion(construirModelo(escena, G), { h: 0.001 });
+    expect(s.descripcion(0)).toBe('en el aire');
+    for (let k = 0; k < 300; k++) s.paso();
+    expect(s.estado.p[0]!.x).toBeCloseTo(0.9, 6);
+    expect(s.estado.p[0]!.y).toBeCloseTo(0.25 + 4 * 0.3 - 0.5 * G * 0.09, 6);
+    for (let k = 0; k < 700; k++) s.paso();
+    const impacto = s.eventos.find((e) => e.tipo === 'impacto')!;
+    expect(impacto.t).toBeCloseTo((2 * 4) / G, 4); // vuelve a y = 0,25 en t = 2 v₀y / g
+    expect(s.estado.p[0]!.x).toBeCloseTo(0.9 + 0.7 * 3, 6); // y sigue deslizando sin roce a 3 m/s
+  });
+});
+
 describe('equivalencia con la versión 1 (proyectos guardados se simulan igual)', () => {
   const actual = Object.fromEntries(ESCENAS_V1.map((e) => [e.nombre, registrar(e.elementos, e.t)]));
 
@@ -100,6 +125,7 @@ describe('equivalencia con la versión 1 (proyectos guardados se simulan igual)'
 
   const referencia = existsSync(RUTA) ? (JSON.parse(readFileSync(RUTA, 'utf8')) as Record<string, Registro>) : {};
   for (const e of ESCENAS_V1) {
+    if (e.nombre in DIFERENCIAS) continue;
     it(e.nombre, () => {
       expect(referencia[e.nombre], 'falta en la referencia').toBeDefined();
       comparar(actual[e.nombre], referencia[e.nombre], e.nombre, 1e-7);

@@ -1,6 +1,8 @@
 import type { Punto } from '../core/camara';
-import type { Bloque, Cuerda, Ejes, Elemento, Esfera, Resorte, Superficie, Vector } from '../core/elementos';
+import type { Bloque, Ejes, Elemento, Esfera, Superficie, Vector } from '../core/elementos';
 import { nuevoIdElemento } from '../core/elementos';
+import type { Grafo } from '../grafo/lector';
+import { apoyosDe, esDe, leerGrafo } from '../grafo/lector';
 import { crearEjes, crearVector, modulo, numeroEs, valorATex } from './vectores';
 import type { RolVector } from './vectores';
 import { anguloSuperficie, elongacion, largoSegmento, normalSuperficie } from './objetos';
@@ -112,36 +114,45 @@ interface Conocida {
   fuerza: FuerzaDcl;
 }
 
-/** Fuerzas que actúan sobre el cuerpo y dónde se apoya. Sin resolver normal ni roce. */
-function reunir(c: Cuerpo, elementos: readonly Elemento[], g: number) {
-  const superficies = elementos.filter((e): e is Superficie => e.tipo === 'superficie');
-  const contactos = superficies
-    .map((s) => ({ s, c: contactoCon(c, s) }))
-    .filter((x): x is { s: Superficie; c: { normal: Punto } } => x.c !== null);
+/** Normal unitaria que sale de la superficie hacia el lado donde está el cuerpo. */
+function normalHaciaCuerpo(c: Cuerpo, s: Superficie): Punto {
+  const n = normalSuperficie(s);
+  const lado = dot({ x: c.centro.x - s.a.x, y: c.centro.y - s.a.y }, n) >= 0 ? 1 : -1;
+  return { x: n.x * lado, y: n.y * lado };
+}
+
+/**
+ * Fuerzas que actúan sobre el cuerpo y dónde se apoya, leídas del grafo de la escena (`grafo/lector.ts`, el
+ * mismo que usa la simulación). Sin resolver normal ni roce.
+ */
+function reunir(c: Cuerpo, gr: Grafo, g: number) {
+  const contactos = apoyosDe(gr, c)
+    .filter((s) => largoSegmento(s.a, s.b) >= 1e-6)
+    // En el orden de la escena (como la v1), no en el de la lista de apoyo.
+    .sort((p, q) => gr.elementos.indexOf(p) - gr.elementos.indexOf(q))
+    .map((s) => ({ s, c: { normal: normalHaciaCuerpo(c, s) } }));
 
   const otras: FuerzaDcl[] = [];
-  const cuerdas = elementos.filter((e): e is Cuerda => e.tipo === 'cuerda');
-  const resortes = elementos.filter((e): e is Resorte => e.tipo === 'resorte');
-  const vectores = elementos.filter((e): e is Vector => e.tipo === 'vector');
-
-  const atadas = cuerdas
-    .map((q) => ({ q, a: distanciaAlCuerpo(c, q.a), b: distanciaAlCuerpo(c, q.b) }))
-    .filter((x) => (x.a <= TOLERANCIA_CONTACTO) !== (x.b <= TOLERANCIA_CONTACTO));
-  atadas.forEach(({ q, a }, i) => {
-    const propio = a <= TOLERANCIA_CONTACTO ? q.a : q.b;
-    const otro = a <= TOLERANCIA_CONTACTO ? q.b : q.a;
+  // Tensión: cada cuerda con exactamente un extremo en este cuerpo tira hacia su siguiente punto (el otro extremo
+  // o el primer contacto con una polea).
+  const atadas = gr.cuerdas
+    .map((q) => ({ q, en: esDe(q.ext[0], c) ? 0 : esDe(q.ext[1], c) ? 1 : -1, ambos: esDe(q.ext[0], c) && esDe(q.ext[1], c) }))
+    .filter((x) => x.en >= 0 && !x.ambos);
+  atadas.forEach(({ q, en }, i) => {
+    const propio = q.ext[en]!.p;
+    const otro = q.hacia[en]!;
     const sub = atadas.length > 1 ? `_${i + 1}` : '';
     otras.push({ rol: 'tension', simbolo: `T${sub}`, etiqueta: `\\vec{T}${sub}`, angulo: Math.atan2(otro.y - propio.y, otro.x - propio.x), valor: null });
   });
 
-  const elast = resortes
-    .map((r) => ({ r, a: distanciaAlCuerpo(c, r.a), b: distanciaAlCuerpo(c, r.b) }))
-    .filter((x) => (x.a <= TOLERANCIA_CONTACTO) !== (x.b <= TOLERANCIA_CONTACTO));
-  elast.forEach(({ r, a }, i) => {
-    const x = elongacion(r);
+  const elast = gr.resortes
+    .map((r) => ({ r, en: esDe(r.ext[0], c) ? 0 : esDe(r.ext[1], c) ? 1 : -1, ambos: esDe(r.ext[0], c) && esDe(r.ext[1], c) }))
+    .filter((x) => x.en >= 0 && !x.ambos);
+  elast.forEach(({ r, en }, i) => {
+    const x = elongacion(r.el);
     if (Math.abs(x) < 1e-3) return;
-    const propio = a <= TOLERANCIA_CONTACTO ? r.a : r.b;
-    const otro = a <= TOLERANCIA_CONTACTO ? r.b : r.a;
+    const propio = r.ext[en]!.p;
+    const otro = r.ext[1 - en]!.p;
     // Estirado: tira hacia el otro extremo. Comprimido: empuja alejándose de él.
     const hacia = Math.atan2(otro.y - propio.y, otro.x - propio.x);
     const sub = elast.length > 1 ? `,${i + 1}` : '';
@@ -150,16 +161,15 @@ function reunir(c: Cuerpo, elementos: readonly Elemento[], g: number) {
       simbolo: `F_{el${sub}}`,
       etiqueta: `\\vec{F}_{el${sub}}`,
       angulo: x > 0 ? hacia : hacia + Math.PI,
-      valor: Math.abs(r.k * x),
+      valor: Math.abs(r.el.k * x),
     });
   });
 
-  for (const v of vectores) {
-    if (v.fantasma || (v.rol !== 'aplicada' && v.rol !== 'tension')) continue;
-    if (distanciaAlCuerpo(c, v.a) > TOLERANCIA_CONTACTO + 0.06) continue;
+  for (const { v, cuerpo } of gr.vectores) {
+    if (cuerpo.id !== c.id) continue;
     const d = { x: v.b.x - v.a.x, y: v.b.y - v.a.y };
     if (Math.hypot(d.x, d.y) < 1e-6) continue;
-    otras.push({ rol: v.rol, simbolo: simboloEscalar(v.etiqueta), etiqueta: v.etiqueta, angulo: Math.atan2(d.y, d.x), valor: modulo(v) });
+    otras.push({ rol: v.rol === 'tension' ? 'tension' : 'aplicada', simbolo: simboloEscalar(v.etiqueta), etiqueta: v.etiqueta, angulo: Math.atan2(d.y, d.x), valor: modulo(v) });
   }
   const peso: FuerzaDcl = { rol: 'peso', simbolo: `${masaSimbolo(c)} g`, etiqueta: `${masaSimbolo(c)}\\vec{g}`, angulo: -Math.PI / 2, valor: c.masa * g };
   return { contactos, otras, peso };
@@ -173,8 +183,11 @@ const normalizar = (a: number): number => {
 };
 
 /** Plantea y resuelve el DCL del cuerpo. */
-export function resolverDcl(c: Cuerpo, elementos: readonly Elemento[], g = G_POR_DEFECTO, roce: ModoRoce = 'auto'): ResultadoDcl {
-  const { contactos, otras, peso } = reunir(c, elementos, g);
+export function resolverDcl(c0: Cuerpo, elementos: readonly Elemento[], g = G_POR_DEFECTO, roce: ModoRoce = 'auto'): ResultadoDcl {
+  const gr = leerGrafo(elementos);
+  // El cuerpo tal como lo ve el grafo (con su apoyo); si no está en la escena (vista previa), el recibido.
+  const c = gr.cuerpos.find((x) => x.id === c0.id) ?? c0;
+  const { contactos, otras, peso } = reunir(c, gr, g);
   const avisos: string[] = [];
   const unico = contactos.length === 1 ? contactos[0]! : null;
   if (contactos.length > 1) avisos.push('El cuerpo toca más de una superficie: se muestran las normales sin calcular su valor.');

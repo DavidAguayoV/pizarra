@@ -73,20 +73,23 @@ describe('elementos animados', () => {
     expect(r.b.x).toBeCloseTo(s.estado.p[0]!.x - 0.3, 6); // el del bloque acompaña su borde izquierdo
   });
 
-  it('las dos cuerdas de una polea mueven solo el extremo que va al cuerpo', () => {
+  it('las dos cuerdas de una polea (v1) se animan como una sola: los puntos de la polea quedan fijos', () => {
     const c1: Cuerda = crearCuerda({ x: -0.3, y: 3 }, { x: -0.3, y: 0.9 }, { id: 'c1' });
     const c2: Cuerda = crearCuerda({ x: 0.3, y: 1.4 }, { x: 0.3, y: 3 }, { id: 'c2' }); // dibujada al revés: la polea es el extremo b
     const escena = [crearPolea({ x: 0, y: 3 }, 0.3), c1, c2, crearBloque({ x: -0.3, y: 0.7 }, 0.4, 0.4, { masa: 3 }), crearBloque({ x: 0.3, y: 1.2 }, 0.4, 0.4, { masa: 2 })];
     const s = sim(escena);
     correr(s, 0.5);
-    const a = elementosAnimados(s, escena, op).locales;
-    const n1 = a.find((e) => e.id === 'c1') as Cuerda;
-    const n2 = a.find((e) => e.id === 'c2') as Cuerda;
-    expect(n1.a).toEqual({ x: -0.3, y: 3 }); // en la polea: fijo
-    expect(n1.b.y).toBeCloseTo(0.9 - 0.5 * ((3 - 2) * G) / 5 * 0.25, 5); // el extremo del bloque pesado baja
-    expect(n2.b).toEqual({ x: 0.3, y: 3 }); // la polea era el extremo b: sigue fijo
-    expect(n2.a.y).toBeGreaterThan(1.4); // el del bloque liviano sube
-    const bloques = a.filter((e): e is Bloque => e.tipo === 'bloque');
+    const anim = elementosAnimados(s, escena, op);
+    // La migración funde c2 en c1 (una cuerda con un paso por la polea): se anima c1 y se ocultan las dos.
+    expect(anim.ocultos.has('c1') && anim.ocultos.has('c2')).toBe(true);
+    const n = anim.locales.find((e) => e.id === 'c1') as Cuerda;
+    expect(anim.locales.some((e) => e.id === 'c2')).toBe(false);
+    const [t1, t2] = n.camino! as Array<{ k: 'recta'; a: { x: number; y: number }; b: { x: number; y: number } }>;
+    expect(t1!.b).toEqual({ x: -0.3, y: 3 }); // en la polea: fijo
+    expect(n.a.y).toBeCloseTo(0.9 - 0.5 * ((3 - 2) * G) / 5 * 0.25, 5); // el extremo del bloque pesado baja
+    expect(t2!.a).toEqual({ x: 0.3, y: 3 }); // el otro punto de la polea, fijo
+    expect(n.b.y).toBeGreaterThan(1.4); // el del bloque liviano sube
+    const bloques = anim.locales.filter((e): e is Bloque => e.tipo === 'bloque');
     expect(bloques[0]!.centro.y).toBeLessThan(0.7);
   });
 });

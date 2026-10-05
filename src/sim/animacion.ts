@@ -1,7 +1,8 @@
 import type { Punto } from '../core/camara';
-import type { Cuerda, Elemento, Resorte, Trazo, Vector } from '../core/elementos';
+import type { Elemento, Trazo, Vector } from '../core/elementos';
+import { resolverEscena } from '../grafo/resolver';
+import { completarV1 } from '../grafo/v1';
 import { crearVector } from '../physics/vectores';
-import { posExtremo } from './modelo';
 import type { Simulacion } from './motor';
 import { decimar } from './series';
 
@@ -47,7 +48,6 @@ function flecha(id: string, rol: 'velocidad' | 'acel', origen: Punto, vec: Punto
 export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], op: OpcionesAnimacion): Animacion {
   const m = sim.modelo;
   const e = sim.estado;
-  const porId = new Map(escena.map((x) => [x.id, x]));
   const ocultos = new Set<string>();
   const cuerpos: Elemento[] = [];
   const otros: Elemento[] = [];
@@ -74,27 +74,18 @@ export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], 
     }
   });
 
-  for (const r of m.resortes) {
-    const orig = porId.get(r.id) as Resorte | undefined;
-    if (!orig) continue;
-    otros.push({ ...orig, a: posExtremo(r.ext[0], e.p), b: posExtremo(r.ext[1], e.p) });
-    ocultos.add(r.id);
-  }
-
-  for (const c of m.cuerdas) {
-    if (c.partes) {
-      c.partes.forEach((parte, k) => {
-        const orig = porId.get(parte.id) as Cuerda | undefined;
-        if (!orig) return;
-        const mueve = posExtremo(c.ext[k]!, e.p);
-        otros.push(parte.lejano === 'a' ? { ...orig, a: mueve } : { ...orig, b: mueve });
-        ocultos.add(parte.id);
-      });
-    } else {
-      const orig = porId.get(c.ids[0]!) as Cuerda | undefined;
-      if (!orig) continue;
-      otros.push({ ...orig, a: posExtremo(c.ext[0], e.p), b: posExtremo(c.ext[1], e.p) });
-      ocultos.add(orig.id);
+  // Cuerdas y resortes: se resuelven de nuevo con los cuerpos en su posición actual (la geometría de lo unido se
+  // deriva del grafo), así que siguen a los cuerpos, pasan por sus poleas y conservan su estilo.
+  const animados = new Map(cuerpos.map((c) => [c.id, c]));
+  const escenaAnimada = completarV1(escena).map((x) => animados.get(x.id) ?? x);
+  const enModelo = new Set([...m.resortes.map((r) => r.id), ...m.cuerdas.flatMap((c) => c.ids)]);
+  // Una escena v1 sin migrar puede tener cuerdas que la migración fundió en otra: se ocultan también.
+  const quedan = new Set(escenaAnimada.map((x) => x.id));
+  for (const x of escena) if (!quedan.has(x.id)) ocultos.add(x.id);
+  for (const x of resolverEscena(escenaAnimada)) {
+    if ((x.tipo === 'cuerda' || x.tipo === 'resorte') && enModelo.has(x.id)) {
+      otros.push(x);
+      ocultos.add(x.id);
     }
   }
 

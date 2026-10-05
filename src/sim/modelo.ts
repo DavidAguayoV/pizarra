@@ -1,6 +1,10 @@
 import type { Punto } from '../core/camara';
-import type { Bloque, Cuerda, Elemento, Esfera, Polea, Resorte, Superficie, Vector } from '../core/elementos';
-import { distanciaAlCuerpo, G_POR_DEFECTO, TOLERANCIA_CONTACTO } from '../physics/dcl';
+import type { Bloque, Elemento, Esfera } from '../core/elementos';
+import type { ExtremoG } from '../grafo/lector';
+import { leerGrafo } from '../grafo/lector';
+import type { PasoGeo } from '../grafo/ruta';
+import { geometriaRuta } from '../grafo/ruta';
+import { G_POR_DEFECTO } from '../physics/dcl';
 import { normalSuperficie } from '../physics/objetos';
 import { modulo } from '../physics/vectores';
 
@@ -9,9 +13,11 @@ import { modulo } from '../physics/vectores';
  * gravedad, fuerzas aplicadas, resortes, cuerdas (con o sin polea) y superficies con roce.
  * Es una descripción inmutable; el estado que cambia en el tiempo vive en `motor.ts`.
  *
+ * Las relaciones (qué cuerda ata a qué cuerpo, por qué poleas pasa, dónde se apoya cada cuerpo) se leen del
+ * grafo explícito de la escena; ya no se deducen por cercanía (docs/decisiones/0008-modelo-de-grafo.md).
+ *
  * Simplificaciones, todas deliberadas y documentadas en docs/SIMULACION.md: los cuerpos son
- * puntos con orientación fija (no giran), las poleas son ideales y se tratan como puntos
- * (se ignora su radio) y los cuerpos no chocan entre sí.
+ * puntos con orientación fija (no giran), las poleas son ideales y fijas, y los cuerpos no chocan entre sí.
  */
 
 export type Cuerpo = Bloque | Esfera;
@@ -46,17 +52,15 @@ export interface ResorteDef {
 }
 
 export interface CuerdaDef {
-  /** Ids de los elementos cuerda que la forman (uno, o dos si pasa por una polea). */
+  /** Id del elemento cuerda. */
   ids: string[];
   ext: [Extremo, Extremo];
   /**
-   * Si la cuerda pasa por una polea: el punto donde cada tramo toca la polea (el extremo de cada cuerda dibujada).
-   * El largo es la suma de las dos distancias, así que un tramo dibujado vertical tira siempre en vertical.
+   * Poleas por las que pasa (fijas), o null si es recta. El largo es el del camino tangente a las poleas
+   * (`grafo/ruta.ts`), así que el tramo que llega a un cuerpo tira en la dirección de la tangente.
    */
-  polea: [Punto, Punto] | null;
+  ruta: PasoGeo[] | null;
   largo: number;
-  /** Con polea: cuál extremo (a o b) de cada cuerda dibujada es el que se mueve con el cuerpo. */
-  partes?: [{ id: string; lejano: 'a' | 'b' }, { id: string; lejano: 'a' | 'b' }];
 }
 
 export interface FuerzaDef {
@@ -85,108 +89,78 @@ export function posExtremo(e: Extremo, p: readonly Punto[]): Punto {
 
 const dist = (a: Punto, b: Punto): number => Math.hypot(a.x - b.x, a.y - b.y);
 
-/** Construye el modelo dinámico de la escena. */
+/** Construye el modelo dinámico de la escena, leyendo sus relaciones del grafo (`grafo/lector.ts`). */
 export function construirModelo(elementos: readonly Elemento[], g = G_POR_DEFECTO): Modelo {
   const avisos: string[] = [];
-  const cuerpos: CuerpoDef[] = elementos
-    .filter((e): e is Cuerpo => e.tipo === 'bloque' || e.tipo === 'esfera')
-    .map((e) => ({ id: e.id, elemento: e, masa: e.masa, p0: { ...e.centro }, v0: e.v0 ? { ...e.v0 } : { x: 0, y: 0 } }));
+  const gr = leerGrafo(elementos);
+  const cuerpos: CuerpoDef[] = gr.cuerpos.map((e) => ({ id: e.id, elemento: e, masa: e.masa, p0: { ...e.centro }, v0: e.v0 ? { ...e.v0 } : { x: 0, y: 0 } }));
   if (cuerpos.length === 0) avisos.push('No hay cuerpos (bloques o esferas) para simular.');
+  const indice = new Map(cuerpos.map((c, i) => [c.id, i]));
 
-  const superficies: SuperficieDef[] = elementos
-    .filter((e): e is Superficie => e.tipo === 'superficie')
-    .map((s) => {
-      const largo = dist(s.a, s.b) || 1e-9;
-      return { id: s.id, a: s.a, t: { x: (s.b.x - s.a.x) / largo, y: (s.b.y - s.a.y) / largo }, n: normalSuperficie(s), largo, muS: s.muS, muK: s.muK };
-    });
+  const superficies: SuperficieDef[] = gr.superficies.map((s) => {
+    const largo = dist(s.a, s.b) || 1e-9;
+    return { id: s.id, a: s.a, t: { x: (s.b.x - s.a.x) / largo, y: (s.b.y - s.a.y) / largo }, n: normalSuperficie(s), largo, muS: s.muS, muK: s.muK };
+  });
 
-  const extremo = (p: Punto): Extremo => {
-    let mejor = -1;
-    let dMejor = Infinity;
-    cuerpos.forEach((c, i) => {
-      const d = distanciaAlCuerpo(c.elemento, p);
-      if (d < dMejor) {
-        dMejor = d;
-        mejor = i;
-      }
-    });
-    if (mejor >= 0 && dMejor <= TOLERANCIA_CONTACTO) {
-      const c = cuerpos[mejor]!;
-      return { tipo: 'cuerpo', i: mejor, desp: { x: p.x - c.p0.x, y: p.y - c.p0.y } };
-    }
-    return { tipo: 'fijo', p: { ...p } };
+  /** Extremo del modelo; null si está suelto (no ejerce fuerza). */
+  const extremo = (x: ExtremoG): Extremo | null => {
+    if (x.k === 'suelto') return null;
+    if (x.k === 'fijo') return { tipo: 'fijo', p: { ...x.p } };
+    const i = indice.get(x.cuerpo.id)!;
+    const c = cuerpos[i]!;
+    return { tipo: 'cuerpo', i, desp: { x: x.p.x - c.p0.x, y: x.p.y - c.p0.y } };
   };
   const mismo = (a: Extremo, b: Extremo): boolean => (a.tipo === 'cuerpo' && b.tipo === 'cuerpo' && a.i === b.i) || (a.tipo === 'fijo' && b.tipo === 'fijo');
 
   const resortes: ResorteDef[] = [];
-  for (const r of elementos.filter((e): e is Resorte => e.tipo === 'resorte')) {
-    const ext: [Extremo, Extremo] = [extremo(r.a), extremo(r.b)];
-    if (mismo(ext[0], ext[1])) {
+  for (const r of gr.resortes) {
+    const e0 = extremo(r.ext[0]);
+    const e1 = extremo(r.ext[1]);
+    if (!e0 || !e1) {
+      avisos.push('Un resorte tiene un extremo suelto: no ejerce fuerza y se ignora.');
+      continue;
+    }
+    if (mismo(e0, e1)) {
       avisos.push('Un resorte no está atado a ningún cuerpo (o ata un cuerpo consigo mismo): se ignora.');
       continue;
     }
-    resortes.push({ id: r.id, k: r.k, largoNatural: r.largoNatural, ext });
+    resortes.push({ id: r.el.id, k: r.el.k, largoNatural: r.el.largoNatural, ext: [e0, e1] });
   }
 
-  // Cuerdas: dos que tocan la misma polea forman una sola cuerda que pasa por ella.
   const cuerdas: CuerdaDef[] = [];
-  const todasCuerdas = elementos.filter((e): e is Cuerda => e.tipo === 'cuerda');
-  const usadas = new Set<string>();
   const posInicial = cuerpos.map((c) => c.p0);
-  for (const pol of elementos.filter((e): e is Polea => e.tipo === 'polea')) {
-    const tocan = todasCuerdas
-      .filter((c) => !usadas.has(c.id))
-      .map((c) => {
-        const da = dist(c.a, pol.centro);
-        const db = dist(c.b, pol.centro);
-        const radioToque = pol.radio + 0.14;
-        if (da <= radioToque && da <= db) return { c, lejano: c.b, cercano: c.a };
-        if (db <= radioToque) return { c, lejano: c.a, cercano: c.b };
-        return null;
-      })
-      .filter((x): x is { c: Cuerda; lejano: Punto; cercano: Punto } => x !== null);
-    if (tocan.length !== 2) continue;
-    const [u, v] = tocan as [{ c: Cuerda; lejano: Punto; cercano: Punto }, { c: Cuerda; lejano: Punto; cercano: Punto }];
-    const ext: [Extremo, Extremo] = [extremo(u.lejano), extremo(v.lejano)];
-    if (mismo(ext[0], ext[1])) {
-      avisos.push('Las dos cuerdas de una polea terminan en el mismo cuerpo o ambas en puntos fijos: se ignoran.');
-    } else {
-      cuerdas.push({
-        ids: [u.c.id, v.c.id],
-        ext,
-        polea: [{ ...u.cercano }, { ...v.cercano }],
-        partes: [
-          { id: u.c.id, lejano: u.lejano === u.c.b ? 'b' : 'a' },
-          { id: v.c.id, lejano: v.lejano === v.c.b ? 'b' : 'a' },
-        ],
-        largo: dist(posExtremo(ext[0], posInicial), u.cercano) + dist(posExtremo(ext[1], posInicial), v.cercano),
-      });
-    }
-    usadas.add(u.c.id);
-    usadas.add(v.c.id);
-  }
-  for (const c of todasCuerdas) {
-    if (usadas.has(c.id)) continue;
-    const ext: [Extremo, Extremo] = [extremo(c.a), extremo(c.b)];
-    if (mismo(ext[0], ext[1])) {
-      avisos.push('Una cuerda no está atada a ningún cuerpo (o ata un cuerpo consigo mismo): se ignora.');
+  for (const c of gr.cuerdas) {
+    const e0 = extremo(c.ext[0]);
+    const e1 = extremo(c.ext[1]);
+    if (!e0 || !e1) {
+      avisos.push('Una cuerda tiene un extremo suelto: no ejerce fuerza y se ignora.');
       continue;
     }
-    cuerdas.push({ ids: [c.id], ext, polea: null, largo: dist(posExtremo(ext[0], posInicial), posExtremo(ext[1], posInicial)) });
+    if (mismo(e0, e1)) {
+      avisos.push(
+        c.pasos.length > 0
+          ? 'Las dos cuerdas de una polea terminan en el mismo cuerpo o ambas en puntos fijos: se ignoran.'
+          : 'Una cuerda no está atada a ningún cuerpo (o ata un cuerpo consigo mismo): se ignora.',
+      );
+      continue;
+    }
+    const ext: [Extremo, Extremo] = [e0, e1];
+    const ruta = c.pasos.length > 0 ? c.pasos : null;
+    const q0 = posExtremo(e0, posInicial);
+    const q1 = posExtremo(e1, posInicial);
+    cuerdas.push({ ids: [c.el.id], ext, ruta, largo: ruta ? geometriaRuta(q0, ruta, q1).largo : dist(q0, q1) });
   }
 
-  // Fuerzas aplicadas: vectores `aplicada` con origen en un cuerpo (constantes, con la dirección dibujada).
+  // Fuerzas aplicadas: vectores `aplicada` unidos a un cuerpo (constantes, con la dirección dibujada).
   const fuerzas: FuerzaDef[] = [];
-  for (const v of elementos.filter((e): e is Vector => e.tipo === 'vector')) {
-    if (v.fantasma || v.rol !== 'aplicada') continue;
+  for (const { v, cuerpo } of gr.vectores) {
+    if (v.rol !== 'aplicada') continue;
     const dx = v.b.x - v.a.x;
     const dy = v.b.y - v.a.y;
     const l = Math.hypot(dx, dy);
     if (l < 1e-9) continue;
-    const i = cuerpos.findIndex((c) => distanciaAlCuerpo(c.elemento, v.a) <= TOLERANCIA_CONTACTO + 0.06);
-    if (i < 0) continue;
     const F = modulo(v);
-    fuerzas.push({ id: v.id, cuerpo: i, F: { x: (dx / l) * F, y: (dy / l) * F } });
+    fuerzas.push({ id: v.id, cuerpo: indice.get(cuerpo.id)!, F: { x: (dx / l) * F, y: (dy / l) * F } });
   }
 
   for (const c of cuerpos) if (!(c.masa > 0)) avisos.push(`El cuerpo ${c.id} no tiene masa positiva.`);

@@ -476,5 +476,6 @@ fuerzas de restricción exactas. No adopto ninguno sin medir.
   cercano**.
 - Error nuevo de la v1, encontrado al grabar las escenas de referencia: un cuerpo apoyado que parte con velocidad
   **alejándose** de la superficie (un proyectil lanzado desde el suelo) queda pegado a ella y desliza, porque pierde su
-  velocidad normal. Se corrige en la v2 y es la única diferencia intencional con la v1
-  (`tests/equivalencia-v1.test.ts`).
+  velocidad normal. Y otro: un cuerpo que **aterriza deslizando** sobre un piso sin roce quedaba clavado en el punto de
+  impacto (el motor probaba el roce estático aunque el cuerpo se moviera a lo largo de la superficie). Los dos se
+  corrigen en la v2 y son las únicas diferencias intencionales con la v1 (`tests/equivalencia-v1.test.ts`).
