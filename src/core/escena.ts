@@ -13,6 +13,11 @@ export const OP_AGREGAR = 'elemento/agregar';
 export const OP_BORRAR = 'elemento/borrar';
 /** Varios cambios juntos (agregar, reemplazar y borrar): un solo deshacer los revierte todos. */
 export const OP_LOTE = 'elemento/lote';
+/**
+ * Migración de un proyecto de la v1 (`grafo/migracion.ts`): un lote con las uniones que la v1 deducía por cercanía.
+ * Se aplica como un lote corriente, pero no se deshace (`TIPOS_NO_DESHACIBLES`).
+ */
+export const OP_MIGRACION = 'escena/migracion';
 
 export interface BorrarPayload {
   ids: string[];
@@ -38,4 +43,5 @@ export const reductoresEscena: Reductores<Escena> = {
   [OP_AGREGAR]: (e, p: Elemento) => ({ elementos: [...e.elementos, p] }),
   [OP_BORRAR]: (e, p: BorrarPayload) => aplicarLote(e, { borrar: p.ids }),
   [OP_LOTE]: (e, p: LotePayload) => aplicarLote(e, p),
+  [OP_MIGRACION]: (e, p: LotePayload) => aplicarLote(e, p),
 };

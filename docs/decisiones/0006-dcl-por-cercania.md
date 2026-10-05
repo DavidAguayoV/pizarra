@@ -1,6 +1,6 @@
 # ADR 0006 — Diagrama de cuerpo libre: contactos inferidos por cercanía, sin conexiones vivas
 
-**Fecha:** 2026-10-01 · **Estado:** aceptada
+**Fecha:** 2026-10-01 · **Estado:** reemplazada por el [ADR 0008](0008-modelo-de-grafo.md) (Nivel 2)
 
 **Contexto.** El DCL automático debe saber sobre qué se apoya un cuerpo y qué le está atado, a partir de lo que se dibujó.
 

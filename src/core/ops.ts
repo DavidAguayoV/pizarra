@@ -24,6 +24,16 @@ export interface ObjetivoPayload {
   objetivo: string;
 }
 
+/**
+ * Ops normales que **no se deshacen** (la pila de deshacer las salta y no vacían la de rehacer). Hoy, solo la
+ * migración de un proyecto de la v1: deshacerla dejaría la escena sin sus uniones.
+ */
+export const TIPOS_NO_DESHACIBLES: ReadonlySet<string> = new Set(['escena/migracion']);
+
+export function esDeshacible(op: Op): boolean {
+  return !esMeta(op) && !TIPOS_NO_DESHACIBLES.has(op.tipo);
+}
+
 export function esMeta(op: Op): boolean {
   return op.tipo === OP_DESHACER || op.tipo === OP_REHACER;
 }
@@ -54,7 +64,7 @@ export function pilaRehacer(registro: readonly Op[]): string[] {
   for (const op of registro) {
     if (op.tipo === OP_DESHACER) pila.push((op.payload as ObjetivoPayload).objetivo);
     else if (op.tipo === OP_REHACER) pila.pop();
-    else pila.length = 0;
+    else if (!TIPOS_NO_DESHACIBLES.has(op.tipo)) pila.length = 0;
   }
   return pila;
 }

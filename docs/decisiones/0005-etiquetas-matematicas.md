@@ -1,6 +1,6 @@
 # ADR 0005 — Etiquetas matemáticas con compositor propio (sin KaTeX)
 
-**Fecha:** 2026-10-01 · **Estado:** propuesta (se aparta del prompt maestro: pendiente de aprobación de David)
+**Fecha:** 2026-10-01 · **Estado:** aceptada (se aparta del prompt maestro; aprobada por David el 2026-10-05)
 
 **Contexto.** El prompt maestro propone KaTeX para las etiquetas matemáticas en pantalla. Las etiquetas de vectores
 (`\vec{F}_g`, `\theta`, `F_x = 8{,}7\,\mathrm{N}`) deben verse **igual** en la pantalla del profesor, en el celular del estudiante,

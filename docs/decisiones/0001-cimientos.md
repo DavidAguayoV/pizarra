@@ -1,6 +1,6 @@
 # ADR 0001 — Cimientos de la Etapa 0
 
-Fecha: 2026-10-01. Estado: aceptada.
+Fecha: 2026-10-01. Estado: aceptada. (Punto 3 cerrado el 2026-10-05: David decidió **mantener los identificadores en español**.)
 
 ## Decisiones
 

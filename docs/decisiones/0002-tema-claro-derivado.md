@@ -1,6 +1,6 @@
 # ADR 0002 — Tema claro derivado de la paleta v2 de los videos
 
-**Fecha:** 2026-10-01 · **Estado:** propuesta (pendiente de aprobación de David)
+**Fecha:** 2026-10-01 · **Estado:** aceptada (David, 2026-10-05)
 
 **Contexto.** La pizarra debe ser blanca y también oscura, con contraste AA, y heredar la identidad de
 @problemasfisicauai. La paleta v2 está definida solo para fondo oscuro; sobre blanco el ámbar da 1,5:1.

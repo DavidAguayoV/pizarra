@@ -175,6 +175,12 @@ export const IMAN_SUPERFICIE = 0.3;
  * Así los contactos del diagrama de cuerpo libre no dependen de la puntería.
  */
 export function acomodarSobreSuperficie<T extends Bloque | Esfera>(c: T, elementos: readonly Elemento[]): T {
+  const s = superficieCercana(c, elementos);
+  return s ? apoyarEn(c, s) : c;
+}
+
+/** La superficie a menos de `IMAN_SUPERFICIE` en la que se apoyaría el cuerpo al soltarlo, o null. */
+export function superficieCercana(c: Bloque | Esfera, elementos: readonly Elemento[]): Superficie | null {
   let mejor: { s: Superficie; holgura: number } | null = null;
   for (const e of elementos) {
     if (e.tipo !== 'superficie') continue;
@@ -190,8 +196,11 @@ export function acomodarSobreSuperficie<T extends Bloque | Esfera>(c: T, element
     const holgura = Math.abs(Math.abs(d) - h);
     if (holgura <= IMAN_SUPERFICIE && (!mejor || holgura < mejor.holgura)) mejor = { s: e, holgura };
   }
-  if (!mejor) return c;
-  const s = mejor.s;
+  return mejor?.s ?? null;
+}
+
+/** Apoya el cuerpo sobre la superficie: lo lleva hasta tocarla y, si es un bloque, lo deja paralelo a ella. */
+export function apoyarEn<T extends Bloque | Esfera>(c: T, s: Superficie): T {
   const l = largoSegmento(s.a, s.b);
   const n = normalSuperficie(s);
   const t = { x: (s.b.x - s.a.x) / l, y: (s.b.y - s.a.y) / l };

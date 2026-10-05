@@ -97,6 +97,14 @@ Las imágenes pesan más (hasta ~2 MB cada una al reducirse a 1600 px): una piza
 Mientras corre una simulación, el profesor transmite los **cuerpos, resortes, cuerdas y vectores animados** como lotes `els` (con `ocultos` = los originales) a ~20 Hz; la trayectoria no se envía. Pesa del orden de **60 KB/s por estudiante**,
 así que una clase de 60 estudiantes y 10 minutos de simulación gasta del orden de 2 GB de los 10 GB mensuales del plan gratuito. Conviene pausarla cuando no se esté mostrando.
 
+## Grafo de la escena (Nivel 2)
+
+No cambia el protocolo: las uniones viajan **dentro** de los elementos (campos `union`, `ruta`, `apoyo`, `cuerpo`) en las mismas ops
+`elemento/*`. La única op nueva es `escena/migracion` (al abrir un proyecto v1), que el receptor reduce como un lote. Cada pantalla
+calcula la geometría de lo unido (`grafo/resolver.ts`), y mientras el profesor arrastra un cuerpo, la vista previa que se transmite
+incluye las cuerdas y resortes que lo siguen. Un celular con la app vieja en caché ignora los campos nuevos y dibuja las cuerdas en
+su posición guardada; al recargar se ve bien.
+
 ## Lo que no hace (todavía)
 
 * No cuenta cuántos estudiantes hay conectados (requiere presencia).

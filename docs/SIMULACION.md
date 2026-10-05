@@ -22,12 +22,16 @@ Cada bloque o esfera es una **partícula** (con orientación fija: no gira). Act
 |---|---|
 | Peso | `m g` hacia abajo |
 | Fuerza aplicada | un vector *aplicada* con origen en el cuerpo: constante, con el módulo y la dirección dibujados |
-| Resorte | `k (largo − largo natural)` a lo largo del resorte; un extremo atado al cuerpo (a menos de 9 cm) y el otro a otro cuerpo o a un punto fijo |
+| Resorte | `k (largo − largo natural)` a lo largo del resorte, entre sus dos extremos unidos (cuerpo–cuerpo o cuerpo–punto fijo) |
 | Cuerda | restricción de largo constante entre dos extremos (cuerpo–cuerpo o cuerpo–punto fijo); ideal: sin masa e inextensible |
-| Cuerda con polea | dos cuerdas que terminan en la misma polea forman una sola de largo constante `|A − P₁| + |B − P₂|`, con P₁ y P₂ los puntos donde cada tramo toca la polea; un tramo dibujado vertical tira siempre en vertical |
-| Superficie | contacto unilateral (`N ≥ 0`) con roce estático y cinético de Coulomb |
+| Cuerda que pasa por poleas | una sola cuerda con su **ruta**: el largo es el del camino tangente a las poleas más los arcos de contacto, y cada extremo tira en la dirección de su tramo tangente. Las poleas son fijas, sin masa ni roce. (Un proyecto v1 conserva los puntos de paso que tenía: `|A − P₁| + |B − P₂|`.) |
+| Superficie | contacto unilateral (`N ≥ 0`) con roce estático y cinético de Coulomb; el cuerpo parte apoyado en la superficie de su `apoyo` |
 
-Simplificaciones deliberadas: las poleas son ideales (sin masa ni roce, y su radio no entra en la geometría), los cuerpos **no chocan entre sí** y los impactos contra una superficie son **perfectamente inelásticos**.
+Todas las relaciones se **leen del grafo** de la escena (`grafo/lector.ts`, [ADR 0008](decisiones/0008-modelo-de-grafo.md)): un
+extremo **suelto** no ejerce fuerza, y lo que no se puede usar aparece en el panel como **problema de la escena**
+(`grafo/validar.ts`) con el elemento al que se refiere. La cuerda parte **siempre tensa**: su largo es el geométrico en t = 0.
+
+Simplificaciones deliberadas (hasta la Fase 3): las poleas son ideales y fijas (sin masa ni roce; su radio **sí** entra en la geometría desde el Nivel 2), los cuerpos **no chocan entre sí** y los impactos contra una superficie son **perfectamente inelásticos**.
 
 ## El motor: RK4 con restricciones de Lagrange
 
@@ -65,6 +69,17 @@ que es exacta para aceleración constante) y la integración continúa desde ah�
 `K = ½ m v²`, `U_g = m g y`, `U_e = ½ k x²`, `E_mec = K + U_g + U_e`. Se acumulan por separado el trabajo del **roce**, de las **fuerzas aplicadas** y de los **impactos / tirones**;
 el panel muestra el balance `E − E₀ − W_no conservativo`, que debe ser ~0.
 
+## Equivalencia con los proyectos de la versión 1
+
+`tests/equivalencia-v1.test.ts` simula 25 escenas de referencia (`tests/escenasV1.ts`, incluidas las frágiles de la auditoría)
+y compara posiciones, velocidades, aceleraciones, normales, roces, tensiones, eventos y el DCL con los resultados grabados con el
+código de la Etapa 5: coinciden con error < 1e-7. Las únicas diferencias son **dos errores de la v1 corregidos a propósito**:
+
+* un cuerpo apoyado que parte **alejándose** de la superficie (un proyectil lanzado desde el suelo) quedaba pegado a ella y deslizaba;
+  ahora vuela;
+* un cuerpo que **aterriza deslizando** sobre un piso sin roce quedaba clavado en el punto de impacto (se le aplicaba el roce estático
+  aunque se moviera a lo largo de la superficie); ahora sigue deslizando.
+
 ## Validación (contra soluciones analíticas)
 
 | Caso | Resultado | Error |
@@ -81,6 +96,8 @@ el panel muestra el balance `E − E₀ − W_no conservativo`, que debe ser ~0.
 | Péndulo | período `2π√(L/g)` (con corrección de amplitud), tensión ≥ 0, E_mec conservada | período < 2e-4 relativo |
 | Péndulo lanzado desde abajo con `v² = 3 g L` | la cuerda se afloja, el cuerpo vuela y se tensa de nuevo; balance de energía | < 1e-6 |
 | Mesa → suelo | sale por el borde a `v₀`, aterriza a `v₀ √(2h/g)` | < 1e-2 |
+| Atwood **dibujado** (cuerda que envuelve la polea, Nivel 2) | `a = (m₁ − m₂) g /(m₁ + m₂)`, `T = 2 m₁ m₂ g /(m₁ + m₂)`, sin aceleración lateral aunque la cuerda termine en el centro de la polea | < 1e-6 |
+| Plano 30° + polea en la arista + colgante (envoltura) | `a = (m₂ g − m₁ g sen θ − μk m₁ g cos θ)/(m₁ + m₂)`, `T = m₂ (g − a)` | < 5e-4 (coordenadas a 0,1 mm) |
 
 ### Solución analítica en pantalla
 

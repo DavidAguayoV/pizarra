@@ -14,9 +14,12 @@ Convención: **g = 9,80 m/s²** por defecto (editable en el panel); SI en todo; 
 | Cuerda | ideal: sin masa e inextensible; un segmento recto |
 | Resorte | k (N/m), largo natural (m); fuerza `k (largo − largo natural)` |
 
-Son **figuras geométricas con propiedades**: el diagrama infiere los contactos **por cercanía** (tolerancia 9 cm). Mover un
-bloque **no arrastra** su cuerda ni su resorte (no hay conexiones vivas). Al soltar un cuerpo a menos de 30 cm de una
-superficie, se **apoya solo**: baja hasta tocarla y, si es un bloque, se gira para quedar paralelo.
+Desde el Nivel 2 las relaciones son **explícitas** ([ADR 0008](decisiones/0008-modelo-de-grafo.md)): cada cuerpo guarda la
+superficie en que se apoya, cada extremo de cuerda o resorte guarda a qué está unido y cada fuerza aplicada, el cuerpo sobre el
+que actúa. El DCL las **lee** del grafo (el mismo lector que usa la simulación), sin tolerancias. Mover un bloque **arrastra** su
+cuerda y su resorte. Al soltar un cuerpo a menos de 30 cm de una superficie, se **apoya solo**: baja hasta tocarla, si es un
+bloque se gira para quedar paralelo, y queda registrado su apoyo. (Hasta la Fase 2, las uniones de cuerdas y resortes se asignan
+al soltarlos con las distancias de antes: 9 cm a un cuerpo.)
 
 ## Qué detecta
 
@@ -24,9 +27,10 @@ Para el cuerpo seleccionado:
 
 1. **Peso** `m g`, siempre.
 2. **Normal** y **roce** de la superficie en la que se apoya (la normal sale de la superficie hacia el cuerpo).
-3. **Tensión** de cada cuerda con un extremo a menos de 9 cm del cuerpo, en la dirección de la cuerda (valor: incógnita).
-4. **Fuerza elástica** de cada resorte atado: tira hacia el otro extremo si está estirado y empuja si está comprimido.
-5. **Fuerzas aplicadas**: vectores `aplicada` o `tension` dibujados con origen en el cuerpo.
+3. **Tensión** de cada cuerda unida al cuerpo, en la dirección del tramo que sale de él: hacia el otro extremo o, si pasa por
+   una polea, hacia el punto de tangencia (valor: incógnita).
+4. **Fuerza elástica** de cada resorte unido: tira hacia el otro extremo si está estirado y empuja si está comprimido.
+5. **Fuerzas aplicadas**: vectores `aplicada` o `tension` que actúan sobre el cuerpo.
 
 Los vectores de otros roles (velocidad, aceleración…), los fantasmas y los que no salen del cuerpo se ignoran.
 

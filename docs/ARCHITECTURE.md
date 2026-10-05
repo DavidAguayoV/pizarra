@@ -7,6 +7,8 @@ src/
   core/        registro de ops, store, escena, cámara, tema          (Etapa 0)
   ink/         herramientas, entrada (Pointer Events), suavizado, dibujo (Etapa 1)
   share/       transportes, difusor, sincronizador, salas             (Etapa 2)
+  grafo/       puertos, uniones, ruta de cuerdas, escena resuelta, lector único,
+               integridad, migración v1, problemas de la escena          (Nivel 2)
   physics/     vectores, ejes, edición (Etapa 3); objetos y DCL (Etapa 4)
   sim/         motor RK4 con restricciones, eventos, energía, series  (Etapa 5)
   recognize/   reconocimiento de formas y de escena                   (Etapa 6)
@@ -17,6 +19,32 @@ assets/        activos versionados (personajes del proyecto Insta)
 ```
 
 Las carpetas aún sin código tienen un `index.ts` vacío para fijar la estructura.
+
+## Grafo de la escena (Nivel 2)
+
+Las relaciones entre objetos se **guardan**, no se deducen: decisión en el [ADR 0008](decisiones/0008-modelo-de-grafo.md),
+contexto en la [auditoría](AUDITORIA_NIVEL2.md).
+
+```
+elementos (ops)  ──completarV1──▶  completos  ──resolverEscena──▶  escena resuelta  ──▶ lienzo, exportaciones, animación
+                                                     │
+                                                     └──leerGrafo──▶  simulación (sim/modelo), DCL (physics/dcl), validar
+```
+
+- `grafo/puertos.ts`: puertos con nombre en coordenadas locales (`cara-sup`, `esq-id`, `eje`, `borde:90`, `u:0.5`, `local:x,y`).
+- `grafo/ruta.ts`: camino de una cuerda que pasa por poleas (tangentes y arcos de contacto). Lógica pura.
+- `grafo/resolver.ts`: **escena resuelta** (memorizada por lista): los extremos unidos toman la posición de su puerto y las
+  cuerdas con ruta calculan su `camino` (derivado: `sinDerivados` lo quita antes de guardar). `dependientes` da lo que hay que
+  redibujar mientras se arrastra un cuerpo.
+- `grafo/lector.ts`: **lector único** del grafo. No hay tolerancias en la lectura.
+- `grafo/integridad.ts`: `prepararLote` completa cada edición (borrar suelta lo unido, mover una superficie arrastra a sus cuerpos,
+  mover un extremo lo vuelve a unir). Toda edición de la app pasa por aquí: las consecuencias viajan en la misma op.
+- `grafo/v1.ts` (congelado) y `grafo/migracion.ts`: reglas de cercanía de la v1 para completar escenas antiguas; al abrir un
+  archivo v1 se agrega una op `escena/migracion` que no se deshace (`TIPOS_NO_DESHACIBLES` en `core/ops.ts`).
+- `grafo/conectar.ts`: uniones al soltar un objeto (**provisorio** hasta los imanes de la Fase 2) y marcas de las uniones.
+- `grafo/validar.ts`: problemas de la escena, con el elemento y el arreglo posible.
+- Prueba de que nada cambió para los proyectos guardados: `tests/equivalencia-v1.test.ts` contra `tests/golden/v1-referencia.json`
+  (grabado con el código de la Etapa 5).
 
 ## Compartir en vivo (Etapa 2)
 
@@ -36,7 +64,7 @@ servicio en [FIREBASE.md](FIREBASE.md); decisión en el [ADR 0004](decisiones/00
 Un motor de partículas con restricciones (RK4 de paso fijo + multiplicadores de Lagrange) que corre sobre la escena. Detalle del modelo, los eventos, la validación y los límites en
 [SIMULACION.md](SIMULACION.md); decisiones en el [ADR 0007](decisiones/0007-motor-de-simulacion.md).
 
-- `sim/modelo.ts`: **lógica pura**. Construye el modelo dinámico desde los elementos (cuerpos, superficies, resortes, cuerdas con o sin polea, fuerzas aplicadas) infiriendo las uniones por cercanía.
+- `sim/modelo.ts`: **lógica pura**. Construye el modelo dinámico (cuerpos, superficies, resortes, cuerdas con o sin poleas, fuerzas aplicadas) leyendo el grafo (`grafo/lector.ts`).
 - `sim/motor.ts`: `Simulacion` (RK4, restricciones, roce estático y cinético, eventos, energías, historial). Sin DOM: se prueba en Node.
 - `sim/analitico.ts`: soluciones exactas (aceleración constante y oscilador armónico) y la diferencia con la simulación.
 - `sim/series.ts`: series para gráficos, tabla, CSV (Excel en español) y **pgfplots**.
@@ -100,7 +128,7 @@ Los elementos confirmados se pintan en un lienzo de caché que solo se rehace al
 |---|---|
 | PNG | Resolución 1x/2x/4x (100 px por metro por el factor, con tope de 8192 px), fondo blanco o transparente. Mismo código de dibujo que la pantalla. |
 | SVG | Autocontenido, vectorial. Grosor medio por trazo. |
-| JSON | El registro de ops completo con `schemaVersion` (1), incluido el historial de deshacer: abrirlo reconstruye la misma pizarra. Rechaza archivos ajenos o de versión futura con mensaje en español. |
+| JSON | El registro de ops completo con `schemaVersion` (2 desde el Nivel 2), incluido el historial de deshacer: abrirlo reconstruye la misma pizarra. Un archivo v1 se migra al abrirlo. Rechaza archivos ajenos o de versión futura con mensaje en español. |
 | TikZ | Fragmento o documento `standalone`. Ver [TIKZ.md](TIKZ.md). |
 
 ## Registro de ops

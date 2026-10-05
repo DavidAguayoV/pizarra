@@ -4,7 +4,7 @@ Pizarra web para resolver problemas de física en clase: dibujo libre, sistema d
 
 Sitio: https://davidaguayov.github.io/pizarra/ (cuando el repositorio esté publicado).
 
-> **Estado:** Etapa 1 (pizarra): lápiz, resaltador, borrador, líneas, flechas, formas, texto e imágenes; exporta PNG, SVG, JSON y TikZ. Comparte en vivo con los estudiantes (Etapa 2). Ver [CHANGELOG](CHANGELOG.md) y la hoja de ruta en [docs/PROMPT_MAESTRO.md](docs/PROMPT_MAESTRO.md).
+> **Estado:** Etapas 0–5 (pizarra, compartir en vivo, vectores, objetos y DCL, simulación) y **Nivel 2, Fase 1**: la escena es un grafo con uniones explícitas (las cuerdas siguen a los cuerpos y envuelven las poleas). Ver [CHANGELOG](CHANGELOG.md), la [auditoría del Nivel 2](docs/AUDITORIA_NIVEL2.md) y la hoja de ruta en [docs/PROMPT_MAESTRO.md](docs/PROMPT_MAESTRO.md).
 
 ## Usarla en clase
 
@@ -30,11 +30,12 @@ Herramientas (también con teclado):
 - **Mover y zoom:** rueda = zoom; dos dedos = mover y zoom; barra espaciadora o botón central + arrastrar = mover.
 - **Lápiz de tablet:** si hay un lápiz cerca, los toques de dedo se ignoran (rechazo de palma).
 - **Vectores y ejes:** dibuja unos **ejes** (puedes girarlos para un plano inclinado) y luego los **vectores**: su ángulo se mide desde el eje x de esos ejes. Selecciona un vector para escribir su módulo y ángulo exactos, mostrar su valor, sus **componentes** y el **ángulo**, o cambiar su sistema de referencia. Selecciona varios para **sumarlos** punta con cola.
+- **Cuerdas, resortes y poleas:** el extremo que sueltas a menos de 9 cm de un cuerpo **se une** a él (un punto en el extremo lo muestra; un triángulo = fijo en el espacio; un círculo vacío = suelto). Si **mueves el cuerpo, la cuerda lo sigue**. Para pasar una cuerda por una polea, dibuja una cuerda desde cada cuerpo hasta la polea: se funden en una sola que **la envuelve**. Detalle: [ADR 0008](docs/decisiones/0008-modelo-de-grafo.md).
 - **Diagrama de cuerpo libre:** dibuja un **plano inclinado** y un **bloque** (se apoya solo), pon el roce en la superficie y selecciona el bloque: el panel muestra las fuerzas detectadas y la aceleración. *Generar diagrama de cuerpo libre* dibuja el cuerpo aislado, los ejes, las fuerzas a escala y **ΣF = m a** por componente. g = 9,80 m/s² (editable). Límites y fórmulas verificadas: [docs/PHYSICS.md](docs/PHYSICS.md).
-- **Simulación:** *Simular* abre un panel que corre el movimiento de la escena (RK4 con roce, cuerdas, poleas y resortes): ves los cuerpos moverse con sus vectores v y a y la trayectoria, **gráficos** de posición, velocidad, aceleración y energía, tabla de valores, la **comparación con la solución analítica**, y exportas a CSV o a TikZ (pgfplots). Dale velocidad inicial a un cuerpo seleccionándolo. Detalle y validación: [docs/SIMULACION.md](docs/SIMULACION.md).
+- **Simulación:** *Simular* abre un panel que corre el movimiento de la escena (RK4 con roce, cuerdas, poleas y resortes): ves los cuerpos moverse con sus vectores v y a y la trayectoria, **gráficos** de posición, velocidad, aceleración y energía, tabla de valores, la **comparación con la solución analítica**, y exportas a CSV o a TikZ (pgfplots). Dale velocidad inicial a un cuerpo seleccionándolo. Lo que no se puede simular (un extremo suelto, cuerpos superpuestos…) aparece en el panel como **problema de la escena**, nunca se ignora en silencio. Detalle y validación: [docs/SIMULACION.md](docs/SIMULACION.md).
 - **Etiquetas:** en el texto libre y en las etiquetas de los vectores se escribe LaTeX entre `$...$` (`$\vec{F}_g$`, `$\theta$`, `$\frac{a}{b}$`).
 - **Imágenes:** pegar con Ctrl+V, arrastrar un archivo al lienzo, o el botón *Imagen*.
-- **Exportar:** menú *Exportar* (PNG 1x/2x/4x con fondo blanco o transparente, SVG, proyecto .json, TikZ). *Abrir* recupera un proyecto .json con todo su historial.
+- **Exportar:** menú *Exportar* (PNG 1x/2x/4x con fondo blanco o transparente, SVG, proyecto .json, TikZ). *Abrir* recupera un proyecto .json con todo su historial; los proyectos de la versión anterior se abren y se simulan igual (se migran solos).
 
 ## Compartir en vivo con los estudiantes
 
@@ -74,7 +75,7 @@ Cada push a `main` ejecuta lint, tipos, pruebas y build, y despliega en GitHub P
 - [Exportación a TikZ](docs/TIKZ.md)
 - [Protocolo para compartir en vivo](docs/PROTOCOLO_COMPARTIR.md) y [alta de Firebase](docs/FIREBASE.md)
 - [Estilo heredado del proyecto Insta](docs/ESTILO_INSTA.md) y decisiones pendientes
-- [Decisiones (ADR)](docs/decisiones/)
+- [Decisiones (ADR)](docs/decisiones/) y [auditoría del Nivel 2](docs/AUDITORIA_NIVEL2.md)
 - [Prompt maestro](docs/PROMPT_MAESTRO.md)
 
 Autor: Prof. David Aguayo Vera (UAI / FACH).

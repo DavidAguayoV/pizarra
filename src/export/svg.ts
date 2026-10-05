@@ -114,8 +114,25 @@ function elementoSvg(e: Elemento, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv,
       return superficieSvg(e, c, paleta, X, Y, L);
     case 'polea':
       return poleaSvg(e, c, paleta, X, Y, L);
-    case 'cuerda':
-      return `<line x1="${X(e.a.x)}" y1="${Y(e.a.y)}" x2="${X(e.b.x)}" y2="${Y(e.b.y)}" ${trazo(e.grosor)}/>`;
+    case 'cuerda': {
+      if (!e.camino) return `<line x1="${X(e.a.x)}" y1="${Y(e.a.y)}" x2="${X(e.b.x)}" y2="${Y(e.b.y)}" ${trazo(e.grosor)}/>`;
+      // Rectas y arcos en un solo trazado. En SVG la y crece hacia abajo: un barrido antihorario del mundo es
+      // horario en pantalla (sweep-flag = 1).
+      let d = '';
+      let fin: Pt | null = null;
+      for (const t of e.camino) {
+        if (t.k === 'recta') {
+          if (!fin || Math.hypot(fin.x - t.a.x, fin.y - t.a.y) > 1e-9) d += `M${X(t.a.x)} ${Y(t.a.y)} `;
+          d += `L${X(t.b.x)} ${Y(t.b.y)} `;
+          fin = t.b;
+        } else {
+          const ang = t.desde + t.barrido;
+          fin = { x: t.c.x + t.r * Math.cos(ang), y: t.c.y + t.r * Math.sin(ang) };
+          d += `A${L(t.r)} ${L(t.r)} 0 ${Math.abs(t.barrido) > Math.PI ? 1 : 0} ${t.barrido > 0 ? 1 : 0} ${X(fin.x)} ${Y(fin.y)} `;
+        }
+      }
+      return `<path d="${d.trim()}" fill="none" ${trazo(e.grosor)}/>`;
+    }
     case 'resorte':
       return resorteSvg(e, c, X, Y, L);
   }

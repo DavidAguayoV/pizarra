@@ -12,6 +12,8 @@ export interface OpcionesLienzo {
   alCuadro?: () => void;
   /** Se llama cuando cambia el tamaño del lienzo (giro del celular, ventana). */
   alTamano?: () => void;
+  /** Marcas de las uniones de cuerdas y resortes (en píxeles de pantalla, encima de todo). */
+  marcas?: () => ReadonlyArray<{ p: { x: number; y: number }; tipo: 'unido' | 'fijo' | 'suelto' }>;
 }
 
 /**
@@ -133,6 +135,43 @@ export class Lienzo {
     }
   }
 
+  /**
+   * Uniones: punto relleno = unido a un objeto; triángulo = fijo en el espacio; círculo vacío = suelto.
+   * Tamaño fijo en pantalla (no escala con el zoom), como las asas. Mientras se arrastra no se muestran.
+   */
+  private dibujarMarcas(color: string, contorno: string): void {
+    if (this.vivos.length > 0) return;
+    const marcas = this.opciones.marcas?.() ?? [];
+    if (marcas.length === 0) return;
+    const c = this.ctx;
+    const { camara, ancho, alto, dpr } = this;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.lineWidth = 1.5;
+    for (const m of marcas) {
+      const x = ancho / 2 + (m.p.x - camara.cx) * camara.escala;
+      const y = alto / 2 - (m.p.y - camara.cy) * camara.escala;
+      c.beginPath();
+      if (m.tipo === 'fijo') {
+        c.moveTo(x, y - 5);
+        c.lineTo(x + 5, y + 4);
+        c.lineTo(x - 5, y + 4);
+        c.closePath();
+        c.fillStyle = contorno;
+        c.fill();
+      } else if (m.tipo === 'unido') {
+        c.arc(x, y, 4, 0, Math.PI * 2);
+        c.fillStyle = color;
+        c.fill();
+        c.strokeStyle = contorno;
+        c.stroke();
+      } else {
+        c.arc(x, y, 5, 0, Math.PI * 2);
+        c.strokeStyle = color;
+        c.stroke();
+      }
+    }
+  }
+
   private pintar(): void {
     const paleta = PALETAS[temaActual()];
     const vista = this.vista;
@@ -155,6 +194,7 @@ export class Lienzo {
       aplicarCamara(this.ctx, this.camara, vista, this.dpr);
       for (const v of this.vivos) dibujarElemento(this.ctx, v, conEjes);
     }
+    this.dibujarMarcas(paleta.activo, paleta.texto);
     this.dibujarSeleccion(paleta.activo);
     this.canvas.dataset['escala'] = this.camara.escala.toFixed(1); // ayuda a las pruebas y a depurar
     this.opciones.alCuadro?.();

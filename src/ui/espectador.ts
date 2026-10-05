@@ -11,6 +11,7 @@ import { Sincronizador } from '../share/sincronizador';
 import type { Transport } from '../share/transport';
 import { ReconstructorVivo } from '../share/vivo';
 import { TEXTO_ESTADO } from './compartir';
+import { resolverEscena } from '../grafo/resolver';
 import { Lienzo } from './lienzo';
 
 /** Clave con la que el espectador pasa su copia a la pizarra propia (misma pestaña). */
@@ -79,7 +80,7 @@ export async function montarEspectador(raiz: HTMLElement, codigo: string, transp
   canvas.setAttribute('aria-label', 'Pizarra del profesor (solo lectura)');
   raiz.append(barra, aviso, canvas);
 
-  const L = new Lienzo(canvas, () => store.estado.elementos, { alTamano: () => aplicarSeguimiento() });
+  const L = new Lienzo(canvas, () => resolverEscena(store.estado.elementos), { alTamano: () => aplicarSeguimiento() });
 
   function aplicarSeguimiento(): void {
     if (siguiendo && vistaProfesor && L.ancho > 0) L.ponerCamara(camaraParaSeguir(vistaProfesor, L.ancho, L.alto));

@@ -79,7 +79,8 @@ export function sinDerivados<T extends Elemento>(e: T): T {
  * ellos (o que pasan por una polea que se mueve), ya resueltos con la posición nueva. Para la vista previa.
  */
 export function dependientes(elementos: readonly Elemento[], vivos: readonly Elemento[]): Elemento[] {
-  if (vivos.length === 0) return [];
+  // Atajo: mientras se dibuja tinta no hay nada que seguir (esto corre en cada movimiento del puntero).
+  if (!vivos.some((v) => v.tipo === 'bloque' || v.tipo === 'esfera' || v.tipo === 'polea' || v.tipo === 'superficie')) return [];
   const movidos = new Set(vivos.map((v) => v.id));
   const usa = (e: Cuerda | Resorte): boolean =>
     (e.union ?? []).some((u) => u !== null && !('fijo' in u) && movidos.has(u.el)) ||

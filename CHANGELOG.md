@@ -1,5 +1,28 @@
 # Cambios
 
+## Nivel 2, Fase 1 — Modelo de grafo y migración (2026-10-05)
+
+Auditoría previa y decisiones: [docs/AUDITORIA_NIVEL2.md](docs/AUDITORIA_NIVEL2.md). Decisión: [ADR 0008](docs/decisiones/0008-modelo-de-grafo.md).
+
+### Agregado
+- **La escena es un grafo**: los extremos de cuerdas y resortes guardan a qué están unidos (puerto de un objeto, fijo en el espacio o suelto), las cuerdas guardan su **ruta** por las poleas, los cuerpos la superficie en que se apoyan y las fuerzas aplicadas el cuerpo sobre el que actúan.
+- **Puertos** con nombre en cada objeto (caras y esquinas del bloque, borde de la esfera, eje de la polea, puntos de una superficie).
+- **La geometría de lo unido se deriva**: al mover un cuerpo, sus cuerdas y resortes lo siguen (también mientras se arrastra y en el celular del estudiante).
+- **Cuerda que envuelve la polea**: dos cuerdas dibujadas hasta la misma polea se funden en una sola, con tramos tangentes y el arco de contacto dibujado (pantalla, PNG, SVG y TikZ con `arc`, compilado con pdflatex). Con la envoltura real, una cuerda que termina en el centro de la polea ya no tira de lado.
+- **Marcas de las uniones** al editar: punto = unido, triángulo = fijo en el espacio, círculo vacío = suelto.
+- **Lector único del grafo**: la simulación y el diagrama de cuerpo libre leen las mismas relaciones (antes cada uno las deducía con reglas distintas).
+- **Problemas de la escena** en el panel de simulación, con el elemento al que se refieren: extremo suelto, cuerda sin cuerpos, ruta imposible, cuerpos superpuestos, apoyo lejano, fuerza que no sale de un cuerpo, polea sin cuerda.
+- **Integridad en la misma op**: borrar un cuerpo suelta lo que estaba unido, borrar una polea la saca de la ruta, mover una superficie arrastra a sus cuerpos apoyados, mover un extremo lo vuelve a unir. Un deshacer lo revierte todo junto.
+- **Proyectos v2** (`schemaVersion` 2). Un proyecto v1 se abre migrado con una op que no se deshace; se simula **igual** (25 escenas de referencia grabadas con la v1, error < 1e-7).
+- 36 pruebas unitarias nuevas del grafo, 27 de equivalencia con la v1 y 3 e2e con la interfaz real (Atwood dibujado con la interfaz en 9 acciones y con la T de la teoría, cuerda que sigue al bloque, proyecto v1 → v2). Total: 360 unitarias y 45 e2e.
+
+### Corregido
+- Un cuerpo apoyado que partía alejándose de la superficie (un proyectil lanzado desde el suelo) quedaba pegado a ella y deslizaba.
+- Un cuerpo que aterrizaba deslizando sobre un piso sin roce quedaba clavado en el punto de impacto.
+
+### Provisorio (hasta la Fase 2)
+- Las uniones se asignan al soltar un objeto con las distancias de antes (9 cm a un cuerpo, radio + 14 cm a una polea), pero ahora quedan guardadas y a la vista. Los imanes con retroalimentación, el gesto continuo y los botones «arreglar» llegan en la Fase 2.
+
 ## Etapa 5 — Simulación (2026-10-03)
 
 ### Agregado

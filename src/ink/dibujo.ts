@@ -179,8 +179,24 @@ export function dibujarElemento(ctx: CanvasRenderingContext2D, e: Elemento, op: 
     case 'cuerda':
       ctx.lineWidth = Math.max(e.grosor, 1 / op.escala);
       ctx.beginPath();
-      ctx.moveTo(e.a.x, e.a.y);
-      ctx.lineTo(e.b.x, e.b.y);
+      if (e.camino) {
+        // Rectas tangentes y arcos de contacto con las poleas (la escena resuelta trae el camino).
+        let fin: { x: number; y: number } | null = null;
+        for (const t of e.camino) {
+          if (t.k === 'recta') {
+            if (!fin || Math.hypot(fin.x - t.a.x, fin.y - t.a.y) > 1e-9) ctx.moveTo(t.a.x, t.a.y);
+            ctx.lineTo(t.b.x, t.b.y);
+            fin = t.b;
+          } else {
+            // Ángulos del mundo (y hacia arriba): un barrido positivo es creciente, es decir, "no antihorario" para el canvas.
+            ctx.arc(t.c.x, t.c.y, t.r, t.desde, t.desde + t.barrido, t.barrido < 0);
+            fin = { x: t.c.x + t.r * Math.cos(t.desde + t.barrido), y: t.c.y + t.r * Math.sin(t.desde + t.barrido) };
+          }
+        }
+      } else {
+        ctx.moveTo(e.a.x, e.a.y);
+        ctx.lineTo(e.b.x, e.b.y);
+      }
       ctx.stroke();
       break;
     case 'resorte':

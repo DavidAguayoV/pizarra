@@ -7,6 +7,7 @@ import { copiarTexto, descargarTexto } from '../export/descarga';
 import { elementosAnimados } from '../sim/animacion';
 import type { Analitica } from '../sim/analitico';
 import { errorMaximo, solucionAnalitica } from '../sim/analitico';
+import { validar } from '../grafo/validar';
 import { construirModelo } from '../sim/modelo';
 import { Simulacion } from '../sim/motor';
 import type { CampoGrafico } from '../sim/series';
@@ -150,6 +151,8 @@ export class PanelSimulacion {
     this.fuerzas.className = 'nota';
     this.fuerzas.setAttribute('aria-label', 'Normal, roce y tensiones');
     this.mensajes.className = 'nota';
+    this.mensajes.style.whiteSpace = 'pre-line';
+    this.mensajes.setAttribute('aria-label', 'Problemas de la escena');
     this.eventos.className = 'sim-eventos';
     this.eventos.setAttribute('aria-label', 'Eventos');
     this.energia.className = 'nota';
@@ -248,7 +251,9 @@ export class PanelSimulacion {
     );
     this.cuerpoSel.hidden = n < 2;
     this.analitica = n > 0 ? solucionAnalitica(this.sim, this.indice) : null;
-    this.mensajes.textContent = modelo.avisos.join(' ');
+    // Problemas de la escena (grafo/validar.ts): uno por línea, con el elemento al que se refieren.
+    const problemas = validar(this.host.elementos());
+    this.mensajes.textContent = problemas.map((p) => `${p.gravedad === 'error' ? '⚠ ' : ''}${sinMarcas(p.texto)}`).join('\n');
     this.bPlay.disabled = n === 0;
   }
 

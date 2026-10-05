@@ -395,7 +395,7 @@ export class PanelPropiedades {
     e.append(campo('Radio (m)', numerico(p0.radio, '0.05', (x) => x >= 0.1 && this.host.editar({ actualizar: [{ ...this.vigente(p0), radio: x }] }), 'Radio de la polea')));
     const nota = document.createElement('p');
     nota.className = 'nota';
-    nota.textContent = 'Sin masa ni roce: solo cambia la dirección de la cuerda. Dibuja una cuerda a cada lado (hasta el punto donde toca la polea).';
+    nota.textContent = 'Sin masa ni roce: solo cambia la dirección de la cuerda. Dibuja una cuerda desde cada cuerpo hasta la polea: se unen en una sola que la envuelve.';
     e.append(nota, boton('Borrar polea', 'Suprimir', () => this.host.editar({ borrar: [p0.id] })));
   }
 

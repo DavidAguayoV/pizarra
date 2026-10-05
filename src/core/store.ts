@@ -1,5 +1,5 @@
 import type { ObjetivoPayload, Op } from './ops';
-import { OP_DESHACER, OP_REHACER, opsActivas, pilaRehacer } from './ops';
+import { esDeshacible, OP_DESHACER, OP_REHACER, opsActivas, pilaRehacer } from './ops';
 
 export type Reductor<S> = (estado: S, payload: never, op: Op) => S;
 export type Reductores<S> = Record<string, Reductor<S>>;
@@ -50,7 +50,7 @@ export class Store<S> {
   }
 
   get puedeDeshacer(): boolean {
-    return opsActivas(this.registro).length > 0;
+    return opsActivas(this.registro).some(esDeshacible);
   }
 
   get puedeRehacer(): boolean {
@@ -70,8 +70,7 @@ export class Store<S> {
   }
 
   deshacer(): boolean {
-    const activas = opsActivas(this.registro);
-    const ultima = activas[activas.length - 1];
+    const ultima = opsActivas(this.registro).filter(esDeshacible).at(-1);
     if (!ultima) return false;
     this.anexar(this.crearOp<ObjetivoPayload>(OP_DESHACER, { objetivo: ultima.id }));
     return true;

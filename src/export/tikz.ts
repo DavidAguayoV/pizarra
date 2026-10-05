@@ -1,6 +1,6 @@
 import type { Punto } from '../core/camara';
 import { claveColor, colorDeTinta, PALETA_EXPORTACION } from '../core/colores';
-import type { Bloque, ColorTinta, Ejes, Elemento, Esfera, Imagen, Linea, Polea, Resorte, Superficie, Texto, Trazo, Vector } from '../core/elementos';
+import type { Bloque, ColorTinta, Ejes, Elemento, Esfera, Imagen, Linea, Polea, Resorte, Superficie, Texto, Tramo, Trazo, Vector } from '../core/elementos';
 import { COLORES_RESALTADOR, COLORES_TINTA, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
 import { achurado, puntosResorte, trianguloCuna } from '../physics/objetos';
 import type { AnclaEtiqueta } from '../physics/vectores';
@@ -195,7 +195,7 @@ function elementoTikz(
     case 'polea':
       return poleaTikz(e, escala, P, grosorPt);
     case 'cuerda':
-      return [`  \\draw[${nombreColor(e.color)}, ${grosorPt(e.grosor)}, line cap=round] ${P(e.a)} -- ${P(e.b)};`];
+      return [`  \\draw[${nombreColor(e.color)}, ${grosorPt(e.grosor)}, line cap=round] ${e.camino ? caminoTikz(e.camino, escala, P) : `${P(e.a)} -- ${P(e.b)}`};`];
     case 'resorte':
       return resorteTikz(e, P, grosorPt);
   }
@@ -340,6 +340,24 @@ function superficieTikz(s: Superficie, P: (p: Punto) => string, grosorPt: (g: nu
   }
   out.push(`  \\draw[${col}, ${grosorPt(s.grosor)}, line cap=round] ${P(s.a)} -- ${P(s.b)};`);
   return out;
+}
+
+/** Camino de una cuerda que pasa por poleas: rectas y `arc` (TikZ mide los ángulos como el mundo, antihorario). */
+function caminoTikz(camino: readonly Tramo[], escala: number, P: (p: Punto) => string): string {
+  const partes: string[] = [];
+  let fin: Punto | null = null;
+  for (const t of camino) {
+    if (t.k === 'recta') {
+      if (!fin || Math.hypot(fin.x - t.a.x, fin.y - t.a.y) > 1e-9) partes.push(P(t.a));
+      partes.push(`-- ${P(t.b)}`);
+      fin = t.b;
+    } else {
+      const g = 180 / Math.PI;
+      partes.push(`arc[start angle=${num(t.desde * g, 2)}, end angle=${num((t.desde + t.barrido) * g, 2)}, radius=${num(t.r * escala)}]`);
+      fin = { x: t.c.x + t.r * Math.cos(t.desde + t.barrido), y: t.c.y + t.r * Math.sin(t.desde + t.barrido) };
+    }
+  }
+  return partes.join(' ');
 }
 
 function poleaTikz(p: Polea, escala: number, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {

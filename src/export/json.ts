@@ -1,10 +1,14 @@
 import type { Op } from '../core/ops';
+import { migrarOpsV1 } from '../grafo/migracion';
 
 /**
  * Archivo de proyecto: el registro de ops completo (con su historial de deshacer/rehacer),
  * versionado con `schemaVersion`. Abrirlo reconstruye exactamente la misma escena.
+ *
+ * Versiones: 1 = Etapas 0–5 (uniones deducidas por cercanía); 2 = Nivel 2 (grafo con uniones explícitas).
+ * Un archivo v1 se migra al abrirlo (`grafo/migracion.ts`) y se guarda después como v2.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export interface ProyectoJson {
   app: 'pizarra';
@@ -45,5 +49,5 @@ export function leerProyecto(texto: string): Op[] {
     throw new Error('El proyecto se creó con una versión más nueva de la pizarra.');
   }
   if (!p.ops.every(esOp)) throw new Error('El proyecto tiene operaciones dañadas.');
-  return p.ops;
+  return p.schemaVersion < 2 ? migrarOpsV1(p.ops) : p.ops;
 }

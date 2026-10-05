@@ -37,15 +37,19 @@ function leer(texto: string, etiqueta: string): number {
   return Number(m[1]!.replace(',', '.'));
 }
 
-/** Carga una escena armada por código (más práctico que dibujarla): se abre como un proyecto. */
-async function cargarEscena(page: Page, elementos: Elemento[]): Promise<void> {
+/**
+ * Carga una escena armada por código (más práctico que dibujarla): se abre como un proyecto de la **v1**, así que
+ * también prueba la migración al abrir. `quedan` = elementos después de migrar (dos cuerdas que llegan a una polea
+ * se funden en una sola).
+ */
+async function cargarEscena(page: Page, elementos: Elemento[], quedan = elementos.length): Promise<void> {
   const ops = elementos.map((e, i) => ({ id: `t-${i}`, t: i, autor: 'prueba', tipo: 'elemento/agregar', payload: e }));
   await page.locator('input[type=file][accept*=json]').setInputFiles({
     name: 'escena.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ app: 'pizarra', schemaVersion: 1, ops })),
   });
-  await expect(estado(page)).toContainText(`${elementos.length} elemento`);
+  await expect(estado(page)).toContainText(`${quedan} elemento`);
 }
 
 async function abrirSim(page: Page): Promise<void> {
@@ -143,7 +147,7 @@ test('Atwood: la polea reparte la tensión real T = 2 m₁ m₂ g /(m₁ + m₂)
     crearCuerda({ x: 0.3, y: 1.4 }, { x: 0.3, y: 0.1 }),
     crearBloque({ x: -0.3, y: -0.6 }, 0.4, 0.4, { masa: 3, etiqueta: 'm_1' }),
     crearBloque({ x: 0.3, y: -0.1 }, 0.4, 0.4, { masa: 2, etiqueta: 'm_2' }),
-  ]);
+  ], 4); // las dos cuerdas de la polea se funden en una
   await abrirSim(page);
   await reproducirHasta(page, 0.4);
   const f = (await panelSim(page).locator('p[aria-label="Normal, roce y tensiones"]').textContent()) ?? '';
@@ -158,7 +162,7 @@ test('bloque en la mesa unido por una polea a una masa colgante, con roce', asyn
     crearCuerda({ x: -0.8, y: 0.2 }, { x: 0.4, y: 0.2 }),
     crearCuerda({ x: 1, y: 0.2 }, { x: 1, y: -0.9 }),
     crearBloque({ x: 1, y: -1.1 }, 0.4, 0.4, { masa: 3, etiqueta: 'm_2' }),
-  ]);
+  ], 5);
   await abrirSim(page);
   await reproducirHasta(page, 0.3);
   const f = (await panelSim(page).locator('p[aria-label="Normal, roce y tensiones"]').textContent()) ?? '';

@@ -2,7 +2,7 @@ import type { Punto } from '../core/camara';
 import { camaraInicial } from '../core/camara';
 import { OPCIONES_COLOR, OPCIONES_RESALTADOR, colorDeTinta } from '../core/colores';
 import type { ColorTinta, Elemento } from '../core/elementos';
-import { escenaInicial, OP_AGREGAR, OP_BORRAR, OP_LOTE, reductoresEscena } from '../core/escena';
+import { escenaInicial, OP_AGREGAR, OP_LOTE, reductoresEscena } from '../core/escena';
 import type { Escena } from '../core/escena';
 import { Store } from '../core/store';
 import type { Op } from '../core/ops';
@@ -24,7 +24,10 @@ import {
   RANGO_TINTA,
   tamTextoDeGrosor,
 } from '../ink/herramientas';
-import { acomodarSobreSuperficie } from '../physics/objetos';
+import type { LotePayload } from '../core/escena';
+import { apoyar, conectarNuevo, marcasDeUnion } from '../grafo/conectar';
+import { loteVacio, prepararLote } from '../grafo/integridad';
+import { dependientes, resolverEscena, sinDerivados } from '../grafo/resolver';
 import type { TipoObjeto } from '../physics/objetos';
 import type { RolVector } from '../physics/vectores';
 import { elegirTransport } from '../share';
@@ -245,18 +248,38 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   zona.className = 'zona-lienzo';
   raiz.append(barra, zona);
   // --- Lienzo (cámara, caché de dibujo, elemento en construcción) --------------------------
-  const L = new Lienzo(lienzo, () => store.estado.elementos, { alCuadro: () => { actualizarBarra(); publicarVista(); } });
+  /** La escena resuelta (la geometría de lo unido derivada del grafo): es lo que se ve, se toca y se exporta. */
+  const escena = (): Elemento[] => resolverEscena(store.estado.elementos);
+  /** Toda edición pasa por la integridad del grafo: las consecuencias viajan en la misma op. */
+  function emitirLote(c: LotePayload): void {
+    const l = prepararLote(c, store.estado.elementos);
+    if (!loteVacio(l)) store.emitir(OP_LOTE, l);
+  }
+  /** Un elemento recién dibujado, con sus uniones (puede fundirse con otra cuerda en una polea). */
+  function confirmarElemento(e: Elemento): void {
+    const c = conectarNuevo(sinDerivados(e), store.estado.elementos);
+    if (c.agregar?.length === 1 && !c.actualizar?.length && !c.borrar?.length) store.emitir(OP_AGREGAR, c.agregar[0]!);
+    else emitirLote(c);
+  }
+  const L = new Lienzo(lienzo, escena, {
+    alCuadro: () => {
+      actualizarBarra();
+      publicarVista();
+    },
+    // Marcas de las uniones (solo en la pantalla de quien edita, nunca en las exportaciones).
+    marcas: () => (herramienta === 'seleccionar' || herramienta === 'objeto' ? marcasDeUnion(escena()) : []),
+  });
   const ponerCamara = L.ponerCamara.bind(L);
   zona.append(lienzo);
 
   // --- Selección y propiedades -----------------------------------------------------------------
-  const seleccionEls = (): Elemento[] => store.estado.elementos.filter((e) => seleccionIds.includes(e.id));
+  const seleccionEls = (): Elemento[] => escena().filter((e) => seleccionIds.includes(e.id));
   const refActual = (): string | null => [...store.estado.elementos].reverse().find((e) => e.tipo === 'ejes')?.id ?? null;
   const panel = new PanelPropiedades({
-    elementos: () => store.estado.elementos,
+    elementos: escena,
     seleccion: seleccionEls,
     seleccionar: (ids) => seleccionar(ids),
-    editar: (c) => store.emitir(OP_LOTE, c),
+    editar: emitirLote,
     herramienta: () => herramienta,
     rolVector: () => rolVector,
     ponerRolVector: (r) => {
@@ -281,7 +304,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     version: () => store.ops.length,
     fijarVivo: (locales, ocultos) => L.fijarVivo(locales, ocultos),
     transmitir: (red, ocultos) => transmision?.difusor.vivo(red, ocultos),
-    agregarElementos: (els) => store.emitir(OP_LOTE, { agregar: els }),
+    agregarElementos: (els) => emitirLote({ agregar: els }),
     avisar: (t) => avisar(t),
   });
   zona.append(simPanel.elemento);
@@ -355,26 +378,31 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     color: colorActual,
     grosor: grosorActual,
     tamTexto: grosorTexto,
-    elementos: () => store.estado.elementos,
-    previsualizar(v, o) {
+    elementos: escena,
+    previsualizar(v0, o0) {
+      // Lo que está unido a lo que se arrastra (cuerdas, resortes) se redibuja siguiéndolo.
+      const lista: readonly Elemento[] = v0 === null ? [] : Array.isArray(v0) ? (v0 as readonly Elemento[]) : [v0 as Elemento];
+      const deps = dependientes(store.estado.elementos, lista);
+      const v = deps.length > 0 ? [...lista, ...deps] : v0;
+      const o = deps.length > 0 ? new Set([...o0, ...deps.map((d) => d.id)]) : o0;
       L.fijarVivo(v, o);
       transmision?.difusor.vivo(v, o);
       // Al arrastrar una selección, el recuadro acompaña a lo que se mueve.
-      const moviendo = herramienta === 'seleccionar' && v !== null && (Array.isArray(v) ? v.length > 0 : true);
-      L.fijarSeleccion(moviendo ? (Array.isArray(v) ? (v as Elemento[]) : [v as Elemento]) : seleccionEls());
+      const moviendo = herramienta === 'seleccionar' && lista.length > 0;
+      L.fijarSeleccion(moviendo ? lista : seleccionEls());
       // Una vista previa que termina borra lo que había: si hay simulación, se vuelve a mostrar.
-      if (v === null || (Array.isArray(v) && v.length === 0)) simPanel.repintar();
+      if (lista.length === 0) simPanel.repintar();
     },
-    confirmar: (e) => store.emitir(OP_AGREGAR, e),
-    borrar: (ids) => store.emitir(OP_BORRAR, { ids }),
+    confirmar: confirmarElemento,
+    borrar: (ids) => emitirLote({ borrar: ids }),
     pedirTexto: (p) => editarTexto(p),
     rolVector: () => rolVector,
     tipoObjeto: () => tipoObjeto,
-    acomodar: (e) => (e.tipo === 'bloque' || e.tipo === 'esfera' ? acomodarSobreSuperficie(e, store.estado.elementos.filter((x) => x.id !== e.id)) : e),
+    acomodar: (e) => (e.tipo === 'bloque' || e.tipo === 'esfera' ? apoyar(e, store.estado.elementos) : e),
     refActual,
     seleccion: seleccionEls,
     seleccionar,
-    editar: (c) => store.emitir(OP_LOTE, c),
+    editar: emitirLote,
   });
 
   // --- Texto ----------------------------------------------------------------------
@@ -510,7 +538,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       const v = Number(inpAncho.value);
       return Number.isFinite(v) && v > 0 ? v : ANCHO_CM_POR_DEFECTO;
     };
-    const elementos = (): readonly Elemento[] => store.estado.elementos;
+    const elementos = (): readonly Elemento[] => escena();
 
     const acciones: HTMLButtonElement[] = [
       boton('Descargar PNG', 'Imagen PNG con la resolución elegida', () => {
@@ -563,7 +591,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     const mod = e.ctrlKey || e.metaKey;
     if ((k === 'delete' || k === 'backspace') && seleccionIds.length > 0) {
       e.preventDefault();
-      store.emitir(OP_LOTE, { borrar: [...seleccionIds] });
+      emitirLote({ borrar: [...seleccionIds] });
     } else if (k === 'escape' && seleccionIds.length > 0) {
       seleccionar([]);
     } else if (mod && k === 'z') {

@@ -189,7 +189,7 @@ test('exporta SVG, TikZ y proyecto, y el proyecto se vuelve a abrir igual', asyn
   expect(fragmento).not.toContain('\\documentclass');
 
   const json = await bajar('Descargar proyecto (.json)');
-  expect(JSON.parse(json)).toMatchObject({ app: 'pizarra', schemaVersion: 1 });
+  expect(JSON.parse(json)).toMatchObject({ app: 'pizarra', schemaVersion: 2 });
 
   // Se limpia la pizarra y se reabre el proyecto.
   await page.getByRole('button', { name: 'Deshacer' }).click();
