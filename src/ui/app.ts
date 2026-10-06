@@ -37,6 +37,7 @@ import { Lienzo } from './lienzo';
 import { PanelPropiedades } from './propiedades';
 import { PanelSimulacion } from './simulacion';
 import { PALETAS } from './tokens';
+import { MenuProblemas } from './problemas';
 import type { DefBoton, Modo } from './modos';
 import { BOTONES_MODO, botonActivo, botonDeAtajo, INICIAL_MODO, modoDe, MODOS } from './modos';
 
@@ -280,7 +281,15 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
 
   const modos = grupo('Modos', ...botonesModo.values(), bSim);
   modos.classList.add('modos');
-  const acciones = grupo('Acciones', bDeshacer, bRehacer, menu.elemento, compartir.boton, mas);
+  const problemas = new MenuProblemas({
+    elementos: () => store.estado.elementos,
+    editar: (c) => emitirLote(c),
+    mostrar: (ids) => {
+      elegirBoton(modo, BOTONES_MODO[modo][0]!); // Seleccionar
+      seleccionar(ids.filter((id) => store.estado.elementos.some((e) => e.id === id)));
+    },
+  });
+  const acciones = grupo('Acciones', problemas.elemento, bDeshacer, bRehacer, menu.elemento, compartir.boton, mas);
   acciones.classList.add('acciones');
   const fila1 = document.createElement('div');
   fila1.className = 'fila fila-modos';
@@ -715,7 +724,9 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     }
   });
 
+  problemas.actualizar();
   store.suscribir(() => {
+    problemas.actualizar();
     L.invalidar();
     refrescarSeleccion();
     simPanel.alCambiarEscena();

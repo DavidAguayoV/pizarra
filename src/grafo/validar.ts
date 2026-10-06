@@ -1,9 +1,10 @@
-import type { Elemento } from '../core/elementos';
+import type { Elemento, Superficie } from '../core/elementos';
+import { tramoColgante } from './conectar';
 import { cajaDe, cajasSeCruzan } from '../core/elementos';
 import { apoyoEn } from '../physics/dcl';
 import { normalSuperficie } from '../physics/objetos';
 import type { CuerpoG, ExtremoG } from './lector';
-import { leerGrafo } from './lector';
+import { apoyosDe, leerGrafo } from './lector';
 import { geometriaRuta } from './ruta';
 
 /**
@@ -11,7 +12,7 @@ import { geometriaRuta } from './ruta';
  * con el elemento al que se refiere. Es puro y se puede llamar en cada cambio. «Lo que se ve es lo que se simula»:
  * nada se ignora en silencio.
  *
- * `arreglo` describe la corrección automática posible; la interfaz que la ofrece llega en la Fase 2.
+ * `arreglo` describe la corrección automática posible (`grafo/arreglos.ts`); la barra la ofrece con un botón.
  */
 
 export type TipoProblema =
@@ -24,9 +25,13 @@ export type TipoProblema =
   | 'superpuestos'
   | 'masa-invalida'
   | 'polea-sin-cuerda'
-  | 'fuerza-sin-cuerpo';
+  | 'fuerza-sin-cuerpo'
+  /** Un cuerpo cuelga de una polea con su tramo inclinado: oscilará como un péndulo. */
+  | 'tramo-inclinado'
+  /** Un cuerpo apoyado tira de una polea con un tramo que no es paralelo a su superficie. */
+  | 'tramo-no-paralelo';
 
-export type Arreglo = 'fijar-extremo' | 'quitar-apoyo' | 'apoyar' | 'separar';
+export type Arreglo = 'fijar-extremo' | 'quitar-apoyo' | 'apoyar' | 'separar' | 'alinear' | 'alinear-polea';
 
 export interface Problema {
   tipo: TipoProblema;
@@ -35,6 +40,31 @@ export interface Problema {
   elementos: string[];
   texto: string;
   arreglo?: Arreglo;
+  /** Para los tramos: qué cuerda y cuál de sus extremos. */
+  ref?: { cuerda: string; k: 0 | 1 };
+}
+
+/** Inclinación (rad) desde la que un tramo cuenta como inclinado o no paralelo: 1°. */
+export const TOLERANCIA_TRAMO = Math.PI / 180;
+const grados = (rad: number): string => `${Math.round((rad * 180) / Math.PI)}°`;
+
+/**
+ * Tramo de la cuerda que sale de un cuerpo apoyado hacia una polea: ángulo con su superficie (0 = paralelo).
+ * null si el extremo no es de un cuerpo apoyado o la cuerda no pasa por poleas.
+ */
+export function tramoApoyado(g: ReturnType<typeof leerGrafo>, cuerdaId: string, k: 0 | 1): { cuerpo: CuerpoG; superficie: Superficie; angulo: number } | null {
+  const c = g.cuerdas.find((x) => x.el.id === cuerdaId);
+  if (!c || c.pasos.length === 0) return null;
+  const ext = c.ext[k];
+  if (ext.k !== 'cuerpo') return null;
+  const s = apoyosDe(g, ext.cuerpo)[0];
+  if (!s) return null;
+  const t = c.hacia[k];
+  const dir = Math.atan2(t.y - ext.p.y, t.x - ext.p.x);
+  const sup = Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x);
+  let d = Math.abs(dir - sup) % Math.PI;
+  if (d > Math.PI / 2) d = Math.PI - d;
+  return { cuerpo: ext.cuerpo, superficie: s, angulo: d };
 }
 
 /** Distancia máxima entre un cuerpo y la superficie de su apoyo (la misma que respeta el motor). */
@@ -122,6 +152,37 @@ export function validar(entrada: readonly Elemento[]): Problema[] {
       if (cajasSeCruzan(cajas[i]!.k, cajas[j]!.k)) {
         const [p, q] = [cajas[i]!.c, cajas[j]!.c];
         out.push({ tipo: 'superpuestos', gravedad: 'aviso', elementos: [p.id, q.id], texto: `${mayus(nombre(p, todos))} y ${nombre(q, todos)} se superponen: en la simulación se atraviesan.`, arreglo: 'separar' });
+      }
+    }
+  }
+
+  // Tramos que deberían ser verticales (cuerpo que cuelga de una polea) o paralelos a la superficie (cuerpo apoyado).
+  for (const c of g.cuerdas) {
+    if (c.pasos.length === 0) continue;
+    for (const k of [0, 1] as const) {
+      const colg = tramoColgante(g, c.el.id, k);
+      if (colg && colg.angulo > TOLERANCIA_TRAMO) {
+        out.push({
+          tipo: 'tramo-inclinado',
+          gravedad: 'aviso',
+          elementos: [colg.cuerpo.id, c.el.id],
+          texto: `El tramo que sostiene a ${nombre(colg.cuerpo, todos)} está inclinado ${grados(colg.angulo)}: oscilará como un péndulo. Para que caiga en línea recta, alinéalo bajo la polea.`,
+          arreglo: 'alinear',
+          ref: { cuerda: c.el.id, k },
+        });
+      }
+      const apo = tramoApoyado(g, c.el.id, k);
+      if (apo && apo.angulo > TOLERANCIA_TRAMO) {
+        const paso = c.el.ruta?.[k === 0 ? 0 : c.el.ruta.length - 1];
+        const fija = paso && !('fijos' in paso) && g.porId.get(paso.el)?.tipo === 'polea' && !(g.porId.get(paso.el) as { montaje?: unknown }).montaje;
+        out.push({
+          tipo: 'tramo-no-paralelo',
+          gravedad: 'aviso',
+          elementos: [apo.cuerpo.id, c.el.id],
+          texto: `El tramo que tira de ${nombre(apo.cuerpo, todos)} forma ${grados(apo.angulo)} con su superficie: tira en ángulo (no es el problema del libro).`,
+          ...(fija ? { arreglo: 'alinear-polea' as const } : {}),
+          ref: { cuerda: c.el.id, k },
+        });
       }
     }
   }

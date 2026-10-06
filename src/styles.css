@@ -798,3 +798,57 @@ button.con-icono .ico,
     border-radius: 8px;
   }
 }
+
+/* --- Problemas de la escena (Nivel 2) ------------------------------------------------------------ */
+.menu-problemas > summary {
+  gap: 6px;
+  background: var(--pz-fam-acento);
+  border-color: var(--pz-fam-acento);
+  color: var(--fondo);
+  font-weight: 700;
+}
+.menu-problemas .menu-caja {
+  left: auto;
+  right: 0;
+  width: min(24rem, 92vw);
+}
+.menu-problemas h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.lista-problemas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lista-problemas li {
+  padding: 8px 10px;
+  border: 1px solid var(--borde);
+  border-left-width: 4px;
+  border-radius: 6px;
+}
+.lista-problemas li.error {
+  border-left-color: var(--pz-fam-acento);
+}
+.lista-problemas p {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+}
+.acciones-problema {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.acciones-problema button {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 0.88rem;
+}
+@media (max-width: 700px) {
+  .menu-problemas > summary .cuenta {
+    font-size: 0.85rem;
+  }
+}
