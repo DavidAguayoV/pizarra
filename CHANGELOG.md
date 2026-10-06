@@ -12,6 +12,8 @@ capaces de pasar de un plano inclinado a una superficie lisa; también sería bu
 - Un bloque empujado contra una pared la atravesaba: ahora queda en la **esquina**, con la normal del piso y la de la pared.
 - La comparación con la solución analítica seguía después del primer evento del cuerpo (salir por el extremo, cambiar de
   superficie, chocar): ahora vale hasta ese instante.
+- En el escritorio, cada aviso de la barra empujaba el lienzo hacia abajo (y lo devolvía al desaparecer), incluso en medio de un
+  arrastre: lo dibujado quedaba corrido. Ahora el aviso flota sobre el borde del lienzo y el lienzo no se mueve.
 
 ### Agregado
 - **Superficies curvas** (arcos): herramienta **Curva** (J) en *Armar* —arrastrando, un cuarto de circunferencia; con un toque, un

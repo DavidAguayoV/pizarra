@@ -98,6 +98,20 @@ body {
   display: none;
 }
 
+/* En el escritorio el aviso flota sobre el borde de arriba del lienzo: si ocupara una fila de la barra, el lienzo saltaría
+   hacia abajo cada vez que aparece o desaparece (también en medio de un arrastre). En el celular va fijo arriba. */
+.barra .aviso {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 12px;
+  max-width: min(40rem, calc(100% - 24px));
+  padding: 4px 10px;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  z-index: 5;
+}
+
 button {
   min-height: 44px;
   padding: 0 16px;
