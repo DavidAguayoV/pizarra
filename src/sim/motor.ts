@@ -840,6 +840,7 @@ export class Simulacion {
 
   /** Vuelve al instante inicial: cuerpos donde se dibujaron, con su velocidad inicial. */
   reiniciar(): void {
+    this.dinFinal = null;
     const m = this.modelo;
     const n = m.cuerpos.length;
     const p = m.cuerpos.map((c) => ({ ...c.p0 }));
@@ -1397,19 +1398,19 @@ export class Simulacion {
     }
 
     // 3b) Cuerdas que se aflojan (alguna de sus piezas tendría que empujar)
-    m.cuerdas.forEach((c, k) => {
-      void c;
-      if (!e.cuerdaActiva[k]) return;
-      if (Math.min(...this.din().Tp[k]!) < -EPS_F) {
-        e.cuerdaActiva[k] = false;
-        this.evento(e.t, 'cuerda-floja', null, `La cuerda ${k + 1} se afloja`);
-      }
-    });
+    // (La dinámica se recalcula solo después de aflojar una: con muchas cuerdas, no una vez por cuerda.)
+    let dc = m.cuerdas.length > 0 ? this.din() : null;
+    for (let k = 0; dc && k < m.cuerdas.length; k++) {
+      if (!e.cuerdaActiva[k] || !(Math.min(...dc.Tp[k]!) < -EPS_F)) continue;
+      e.cuerdaActiva[k] = false;
+      this.evento(e.t, 'cuerda-floja', null, `La cuerda ${k + 1} se afloja`);
+      dc = this.din();
+    }
 
     // 4) Cuerpos apoyados: despegue, salida por el extremo, detención, ruptura del roce estático
     const candidatos = new Set<number>();
     const velAntes = new Map<number, { v: Punto; w: number }>();
-    let d = this.din();
+    let d = dc ?? this.din();
     for (let i = 0; i < n; i++) {
       const md = e.modo[i]!;
       if (md.k === 'libre') continue;
@@ -1485,9 +1486,9 @@ export class Simulacion {
         e.v[i] = x.v;
         e.w[i] = x.w;
       }
+      d = this.din();
     }
 
-    d = this.din();
     for (let i = 0; i < n; i++) {
       const md = e.modo[i]!;
       if (md.k !== 'adherido') continue;
@@ -1506,8 +1507,13 @@ export class Simulacion {
         d = this.din();
       }
     });
+    // La última dinámica corresponde al estado final del paso: refrescar() la reutiliza.
+    this.dinFinal = d;
     return false;
   }
+
+  /** Dinámica del estado final del paso, ya calculada al revisar los cambios de régimen. */
+  private dinFinal: Din | null = null;
 
   private quitarContacto(q: number): void {
     const e = this.estado;
@@ -1653,7 +1659,8 @@ export class Simulacion {
   /** Aceleración, normales, roces y tensiones del estado actual. */
   private refrescar(): void {
     const e = this.estado;
-    const d = this.din();
+    const d = this.dinFinal ?? this.din();
+    this.dinFinal = null;
     e.a = d.a;
     e.alfa = d.alfa;
     e.N = d.N;
