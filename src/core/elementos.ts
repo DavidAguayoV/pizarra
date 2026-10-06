@@ -1,4 +1,5 @@
 import type { RolFisico } from '../ui/tokens';
+import { distanciaATramo, muestrasTramo } from '../physics/curvas';
 import type { Punto } from './camara';
 import { componerLinea } from './matematica';
 
@@ -196,6 +197,17 @@ export interface Superficie extends Base {
   /** `achurado`: rayitas del lado de abajo; `cuna`: relleno de triángulo (plano inclinado); `ninguno`. */
   relleno: 'achurado' | 'cuna' | 'ninguno';
   grosor: number;
+  /**
+   * Superficie **curva**: arco de circunferencia de a a b que barre este ángulo (radianes; positivo, antihorario: un valle
+   * si se dibuja de izquierda a derecha; negativo, una loma). Sin él (o 0), recta. Ver `physics/curvas.ts`.
+   */
+  barrido?: number;
+  /**
+   * Pista de **un solo lado**: los cuerpos solo se apoyan en ella del lado de su normal (a la izquierda de a → b); desde el
+   * lado sólido la atraviesan. Así un loop deja pasar al cuerpo que llega por fuera (en la realidad, su salida está corrida
+   * de costado).
+   */
+  unLado?: boolean;
 }
 
 /** Polea ideal: sin masa ni roce; solo cambia la dirección de la cuerda. */
@@ -333,7 +345,7 @@ export function cajaDe(e: Elemento): Caja2D {
     case 'polea':
       return envolver([{ x: e.centro.x - e.radio, y: e.centro.y - e.radio }, { x: e.centro.x + e.radio, y: e.centro.y + e.radio }, ...(e.soporte ? [e.soporte] : [])], 0.06);
     case 'superficie':
-      return envolver([e.a, e.b], e.relleno === 'ninguno' ? 0.05 : 0.4);
+      return envolver(muestrasTramo(e, 0.1), e.relleno === 'ninguno' ? 0.05 : 0.4);
     case 'cuerda':
       return envolver(e.camino ? puntosCamino(e.camino) : [e.a, e.b], e.grosor + 0.03);
     case 'resorte':
@@ -514,7 +526,7 @@ export function tocaElemento(e: Elemento, p: Punto, radio: number): boolean {
     case 'polea':
       return Math.hypot(p.x - e.centro.x, p.y - e.centro.y) <= e.radio + radio;
     case 'superficie':
-      return distSegmento(p, e.a, e.b) <= radio + e.grosor / 2 + 0.03;
+      return distanciaATramo(e, p) <= radio + e.grosor / 2 + 0.03;
     case 'cuerda':
       if (e.camino) return e.camino.some((t) => distanciaTramo(p, t) <= radio + e.grosor / 2 + 0.02);
       return distSegmento(p, e.a, e.b) <= radio + e.grosor / 2 + 0.02;

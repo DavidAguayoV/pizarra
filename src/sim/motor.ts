@@ -1,4 +1,6 @@
 import type { Punto } from '../core/camara';
+import type { Marco } from '../physics/curvas';
+import { marcoArco } from '../physics/curvas';
 import { apoyoEn } from '../physics/dcl';
 import type { PasoGeo } from '../grafo/ruta';
 import { geometriaRuta, largosPorPieza } from '../grafo/ruta';
@@ -500,18 +502,37 @@ function geometria(m: Modelo): Geo {
 }
 
 /** Distancia del centro del cuerpo a su apoyo en la dirección n (si el bloque gira, con su ángulo actual). */
-function apoyoActual(m: Modelo, geo: Geo, i: number, k: number, th: readonly number[]): number {
-  const c = m.cuerpos[i]!;
-  // Un bloque que no gira conserva el ángulo dibujado (th = th0: el mismo apoyo de siempre) hasta que llega a otra
-  // superficie y se alinea con ella.
-  if (c.elemento.tipo !== 'bloque' || (c.I === 0 && th[i] === c.th0)) return geo.apoyo[i]![k]!;
-  return apoyoEn({ ...c.elemento, angulo: th[i]! }, m.superficies[k]!.n);
+/**
+ * Marco local de la superficie k visto desde el punto p: posición a lo largo (u), distancia con signo (d), normal y
+ * tangente. En una recta, n y t son las de siempre (y las cuentas, las mismas que antes de haber curvas).
+ */
+function marcoSup(m: Modelo, k: number, p: Punto): Marco {
+  const s = m.superficies[k]!;
+  if (s.arco) return marcoArco(s.arco, p);
+  const rel = { x: p.x - s.a.x, y: p.y - s.a.y };
+  return { u: dot(rel, s.t), d: dot(rel, s.n), n: s.n, t: s.t, largo: s.largo };
 }
 
-/** Ángulo de un bloque llevado a la cara más cercana paralela a la superficie k. */
-function anguloAlineado(m: Modelo, k: number, th: number): number {
+/** Distancia del centro del cuerpo a su apoyo en la dirección n (si el bloque gira, con su ángulo actual). */
+function apoyoActual(m: Modelo, geo: Geo, i: number, k: number, th: readonly number[], p: Punto): number {
+  const c = m.cuerpos[i]!;
   const s = m.superficies[k]!;
-  const base = Math.atan2(s.t.y, s.t.x);
+  if (c.elemento.tipo !== 'bloque') return s.arco ? c.radio : geo.apoyo[i]![k]!;
+  // En una curva, un bloque que no gira va siempre alineado con ella (como partícula, su orientación solo se ve).
+  if (s.arco) {
+    const mk = marcoArco(s.arco, p);
+    return apoyoEn({ ...c.elemento, angulo: c.I > 0 ? th[i]! : anguloAlineado(m, k, th[i]!, p) }, mk.n);
+  }
+  // Un bloque que no gira conserva el ángulo dibujado (th = th0: el mismo apoyo de siempre) hasta que llega a otra
+  // superficie y se alinea con ella.
+  if (c.I === 0 && th[i] === c.th0) return geo.apoyo[i]![k]!;
+  return apoyoEn({ ...c.elemento, angulo: th[i]! }, s.n);
+}
+
+/** Ángulo de un bloque llevado a la cara más cercana paralela a la superficie k (en p, si es curva). */
+function anguloAlineado(m: Modelo, k: number, th: number, p: Punto): number {
+  const t = marcoSup(m, k, p).t;
+  const base = Math.atan2(t.y, t.x);
   const cuarto = Math.PI / 2;
   return base + Math.round((th - base) / cuarto) * cuarto;
 }
@@ -520,11 +541,11 @@ function anguloAlineado(m: Modelo, k: number, th: number): number {
  * Distancia de apoyo con la que un cuerpo **llega** a la superficie k: un bloque que no gira se apoya alineado con ella
  * (como partícula, su orientación solo se ve), uno que gira con su ángulo real y una esfera, con su radio.
  */
-function apoyoAlLlegar(m: Modelo, geo: Geo, i: number, k: number, th: readonly number[]): number {
+function apoyoAlLlegar(m: Modelo, geo: Geo, i: number, k: number, th: readonly number[], p: Punto): number {
   const c = m.cuerpos[i]!;
-  if (c.elemento.tipo !== 'bloque') return geo.apoyo[i]![k]!;
-  if (c.I > 0) return apoyoActual(m, geo, i, k, th);
-  return apoyoEn({ ...c.elemento, angulo: anguloAlineado(m, k, th[i]!) }, m.superficies[k]!.n);
+  if (c.elemento.tipo !== 'bloque') return c.radio > 0 && m.superficies[k]!.arco ? c.radio : geo.apoyo[i]![k]!;
+  if (c.I > 0) return apoyoActual(m, geo, i, k, th, p);
+  return apoyoEn({ ...c.elemento, angulo: anguloAlineado(m, k, th[i]!, p) }, marcoSup(m, k, p).n);
 }
 
 /** Brazo del centro de una esfera que gira al punto de contacto con su superficie (null si no es el caso). */
@@ -535,10 +556,34 @@ function brazoContacto(m: Modelo, i: number, nOut: Punto): Punto | null {
 }
 
 /** Velocidad del punto de contacto a lo largo de la superficie (la del centro si el cuerpo no rueda). */
-function vTangente(m: Modelo, i: number, md: Extract<Modo, { s: number }>, v: Punto, w: number): number {
-  const s = m.superficies[md.s]!;
-  const rc = brazoContacto(m, i, { x: s.n.x * md.lado, y: s.n.y * md.lado });
-  return dot(v, s.t) + (rc ? w * cruz(rc, s.t) : 0);
+function vTangente(m: Modelo, i: number, md: Extract<Modo, { s: number }>, p: Punto, v: Punto, w: number): number {
+  const mk = marcoSup(m, md.s, p);
+  const rc = brazoContacto(m, i, { x: mk.n.x * md.lado, y: mk.n.y * md.lado });
+  return dot(v, mk.t) + (rc ? w * cruz(rc, mk.t) : 0);
+}
+
+/** Entradas de la fila de adherencia (o rodadura) de un cuerpo sobre su superficie, en la pose dada. */
+function entradasAdherencia(m: Modelo, i: number, md: Extract<Modo, { s: number }>, p: Punto): Entrada[] {
+  const mk = marcoSup(m, md.s, p);
+  const rc = brazoContacto(m, i, { x: mk.n.x * md.lado, y: mk.n.y * md.lado });
+  return [{ k: dX(i), g: mk.t.x }, { k: dY(i), g: mk.t.y }, ...(rc ? [{ k: dT(i), g: cruz(rc, mk.t) }] : [])];
+}
+
+/** Entradas que mantienen a un bloque que gira alineado con una curva: θ̇ = (e × v)/L (gira con la tangente). */
+function entradasGiroEnCurva(m: Modelo, i: number, k: number, p: Punto): Entrada[] {
+  const arco = m.superficies[k]!.arco!;
+  const rx = p.x - arco.c.x;
+  const ry = p.y - arco.c.y;
+  const L2 = rx * rx + ry * ry || 1e-12;
+  return [{ k: dT(i), g: 1 }, { k: dX(i), g: ry / L2 }, { k: dY(i), g: -rx / L2 }];
+}
+
+/** γ = −(dJ/dt) q̇ de una fila de velocidad que depende de la pose, por diferencia centrada a lo largo del movimiento. */
+function gammaVelocidad(f: (ps: Pose) => Entrada[], pose: Pose, vel: Vel): number {
+  const vmax = Math.max(1e-9, ...vel.v.map((q) => Math.hypot(q.x, q.y)), ...vel.w.map(Math.abs));
+  const eps = 1e-5 / Math.max(1, vmax);
+  const jq = (ps: Pose): number => f(ps).reduce((s, x) => s + x.g * qp(vel, x.k), 0);
+  return -(jq(avanzarPose(pose, vel, eps)) - jq(avanzarPose(pose, vel, -eps))) / (2 * eps);
 }
 
 function restricciones(m: Modelo, pose: Pose, vel: Vel | null, meta: Meta, sinAdherencia = false): Restricciones {
@@ -551,16 +596,31 @@ function restricciones(m: Modelo, pose: Pose, vel: Vel | null, meta: Meta, sinAd
     const md = meta.modo[i]!;
     if (md.k === 'libre') continue;
     const s = m.superficies[md.s]!;
-    const nOut = { x: s.n.x * md.lado, y: s.n.y * md.lado };
+    const p = pose.p[i]!;
+    const mk = marcoSup(m, md.s, p);
+    const nOut = { x: mk.n.x * md.lado, y: mk.n.y * md.lado };
+    // En una curva, la normal cambia con la posición: γ = lado σ v_t²/L (la aceleración centrípeta del centro).
+    let gN = 0;
+    if (s.arco && vel) {
+      const rx = p.x - s.arco.c.x;
+      const ry = p.y - s.arco.c.y;
+      const L = Math.hypot(rx, ry) || 1e-12;
+      const v = vel.v[i]!;
+      const ve = (v.x * rx + v.y * ry) / L;
+      gN = (md.lado * s.arco.sigma * (v.x * v.x + v.y * v.y - ve * ve)) / L;
+    }
     filaContacto[i] = filas.length;
-    filas.push({ e: [{ k: dX(i), g: nOut.x }, { k: dY(i), g: nOut.y }], gamma: 0 });
-    // Un bloque que gira, mientras está apoyado, no se vuelca: su giro queda bloqueado.
-    if (m.cuerpos[i]!.I > 0 && m.cuerpos[i]!.elemento.tipo === 'bloque') filas.push({ e: [{ k: dT(i), g: 1 }], gamma: 0 });
+    filas.push({ e: [{ k: dX(i), g: nOut.x }, { k: dY(i), g: nOut.y }], gamma: gN });
+    // Un bloque que gira, mientras está apoyado, no se vuelca: su giro queda bloqueado (en una curva, gira con ella).
+    if (m.cuerpos[i]!.I > 0 && m.cuerpos[i]!.elemento.tipo === 'bloque') {
+      if (s.arco) filas.push({ e: entradasGiroEnCurva(m, i, md.s, p), gamma: vel ? gammaVelocidad((ps) => entradasGiroEnCurva(m, i, md.s, ps.p[i]!), pose, vel) : 0 });
+      else filas.push({ e: [{ k: dT(i), g: 1 }], gamma: 0 });
+    }
     if (md.k === 'adherido' && !sinAdherencia) {
       // Sin deslizar: el punto de contacto no se mueve a lo largo de la superficie (en una esfera que gira: rodadura).
-      const rc = brazoContacto(m, i, nOut);
       filaTang[i] = filas.length;
-      filas.push({ e: [{ k: dX(i), g: s.t.x }, { k: dY(i), g: s.t.y }, ...(rc ? [{ k: dT(i), g: cruz(rc, s.t) }] : [])], gamma: 0 });
+      const gT = s.arco && vel ? gammaVelocidad((ps) => entradasAdherencia(m, i, md, ps.p[i]!), pose, vel) : 0;
+      filas.push({ e: entradasAdherencia(m, i, md, p), gamma: gT });
     }
   }
   // Segunda superficie (esquina): solo la normal.
@@ -568,9 +628,9 @@ function restricciones(m: Modelo, pose: Pose, vel: Vel | null, meta: Meta, sinAd
   for (let i = 0; i < n; i++) {
     const x = meta.extra[i];
     if (!x || meta.modo[i]!.k === 'libre') continue;
-    const s = m.superficies[x.s]!;
+    const n2 = marcoSup(m, x.s, pose.p[i]!).n;
     filaExtra[i] = filas.length;
-    filas.push({ e: [{ k: dX(i), g: s.n.x * x.lado }, { k: dY(i), g: s.n.y * x.lado }], gamma: 0 });
+    filas.push({ e: [{ k: dX(i), g: n2.x * x.lado }, { k: dY(i), g: n2.y * x.lado }], gamma: 0 });
   }
   const cn: number[] = [];
   const ct: number[] = [];
@@ -672,15 +732,16 @@ function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Meta): Din {
       const md = meta.modo[i]!;
       if (md.k !== 'desliza') continue;
       const s = m.superficies[md.s]!;
-      const vt = vTangente(m, i, md, vel.v[i]!, vel.w[i]!);
+      const mk = marcoSup(m, md.s, pose.p[i]!);
+      const vt = vTangente(m, i, md, pose.p[i]!, vel.v[i]!, vel.w[i]!);
       const sg = Math.abs(vt) > EPS_V ? signo(vt) : md.dir;
       const fr = -sg * s.muK * Math.max(Nsup[i]!, 0);
       fricFuerza[i] = fr;
-      Qi[dX(i)]! += fr * s.t.x;
-      Qi[dY(i)]! += fr * s.t.y;
+      Qi[dX(i)]! += fr * mk.t.x;
+      Qi[dY(i)]! += fr * mk.t.y;
       // El roce actúa en el punto de contacto: en una esfera que gira, también hace torque.
-      const rc = brazoContacto(m, i, { x: s.n.x * md.lado, y: s.n.y * md.lado });
-      if (rc) Qi[dT(i)]! += fr * cruz(rc, s.t);
+      const rc = brazoContacto(m, i, { x: mk.n.x * md.lado, y: mk.n.y * md.lado });
+      if (rc) Qi[dT(i)]! += fr * cruz(rc, mk.t);
     }
     // (J M⁻¹ Jᵀ) λ = γ − J M⁻¹ Q
     const A = A0.map((fila) => fila.slice());
@@ -721,7 +782,7 @@ function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Meta): Din {
   let potAp = 0;
   for (let i = 0; i < n; i++) {
     const md = meta.modo[i]!;
-    if (md.k === 'desliza') potRoce += fricFuerza[i]! * vTangente(m, i, md, vel.v[i]!, vel.w[i]!);
+    if (md.k === 'desliza') potRoce += fricFuerza[i]! * vTangente(m, i, md, pose.p[i]!, vel.v[i]!, vel.w[i]!);
     potAp += dot(Fap[i]!, vel.v[i]!);
   }
   return { a, alfa, arot, N, fric, T, Tp, Nc, fc, Nx, potRoce, potAp };
@@ -819,6 +880,11 @@ function hermite1(x0: number, v0: number, x1: number, v1: number, h: number, u: 
   const u3 = u2 * u;
   return (2 * u3 - 3 * u2 + 1) * x0 + (u3 - 2 * u2 + u) * h * v0 + (-2 * u3 + 3 * u2) * x1 + (u3 - u2) * h * v1;
 }
+/** Derivada temporal de la cúbica de Hermite (la velocidad en el instante u·h). */
+function hermiteDerivada(x0: number, v0: number, x1: number, v1: number, h: number, u: number): number {
+  const u2 = u * u;
+  return ((6 * u2 - 6 * u) * x0 + (-6 * u2 + 6 * u) * x1) / h + (3 * u2 - 4 * u + 1) * v0 + (3 * u2 - 2 * u) * v1;
+}
 function hermite(p0: Punto, v0: Punto, p1: Punto, v1: Punto, h: number, u: number): Punto {
   return { x: hermite1(p0.x, v0.x, p1.x, v1.x, h, u), y: hermite1(p0.y, v0.y, p1.y, v1.y, h, u) };
 }
@@ -895,14 +961,13 @@ export class Simulacion {
       for (const id of c.elemento.apoyo ?? []) {
         const k = indiceSup.get(id);
         if (k === undefined) continue;
-        const sup = m.superficies[k]!;
-        const rel = { x: p[i]!.x - sup.a.x, y: p[i]!.y - sup.a.y };
-        const d = dot(rel, sup.n);
+        const mk = marcoSup(m, k, p[i]!);
+        const d = mk.d;
         const lado: 1 | -1 = d >= 0 ? 1 : -1;
-        const gap = lado * d - this.geo.apoyo[i]![k]!;
+        const gap = lado * d - apoyoActual(m, this.geo, i, k, th, p[i]!);
         // Un apoyo que quedó lejos (la superficie se movió sin el cuerpo) no se respeta; el validador lo avisa.
         if (Math.abs(gap) > APOYO_MAXIMO) continue;
-        const nOut = { x: lado * sup.n.x, y: lado * sup.n.y };
+        const nOut = { x: lado * mk.n.x, y: lado * mk.n.y };
         const vn = dot(v[i]!, nOut);
         // Si parte alejándose de la superficie (un lanzamiento desde el suelo), no queda apoyado: vuela.
         // (La v1 lo dejaba pegado y deslizando: es una de las diferencias intencionales con ella.)
@@ -956,7 +1021,7 @@ export class Simulacion {
     // Los cuerpos apoyados que parten en reposo: ¿los sostiene el roce estático (o ruedan sin deslizar)?
     const candidatos = new Set<number>();
     modo.forEach((md, i) => {
-      if (md.k === 'desliza' && Math.abs(vTangente(m, i, md, v[i]!, 0)) < EPS_V) candidatos.add(i);
+      if (md.k === 'desliza' && Math.abs(vTangente(m, i, md, p[i]!, v[i]!, 0)) < EPS_V) candidatos.add(i);
     });
     const contCand = new Set<number>();
     this.estado.contactos.forEach((c, q) => {
@@ -1159,33 +1224,44 @@ export class Simulacion {
       e.modo.forEach((md, i) => {
         if (md.k === 'libre') return;
         const s = m.superficies[md.s]!;
-        const nOut = { x: s.n.x * md.lado, y: s.n.y * md.lado };
-        const gap = dot({ x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y }, nOut) - apoyoActual(m, this.geo, i, md.s, e.th);
+        const mk = marcoSup(m, md.s, e.p[i]!);
+        const nOut = { x: mk.n.x * md.lado, y: mk.n.y * md.lado };
+        const c = m.cuerpos[i]!;
+        // En una curva, un bloque que no gira se dibuja alineado con ella en cada punto.
+        if (s.arco && c.I === 0 && c.elemento.tipo === 'bloque') e.th[i] = anguloAlineado(m, md.s, e.th[i]!, e.p[i]!);
+        const gap = md.lado * mk.d - apoyoActual(m, this.geo, i, md.s, e.th, e.p[i]!);
         e.p[i] = { x: e.p[i]!.x - nOut.x * gap, y: e.p[i]!.y - nOut.y * gap };
         const vn = dot(e.v[i]!, nOut);
         e.v[i] = { x: e.v[i]!.x - vn * nOut.x, y: e.v[i]!.y - vn * nOut.y };
-        const c = m.cuerpos[i]!;
-        if (c.I > 0 && c.elemento.tipo === 'bloque') e.w[i] = 0;
+        if (c.I > 0 && c.elemento.tipo === 'bloque') {
+          if (!s.arco) e.w[i] = 0;
+          else {
+            // Gira con la curva: ω = (e × v)/L
+            const rx = e.p[i]!.x - s.arco.c.x;
+            const ry = e.p[i]!.y - s.arco.c.y;
+            e.w[i] = (rx * e.v[i]!.y - ry * e.v[i]!.x) / (rx * rx + ry * ry || 1e-12);
+          }
+        }
         if (md.k === 'adherido') {
           // Sin deslizar: se anula la velocidad del punto de contacto (en una esfera que gira, repartida entre v y ω).
           const rc = brazoContacto(m, i, nOut);
-          const vt = vTangente(m, i, md, e.v[i]!, e.w[i]!);
+          const vt = vTangente(m, i, md, e.p[i]!, e.v[i]!, e.w[i]!);
           const im = this.geo.inv[i]!;
           const iI = rc ? this.geo.invM[dT(i)]! : 0;
-          const ct = rc ? cruz(rc, s.t) : 0;
+          const ct = rc ? cruz(rc, mk.t) : 0;
           const wsum = im + iI * ct * ct;
           if (wsum > 1e-18) {
             const lam = -vt / wsum;
-            e.v[i] = { x: e.v[i]!.x + im * lam * s.t.x, y: e.v[i]!.y + im * lam * s.t.y };
+            e.v[i] = { x: e.v[i]!.x + im * lam * mk.t.x, y: e.v[i]!.y + im * lam * mk.t.y };
             if (rc) e.w[i] = e.w[i]! + iI * lam * ct;
           }
         }
       });
       e.extra.forEach((x, i) => {
         if (!x || e.modo[i]!.k === 'libre') return;
-        const s = m.superficies[x.s]!;
-        const nOut = { x: s.n.x * x.lado, y: s.n.y * x.lado };
-        const gap = dot({ x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y }, nOut) - apoyoActual(m, this.geo, i, x.s, e.th);
+        const mk = marcoSup(m, x.s, e.p[i]!);
+        const nOut = { x: mk.n.x * x.lado, y: mk.n.y * x.lado };
+        const gap = x.lado * mk.d - apoyoActual(m, this.geo, i, x.s, e.th, e.p[i]!);
         e.p[i] = { x: e.p[i]!.x - nOut.x * gap, y: e.p[i]!.y - nOut.y * gap };
         const vn = dot(e.v[i]!, nOut);
         e.v[i] = { x: e.v[i]!.x - vn * nOut.x, y: e.v[i]!.y - vn * nOut.y };
@@ -1234,7 +1310,7 @@ export class Simulacion {
       for (const x of f.e) this.moverQ(x.k, this.geo.invM[x.k]! * x.g * L[r]!, true);
     });
     e.modo.forEach((md, i) => {
-      if (md.k === 'adherido' && Math.abs(vTangente(m, i, md, e.v[i]!, e.w[i]!)) > EPS_V) e.modo[i] = { k: 'desliza', s: md.s, lado: md.lado, dir: 0 };
+      if (md.k === 'adherido' && Math.abs(vTangente(m, i, md, e.p[i]!, e.v[i]!, e.w[i]!)) > EPS_V) e.modo[i] = { k: 'desliza', s: md.s, lado: md.lado, dir: 0 };
     });
     e.contactos.forEach((c, q) => {
       if (c.k === 'adherido' && Math.abs(vTangPar(m, c, this.pose, this.vel)) > EPS_V) e.contactos[q] = { ...c, k: 'desliza', dir: 0 };
@@ -1317,6 +1393,11 @@ export class Simulacion {
     return dinamica(this.modelo, this.geo, this.pose, this.vel, { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc, extra: e.extra });
   }
 
+  /** Energía mecánica actual (para contabilizar los ajustes de posición de un cambio de superficie). */
+  private mecanica(): number {
+    return energias(this.modelo, this.pose, this.vel).E;
+  }
+
   private cinetica(): number {
     const m = this.modelo;
     const e = this.estado;
@@ -1331,9 +1412,15 @@ export class Simulacion {
     const e = this.estado;
     const lerp = (a: number, b: number): number => a + u * (b - a);
     const pose = poseIntermedia(prev, this.pose, this.vel, h, u);
-    const v = e.v.map((q, j) => ({ x: lerp(prev.vel.v[j]!.x, q.x), y: lerp(prev.vel.v[j]!.y, q.y) }));
-    const w = e.w.map((x, j) => lerp(prev.vel.w[j]!, x));
-    const wrot = e.wrot.map((x, k) => lerp(prev.vel.wrot[k]!, x));
+    // Velocidades: la derivada de la misma cúbica de Hermite (exacta con aceleración constante, y en una curva no acorta
+    // la rapidez como lo haría promediar dos vectores girados).
+    const dv = (x0: number, v0: number, x1: number, v1: number): number => hermiteDerivada(x0, v0, x1, v1, h, u);
+    const v = e.v.map((q, j) => ({
+      x: dv(prev.pose.p[j]!.x, prev.vel.v[j]!.x, e.p[j]!.x, q.x),
+      y: dv(prev.pose.p[j]!.y, prev.vel.v[j]!.y, e.p[j]!.y, q.y),
+    }));
+    const w = e.w.map((x, j) => dv(prev.pose.th[j]!, prev.vel.w[j]!, e.th[j]!, x));
+    const wrot = e.wrot.map((x, k) => dv(prev.pose.rot[k]!, prev.vel.wrot[k]!, e.rot[k]!, x));
     e.p.splice(0, e.p.length, ...pose.p);
     e.th.splice(0, e.th.length, ...pose.th);
     e.rot.splice(0, e.rot.length, ...pose.rot);
@@ -1368,23 +1455,26 @@ export class Simulacion {
       const md = e.modo[i]!;
       m.superficies.forEach((s, k) => {
         if (md.k !== 'libre' && (k === md.s || e.extra[i]?.s === k)) return;
-        const hPrev = apoyoAlLlegar(m, this.geo, i, k, prev.pose.th);
-        const hNew = apoyoAlLlegar(m, this.geo, i, k, e.th);
-        const dPrev = dot({ x: prev.pose.p[i]!.x - s.a.x, y: prev.pose.p[i]!.y - s.a.y }, s.n);
-        const lado: 1 | -1 = dPrev >= 0 ? 1 : -1;
-        const gapPrev = lado * dPrev - hPrev;
-        const relNew = { x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y };
-        const gapNew = lado * dot(relNew, s.n) - hNew;
-        const u = dot(relNew, s.t);
+        void s;
+        const mPrev = marcoSup(m, k, prev.pose.p[i]!);
+        const mNew = marcoSup(m, k, e.p[i]!);
+        const hPrev = apoyoAlLlegar(m, this.geo, i, k, prev.pose.th, prev.pose.p[i]!);
+        const hNew = apoyoAlLlegar(m, this.geo, i, k, e.th, e.p[i]!);
+        const lado: 1 | -1 = mPrev.d >= 0 ? 1 : -1;
+        // Una pista de un solo lado no detiene a quien llega por el lado sólido.
+        if (s.unLado && lado < 0) return;
+        const gapPrev = lado * mPrev.d - hPrev;
+        const gapNew = lado * mNew.d - hNew;
+        const u = mNew.u;
         // Un cuerpo apoyado solo pasa a otra superficie si va hacia ella.
-        if (md.k !== 'libre' && lado * dot(e.v[i]!, s.n) >= 0) return;
-        if (gapPrev >= -1e-9 && gapNew < 0 && u >= 0 && u <= s.largo) {
+        if (md.k !== 'libre' && lado * dot(e.v[i]!, mNew.n) >= 0) return;
+        if (gapPrev >= -1e-9 && gapNew < 0 && u >= 0 && u <= mNew.largo) {
           const gap = (x: number): number => {
             const q = hermite(prev.pose.p[i]!, prev.vel.v[i]!, e.p[i]!, e.v[i]!, h, x);
             const t = hermite1(prev.pose.th[i]!, prev.vel.w[i]!, e.th[i]!, e.w[i]!, h, x);
             const ths = e.th.slice();
             ths[i] = t;
-            return lado * dot({ x: q.x - s.a.x, y: q.y - s.a.y }, s.n) - apoyoAlLlegar(m, this.geo, i, k, ths);
+            return lado * marcoSup(m, k, q).d - apoyoAlLlegar(m, this.geo, i, k, ths, q);
           };
           const frac = gap(0) <= 0 ? 0 : bisectar(gap);
           if (!primero || frac < primero.frac) primero = { i, s: k, lado, frac };
@@ -1409,7 +1499,8 @@ export class Simulacion {
       const cambio = e.modo[i]!.k !== 'libre';
       // Con e > 0 rebota (si el rebote alcanza): la velocidad normal se invierte y se reduce en e. (Un cuerpo que pasa de
       // una superficie a otra no rebota: sigue apoyado.)
-      const nRebote = { x: sup.n.x * lado, y: sup.n.y * lado };
+      const mLlega = marcoSup(m, s, e.p[i]!);
+      const nRebote = { x: mLlega.n.x * lado, y: mLlega.n.y * lado };
       const vnR = dot(e.v[i]!, nRebote);
       if (!cambio && this.e > 0 && -vnR * this.e > V_REBOTE) {
         e.v[i] = { x: e.v[i]!.x - (1 + this.e) * vnR * nRebote.x, y: e.v[i]!.y - (1 + this.e) * vnR * nRebote.y };
@@ -1421,11 +1512,12 @@ export class Simulacion {
       // Un bloque que gira cae sobre una cara: queda alineado con la superficie y deja de girar (choque inelástico).
       // Uno que no gira (partícula) también queda alineado: su orientación solo se ve.
       if (c.elemento.tipo === 'bloque') {
-        e.th[i] = anguloAlineado(m, s, e.th[i]!);
+        e.th[i] = anguloAlineado(m, s, e.th[i]!, e.p[i]!);
         e.w[i] = 0;
       }
-      const nOut = { x: sup.n.x * lado, y: sup.n.y * lado };
-      const gap = lado * dot({ x: e.p[i]!.x - sup.a.x, y: e.p[i]!.y - sup.a.y }, sup.n) - apoyoActual(m, this.geo, i, s, e.th);
+      void sup;
+      const nOut = { x: mLlega.n.x * lado, y: mLlega.n.y * lado };
+      const gap = lado * mLlega.d - apoyoActual(m, this.geo, i, s, e.th, e.p[i]!);
       e.p[i] = { x: e.p[i]!.x - nOut.x * gap, y: e.p[i]!.y - nOut.y * gap };
       const vn = dot(e.v[i]!, nOut);
       if (vn < 0) e.v[i] = { x: e.v[i]!.x - vn * nOut.x, y: e.v[i]!.y - vn * nOut.y };
@@ -1438,10 +1530,39 @@ export class Simulacion {
       e.extra[i] = null;
       if (cambio) this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} pasa a la otra superficie`);
       else this.evento(e.t, 'impacto', i, `${this.nombre(i)} llega a la superficie y queda apoyado`);
-      // Solo puede quedar adherido si llega sin velocidad (del punto de contacto) a lo largo de la superficie.
-      if (Math.abs(vTangente(m, i, e.modo[i] as Extract<Modo, { s: number }>, e.v[i]!, e.w[i]!)) < EPS_V) this.reconciliar(new Set([i]), true);
+      // Solo puede quedar adherido si llega sin velocidad (del punto de contacto) a lo largo de la superficie (o, si
+      // pasa de una superficie a otra, si venía rodando o quieto).
+      if (cambio) this.seguirAdherido(i);
+      else if (Math.abs(vTangente(m, i, e.modo[i] as Extract<Modo, { s: number }>, e.p[i]!, e.v[i]!, e.w[i]!)) < EPS_V) this.reconciliar(new Set([i]), true);
       this.terminarPaso(h * (1 - frac), profundidad);
       return true;
+    }
+
+    // 1c) Cuerpos apoyados que pasan por el extremo de su superficie: se ubica el instante exacto (como un impacto), para
+    //     que el cambio a otra superficie que sigue (el piso al pie de una rampa curva) no deba corregir la posición.
+    if (profundidad < 4) {
+      let sale: { i: number; frac: number } | null = null;
+      for (let i = 0; i < n; i++) {
+        const md = e.modo[i]!;
+        if (md.k === 'libre') continue;
+        const mN = marcoSup(m, md.s, e.p[i]!);
+        if (mN.u >= 0 && mN.u <= mN.largo) continue;
+        const mP = marcoSup(m, md.s, prev.pose.p[i]!);
+        if (mP.u < 0 || mP.u > mP.largo) continue;
+        const borde = mN.u < 0 ? 0 : mN.largo;
+        const pose = this.pose;
+        const vel = this.vel;
+        const f = (x: number): number => marcoSup(m, md.s, poseIntermedia(prev, pose, vel, h, x).p[i]!).u - borde;
+        const frac = bisectar(f);
+        if (!sale || frac < sale.frac) sale = { i, frac };
+      }
+      if (sale && sale.frac < 1 - 1e-9) {
+        this.retroceder(prev, sale.frac, h);
+        // Un pelo más allá del borde, para que la revisión de abajo (salida por el extremo) lo trate ahora.
+        this.salirPorExtremo(sale.i);
+        this.terminarPaso(h * (1 - sale.frac), profundidad);
+        return true;
+      }
     }
 
     // 2) Resortes: paso por el largo natural
@@ -1491,13 +1612,11 @@ export class Simulacion {
     for (let i = 0; i < n; i++) {
       const md = e.modo[i]!;
       if (md.k === 'libre') continue;
-      const s = m.superficies[md.s]!;
       // La segunda superficie (esquina) se suelta si su normal se haría negativa o si el cuerpo sale de ella.
       const x2 = e.extra[i];
       if (x2) {
-        const s2 = m.superficies[x2.s]!;
-        const u2 = dot({ x: e.p[i]!.x - s2.a.x, y: e.p[i]!.y - s2.a.y }, s2.t);
-        if (d.Nx[i]! < -EPS_F || u2 < 0 || u2 > s2.largo) {
+        const m2 = marcoSup(m, x2.s, e.p[i]!);
+        if (d.Nx[i]! < -EPS_F || m2.u < 0 || m2.u > m2.largo) {
           e.extra[i] = null;
           d = this.din();
         }
@@ -1516,37 +1635,28 @@ export class Simulacion {
         d = this.din();
         continue;
       }
-      const u = dot({ x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y }, s.t);
-      if (u < 0 || u > s.largo) {
-        const x = e.extra[i];
-        e.extra[i] = null;
-        if (x) {
-          e.modo[i] = { k: 'desliza', s: x.s, lado: x.lado, dir: 0 };
-          this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} pasa a la otra superficie`);
-          d = this.din();
-          continue;
-        }
-        if (this.seguirEnOtra(i, md.s)) {
-          d = this.din();
-          continue;
-        }
-        e.modo[i] = { k: 'libre' };
-        this.evento(e.t, 'sale-extremo', i, `${this.nombre(i)} sale por el extremo de la superficie`);
+      const mk = marcoSup(m, md.s, e.p[i]!);
+      if (mk.u < 0 || mk.u > mk.largo) {
+        this.salirPorExtremo(i);
         d = this.din();
         continue;
       }
       if (md.k === 'desliza') {
-        const vtPrev = vTangente(m, i, md, prev.vel.v[i]!, prev.vel.w[i]!);
-        const vtNew = vTangente(m, i, md, e.v[i]!, e.w[i]!);
-        if (Math.abs(vtPrev) > EPS_V && (vtPrev * vtNew < 0 || Math.abs(vtNew) < EPS_V)) {
+        const vtPrev = vTangente(m, i, md, e.p[i]!, prev.vel.v[i]!, prev.vel.w[i]!);
+        const vtNew = vTangente(m, i, md, e.p[i]!, e.v[i]!, e.w[i]!);
+        // Una esfera que gira y desliza llega a rodar sin deslizar cuando el deslizamiento se anula. Con el roce que cambia de
+        // signo dentro del paso, puede quedar oscilando cerca de cero sin cambiar de signo entre pasos: si llegaría a cero en
+        // el paso siguiente (al ritmo actual), se considera que ya llegó.
+        const llega = this.rueda(i) && Math.abs(vtNew) < Math.abs(vtPrev) && Math.abs(vtNew) <= Math.abs(vtPrev - vtNew);
+        if (Math.abs(vtPrev) > EPS_V && (vtPrev * vtNew < 0 || Math.abs(vtNew) < EPS_V || llega)) {
           velAntes.set(i, { v: { ...e.v[i]! }, w: e.w[i]! });
           // Se anula la velocidad del punto de contacto (en una esfera que gira, repartida entre v y ω).
-          const rc = brazoContacto(m, i, { x: s.n.x * md.lado, y: s.n.y * md.lado });
+          const rc = brazoContacto(m, i, { x: mk.n.x * md.lado, y: mk.n.y * md.lado });
           const im = this.geo.inv[i]!;
           const iI = rc ? this.geo.invM[dT(i)]! : 0;
-          const ct = rc ? cruz(rc, s.t) : 0;
+          const ct = rc ? cruz(rc, mk.t) : 0;
           const lam = -vtNew / (im + iI * ct * ct);
-          e.v[i] = { x: e.v[i]!.x + im * lam * s.t.x, y: e.v[i]!.y + im * lam * s.t.y };
+          e.v[i] = { x: e.v[i]!.x + im * lam * mk.t.x, y: e.v[i]!.y + im * lam * mk.t.y };
           if (rc) e.w[i] = e.w[i]! + iI * lam * ct;
           candidatos.add(i);
         }
@@ -1587,9 +1697,15 @@ export class Simulacion {
         e.v.splice(0, e.v.length, ...x.v);
         e.w.splice(0, e.w.length, ...x.w);
       }
-      // Si no quedó adherido, no hay razón para frenarlo: sigue con la velocidad que traía (ya cambió de sentido).
+      // Si no quedó adherido, no hay razón para frenarlo: sigue con la velocidad que traía (ya cambió de sentido). Si quedó,
+      // el deslizamiento que quedaba (menos de un paso) lo anuló el roce: esa energía es trabajo del roce.
       for (const [i, x] of velAntes) {
-        if (e.modo[i]!.k !== 'desliza') continue;
+        const c = m.cuerpos[i]!;
+        if (e.modo[i]!.k !== 'desliza') {
+          const Kc = (v: Punto, w: number): number => 0.5 * c.masa * dot(v, v) + 0.5 * c.I * w * w;
+          e.W.roce += Kc(e.v[i]!, e.w[i]!) - Kc(x.v, x.w);
+          continue;
+        }
         e.v[i] = x.v;
         e.w[i] = x.w;
       }
@@ -1632,8 +1748,13 @@ export class Simulacion {
     const e = this.estado;
     const md = e.modo[i]!;
     if (md.k === 'libre') return false;
-    const s0 = m.superficies[md.s]!;
-    if (dot(e.v[i]!, { x: s0.n.x * md.lado, y: s0.n.y * md.lado }) > EPS_V) return false;
+    const n0 = marcoSup(m, md.s, e.p[i]!).n;
+    const n0Out = { x: n0.x * md.lado, y: n0.y * md.lado };
+    if (dot(e.v[i]!, n0Out) > EPS_V) return false;
+    // Si las dos normales casi coinciden (una curva que empieza tangente al piso, un plano poco inclinado) no es una
+    // esquina: pasa a la nueva.
+    const nk = marcoSup(m, k, e.p[i]!).n;
+    if (dot(n0Out, { x: nk.x * lado, y: nk.y * lado }) > Math.SQRT1_2) return false;
     e.extra[i] = { s: k, lado };
     const d = this.din();
     if (d.N[i]! < -EPS_F) {
@@ -1657,14 +1778,14 @@ export class Simulacion {
     const m = this.modelo;
     const e = this.estado;
     let mejor: { k: number; lado: 1 | -1; gap: number } | null = null;
-    m.superficies.forEach((s, k) => {
+    m.superficies.forEach((_, k) => {
       if (k === desde) return;
-      const rel = { x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y };
-      const u = dot(rel, s.t);
-      if (u < 0 || u > s.largo) return;
-      const d = dot(rel, s.n);
+      const mk = marcoSup(m, k, e.p[i]!);
+      if (mk.u < -1e-6 || mk.u > mk.largo + 1e-6) return;
+      const d = mk.d;
       const lado: 1 | -1 = d >= 0 ? 1 : -1;
-      const h = apoyoAlLlegar(m, this.geo, i, k, e.th);
+      if (m.superficies[k]!.unLado && lado < 0) return;
+      const h = apoyoAlLlegar(m, this.geo, i, k, e.th, e.p[i]!);
       const gap = lado * d - h;
       // Toca si está a menos de 1 mm, o metido menos que su propio apoyo (el bloque inclinado en la arista).
       if (gap > 1e-3 || gap < -h) return;
@@ -1672,27 +1793,62 @@ export class Simulacion {
     });
     if (!mejor) return false;
     const { k, lado } = mejor as { k: number; lado: 1 | -1; gap: number };
-    const sup = m.superficies[k]!;
     const c = m.cuerpos[i]!;
-    const kAntes = this.cinetica();
+    const eAntes = this.mecanica();
     if (c.elemento.tipo === 'bloque') {
-      e.th[i] = anguloAlineado(m, k, e.th[i]!);
+      e.th[i] = anguloAlineado(m, k, e.th[i]!, e.p[i]!);
       e.w[i] = 0;
     }
-    const nOut = { x: sup.n.x * lado, y: sup.n.y * lado };
-    const gap = lado * dot({ x: e.p[i]!.x - sup.a.x, y: e.p[i]!.y - sup.a.y }, sup.n) - apoyoActual(m, this.geo, i, k, e.th);
+    const mk = marcoSup(m, k, e.p[i]!);
+    const nOut = { x: mk.n.x * lado, y: mk.n.y * lado };
+    const gap = lado * mk.d - apoyoActual(m, this.geo, i, k, e.th, e.p[i]!);
     e.p[i] = { x: e.p[i]!.x - nOut.x * gap, y: e.p[i]!.y - nOut.y * gap };
     const vn = dot(e.v[i]!, nOut);
-    if (vn > EPS_V) {
-      e.modo[i] = { k: 'libre' };
-      this.evento(e.t, 'sale-extremo', i, `${this.nombre(i)} sale por el extremo de la superficie`);
-      return false;
-    }
+    // Se aleja si su velocidad forma más de ~1° con la nueva superficie (menos que eso es el paso que se pasó del extremo
+    // de una curva que llega tangente).
+    if (vn > 0.02 * Math.hypot(e.v[i]!.x, e.v[i]!.y) + EPS_V) return false;
     if (vn < 0) e.v[i] = { x: e.v[i]!.x - vn * nOut.x, y: e.v[i]!.y - vn * nOut.y };
-    e.W.impactos += this.cinetica() - kAntes;
+    e.W.impactos += this.mecanica() - eAntes;
     e.modo[i] = { k: 'desliza', s: k, lado, dir: 0 };
     this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} pasa a la otra superficie`);
     return true;
+  }
+
+  /**
+   * Tras pasar a otra superficie: si el punto de contacto casi no desliza (venía rodando, o en reposo), se prueba si el
+   * roce estático lo sostiene, sin avisar (no es un evento nuevo: sigue rodando o quieto).
+   */
+  private seguirAdherido(i: number): void {
+    const m = this.modelo;
+    const e = this.estado;
+    const md = e.modo[i]!;
+    if (md.k !== 'desliza') return;
+    const vt = vTangente(m, i, md, e.p[i]!, e.v[i]!, e.w[i]!);
+    if (Math.abs(vt) < Math.max(EPS_V, 1e-4 * Math.hypot(e.v[i]!.x, e.v[i]!.y))) this.reconciliar(new Set([i]), false);
+  }
+
+  /**
+   * El cuerpo apoyado `i` llegó al extremo de su superficie: si estaba en una esquina sigue en la otra; si ya toca otra
+   * superficie, pasa a ella; si no, sigue en el aire.
+   */
+  private salirPorExtremo(i: number): void {
+    const e = this.estado;
+    const md = e.modo[i]!;
+    if (md.k === 'libre') return;
+    const x = e.extra[i];
+    e.extra[i] = null;
+    if (x) {
+      e.modo[i] = { k: 'desliza', s: x.s, lado: x.lado, dir: 0 };
+      this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} pasa a la otra superficie`);
+      this.seguirAdherido(i);
+      return;
+    }
+    if (this.seguirEnOtra(i, md.s)) {
+      this.seguirAdherido(i);
+      return;
+    }
+    e.modo[i] = { k: 'libre' };
+    this.evento(e.t, 'sale-extremo', i, `${this.nombre(i)} sale por el extremo de la superficie`);
   }
 
   private quitarContacto(q: number): void {
@@ -1914,7 +2070,7 @@ export class Simulacion {
       }
       return 'en el aire';
     }
-    const moviendo = Math.abs(dot(this.estado.v[i]!, this.modelo.superficies[md.s]!.t)) > 1e-6;
+    const moviendo = Math.abs(dot(this.estado.v[i]!, marcoSup(this.modelo, md.s, this.estado.p[i]!).t)) > 1e-6;
     if (md.k === 'adherido') {
       if (this.rueda(i) && moviendo) return 'rueda sin deslizar';
       return this.modelo.superficies[md.s]!.muS > 0 ? 'en reposo (roce estático)' : 'en reposo';

@@ -1,4 +1,5 @@
 import type { Punto } from '../core/camara';
+import { arcoDe, marcoTramo } from './curvas';
 import type { Bloque, Ejes, Elemento, Esfera, Superficie, Vector } from '../core/elementos';
 import { nuevoIdElemento } from '../core/elementos';
 import type { Grafo } from '../grafo/lector';
@@ -86,6 +87,13 @@ export function distanciaAlCuerpo(c: Cuerpo, p: Punto): number {
 export function contactoCon(c: Cuerpo, s: Superficie, tol = TOLERANCIA_CONTACTO): { normal: Punto } | null {
   const l = largoSegmento(s.a, s.b);
   if (l < 1e-6) return null;
+  if (arcoDe(s)) {
+    const mk = marcoTramo(s, c.centro);
+    const lado = mk.d >= 0 ? 1 : -1;
+    const nSale = { x: mk.n.x * lado, y: mk.n.y * lado };
+    if (Math.abs(Math.abs(mk.d) - apoyoEn(c, mk.n)) > tol || mk.u < -0.25 || mk.u > mk.largo + 0.25) return null;
+    return { normal: nSale };
+  }
   const n = normalSuperficie(s);
   const d = dot({ x: c.centro.x - s.a.x, y: c.centro.y - s.a.y }, n);
   const lado = d >= 0 ? 1 : -1;
@@ -116,7 +124,8 @@ interface Conocida {
 
 /** Normal unitaria que sale de la superficie hacia el lado donde está el cuerpo. */
 function normalHaciaCuerpo(c: Cuerpo, s: Superficie): Punto {
-  const n = normalSuperficie(s);
+  // En una curva, la normal del punto que está bajo el cuerpo.
+  const n = arcoDe(s) ? marcoTramo(s, c.centro).n : normalSuperficie(s);
   const lado = dot({ x: c.centro.x - s.a.x, y: c.centro.y - s.a.y }, n) >= 0 ? 1 : -1;
   return { x: n.x * lado, y: n.y * lado };
 }
@@ -245,7 +254,8 @@ export function resolverDcl(c0: Cuerpo, elementos: readonly Elemento[], g = G_PO
   const nSale = unico.c.normal;
   const anguloEjes = Math.atan2(nSale.y, nSale.x) - Math.PI / 2;
   const sup = unico.s;
-  const inclinacion = Math.min(Math.abs(normalizar(anguloSuperficie(sup))), Math.PI - Math.abs(normalizar(anguloSuperficie(sup))));
+  const angSup = arcoDe(sup) ? Math.atan2(nSale.x, -nSale.y) * -1 : anguloSuperficie(sup);
+  const inclinacion = Math.min(Math.abs(normalizar(angSup)), Math.PI - Math.abs(normalizar(angSup)));
   // Se descarta el ruido numérico (3e-15 N) para que "cero" sea cero.
   const limpio = (v: number): number => (Math.abs(v) < 1e-9 ? 0 : v);
   const compX = (f: FuerzaDcl) => limpio((f.valor ?? 0) * Math.cos(f.angulo - anguloEjes));

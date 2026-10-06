@@ -1,4 +1,6 @@
 import type { Punto } from '../core/camara';
+import type { Arco } from '../physics/curvas';
+import { arcoDe, marcoArco } from '../physics/curvas';
 import type { Bloque, Elemento, Esfera } from '../core/elementos';
 import type { ExtremoG } from '../grafo/lector';
 import { leerGrafo } from '../grafo/lector';
@@ -53,12 +55,16 @@ export interface RotorDef {
 export interface SuperficieDef {
   id: string;
   a: Punto;
-  /** Tangente unitaria (a → b) y normal unitaria (a su izquierda). */
+  /** Tangente unitaria (a → b) y normal unitaria (a su izquierda). En una curva, las de `a` (usar el marco local). */
   t: Punto;
   n: Punto;
   largo: number;
   muS: number;
   muK: number;
+  /** Si es curva: su arco (centro, radio, ángulos). Ver `physics/curvas.ts`. */
+  arco?: Arco;
+  /** Solo se apoya del lado de la normal (ver `Superficie.unLado`). */
+  unLado?: boolean;
 }
 
 export interface ResorteDef {
@@ -142,8 +148,13 @@ export function construirModelo(elementos: readonly Elemento[], g = G_POR_DEFECT
   const indice = new Map(cuerpos.map((c, i) => [c.id, i]));
 
   const superficies: SuperficieDef[] = gr.superficies.map((s) => {
+    const arco = arcoDe(s);
+    if (arco) {
+      const m0 = marcoArco(arco, s.a);
+      return { id: s.id, a: s.a, t: m0.t, n: m0.n, largo: arco.largo, muS: s.muS, muK: s.muK, arco, ...(s.unLado ? { unLado: true } : {}) };
+    }
     const largo = dist(s.a, s.b) || 1e-9;
-    return { id: s.id, a: s.a, t: { x: (s.b.x - s.a.x) / largo, y: (s.b.y - s.a.y) / largo }, n: normalSuperficie(s), largo, muS: s.muS, muK: s.muK };
+    return { id: s.id, a: s.a, t: { x: (s.b.x - s.a.x) / largo, y: (s.b.y - s.a.y) / largo }, n: normalSuperficie(s), largo, muS: s.muS, muK: s.muK, ...(s.unLado ? { unLado: true } : {}) };
   });
 
   /** Extremo del modelo; null si está suelto (no ejerce fuerza). */

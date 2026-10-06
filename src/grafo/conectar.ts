@@ -1,4 +1,5 @@
 import type { Punto } from '../core/camara';
+import { arcoDe, marcoTramo, puntoEnTramo } from '../physics/curvas';
 import type { Bloque, Cuerda, Elemento, Esfera, Paso, Polea, Union } from '../core/elementos';
 import { distanciaAlCuerpo, TOLERANCIA_CONTACTO } from '../physics/dcl';
 import { apoyarEn, apoyarSobre, cuerpoDebajo, MASA_POR_DEFECTO, superficieCercana } from '../physics/objetos';
@@ -81,6 +82,12 @@ export function iman(p: Punto, escena: readonly Elemento[], radio: number, exclu
       for (const q of puertosDe(e)) proponer(q.p, e.id, q.nombre, Math.hypot(q.p.x - p.x, q.p.y - p.y) * (dentro ? 1e-3 : 1), dentro ? Infinity : radio);
     } else if (e.tipo === 'polea') {
       proponer(e.centro, e.id, 'eje', Math.hypot(e.centro.x - p.x, e.centro.y - p.y) + 1e-9);
+    } else if (e.tipo === 'superficie' && arcoDe(e)) {
+      // Curva: el punto más cercano del arco
+      const mk = marcoTramo(e, p);
+      const u = r4(Math.min(Math.max(mk.u / mk.largo, 0), 1));
+      const q = puntoEnTramo(e, u);
+      proponer(q, e.id, `u:${u}`, Math.hypot(q.x - p.x, q.y - p.y) + 2e-9, radio / 2);
     } else if (e.tipo === 'superficie') {
       const { d: ds, t } = distSegmento(p, e.a, e.b);
       const u = r4(t);

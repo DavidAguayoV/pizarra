@@ -1,4 +1,5 @@
 import type { Elemento, Superficie } from '../core/elementos';
+import { arcoDe, marcoTramo } from '../physics/curvas';
 import { tramoColgante } from './conectar';
 import { cajaDe, cajasSeCruzan } from '../core/elementos';
 import { apoyoEn } from '../physics/dcl';
@@ -137,8 +138,9 @@ export function validar(entrada: readonly Elemento[]): Problema[] {
     const id = c.apoyo?.[0];
     const s = id ? g.porId.get(id) : undefined;
     if (s?.tipo === 'superficie') {
-      const nrm = normalSuperficie(s);
-      const d = Math.abs((c.centro.x - s.a.x) * nrm.x + (c.centro.y - s.a.y) * nrm.y);
+      const mk = marcoTramo(s, c.centro);
+      const nrm = arcoDe(s) ? mk.n : normalSuperficie(s);
+      const d = Math.abs(arcoDe(s) ? mk.d : (c.centro.x - s.a.x) * nrm.x + (c.centro.y - s.a.y) * nrm.y);
       if (Math.abs(d - apoyoEn(c, nrm)) > APOYO_MAXIMO) {
         out.push({ tipo: 'apoyo-lejano', gravedad: 'aviso', elementos: [c.id, s.id], texto: `${mayus(n)} figura apoyado en una superficie que quedó lejos: parte en el aire.`, arreglo: 'quitar-apoyo' });
       }

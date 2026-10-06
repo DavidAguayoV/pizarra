@@ -1,4 +1,5 @@
 import type { Punto } from '../core/camara';
+import { arcoDe, puntoEnTramo } from '../physics/curvas';
 import type { Elemento } from '../core/elementos';
 
 /**
@@ -91,7 +92,7 @@ export function posPuerto(e: Elemento, nombre: string): Punto | null {
     if (nombre.startsWith('u:')) {
       const u = Number(nombre.slice(2));
       if (!Number.isFinite(u)) return null;
-      return { x: e.a.x + (e.b.x - e.a.x) * u, y: e.a.y + (e.b.y - e.a.y) * u };
+      return arcoDe(e) ? puntoEnTramo(e, u) : { x: e.a.x + (e.b.x - e.a.x) * u, y: e.a.y + (e.b.y - e.a.y) * u };
     }
   }
   return null;

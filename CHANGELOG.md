@@ -1,5 +1,26 @@
 # Cambios
 
+## Superficies curvas, loops y cambio de superficie (2026-10-06)
+
+Decisión: [ADR 0013](docs/decisiones/0013-superficies-curvas-y-cambio-de-superficie.md). Responde a David: «los bloques no son
+capaces de pasar de un plano inclinado a una superficie lisa; también sería bueno generar loops y superficies curvas».
+
+### Corregido
+- Un bloque que baja por un plano inclinado **atravesaba el piso** al llegar al pie (su esquina ya estaba bajo él). Ahora pasa al
+  piso: pierde solo la velocidad que atravesaría el piso y se alinea con él. También sube de un piso a una rampa, sigue de un tramo
+  de piso al siguiente y salta un poco en la cima de una rampa que da a una meseta.
+- Un bloque empujado contra una pared la atravesaba: ahora queda en la **esquina**, con la normal del piso y la de la pared.
+- La comparación con la solución analítica seguía después del primer evento del cuerpo (salir por el extremo, cambiar de
+  superficie, chocar): ahora vale hasta ese instante.
+
+### Agregado
+- **Superficies curvas** (arcos): herramienta **Curva** (J) en *Armar* —arrastrando, un cuarto de circunferencia; con un toque, un
+  valle—, campo «Curvatura (°)» (+ valle, − loma) y un asa en el medio para curvarla. Los cuerpos ruedan o deslizan por ellas, con la
+  normal que corresponde (centrípeta), y se despegan cuando la normal se haría negativa.
+- **Loops**: montaje *Loop* (rampa curva, piso y loop), *Valle* (media cañería) y *Loma*. Opción «Solo por un lado (pista)» para
+  que un cuerpo atraviese una superficie desde su lado sólido (la salida corrida de costado de un loop real).
+- En una esquina, el panel de la simulación muestra N₁ y N₂.
+
 ## Nivel 2, Fase 5 — Accesibilidad y rendimiento (2026-10-06)
 
 Decisión: [ADR 0012](docs/decisiones/0012-accesibilidad-y-presupuesto.md).

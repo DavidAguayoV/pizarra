@@ -13,7 +13,7 @@ La barra tiene **cuatro modos**; cada uno muestra solo sus herramientas (en el c
 | Modo | Para qué | Herramientas (tecla) |
 |---|---|---|
 | **Dibujar** | Tinta y formas | Seleccionar (**S**), Lápiz (**P**), Resaltador (**H**), Borrador (**B**), Línea (**L**), Flecha (**F**), Rectángulo (**R**), Elipse (**O**), Texto (**T**), Imagen, Mover vista (**M**) |
-| **Armar** | Piezas físicas | Montajes, Bloque (**K**), Esfera (**E**), Polea (**Y**), Superficie (**U**), Plano inclinado (**I**), Con roce, Ejes (**X**), Vector (**V**), Medir (**D**) |
+| **Armar** | Piezas físicas | Montajes, Bloque (**K**), Esfera (**E**), Polea (**Y**), Superficie (**U**), Plano inclinado (**I**), Con roce, Curva (**J**), Ejes (**X**), Vector (**V**), Medir (**D**) |
 | **Conectar** | Cuerdas y resortes | Cuerda (**C**), Resorte (**Z**) |
 | **Simular** | Abre y cierra el panel de simulación | |
 
@@ -28,8 +28,11 @@ pizarra. La escena tiene una descripción en texto y los eventos de la simulaci�
 el sistema, la interfaz no tiene transiciones. Los colores de texto, botones e interruptores cumplen AA (4,5:1) en los dos temas. Abrir, Centrar, Tema y Escala están en el menú **⋯ Más**
 (en el celular también Rehacer, Exportar y Compartir).
 
+- **Curvas y loops:** *Curva* dibuja un arco (arrastrando, un cuarto de circunferencia; con un toque, un valle). En su panel, la
+  curvatura (+ valle, − loma) y «Solo por un lado (pista)»; el asa del medio la curva más o menos. Los cuerpos pasan solos de una
+  superficie a otra (del plano al piso, del piso a la rampa, al loop) y se despegan si la normal se haría negativa.
 - **Montajes** (*Armar*): Atwood, plano inclinado, plano con polea y colgante, mesa con polea y colgante, masa-resorte horizontal y
-  vertical, péndulo, bloques apilados y proyectil, ya conectados y listos para simular; aparecen en el centro de la vista y un
+  vertical, péndulo, loop, valle, loma, bloques apilados y proyectil, ya conectados y listos para simular; aparecen en el centro de la vista y un
   deshacer los quita enteros. Con *Con roce* activo, sus superficies traen roce.
 - **Disponer:** con **Mayús + clic** se seleccionan varios: el panel los **alinea** (bordes o centros), los **distribuye**, los gira
   15° y los **duplica**. *Medir* (**D**) muestra la distancia y el ángulo entre dos puntos (se pega a caras, esquinas y centros) sin

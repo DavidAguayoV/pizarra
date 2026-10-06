@@ -1,4 +1,5 @@
 import type { Elemento } from '../core/elementos';
+import { arcoDe } from '../physics/curvas';
 import { numeroEs } from '../physics/vectores';
 import { sinMarcas } from './problemas';
 
@@ -48,6 +49,11 @@ export function describirElemento(e: Elemento): string {
     case 'polea':
       return `Polea de radio ${m(e.radio)}${e.masa ? ` y ${numeroEs(e.masa)} kg` : ''}${e.montaje ? ', móvil' : ''} en x = ${m(e.centro.x)}, y = ${m(e.centro.y)}`;
     case 'superficie': {
+      const arco = arcoDe(e);
+      if (arco) {
+        const roceC = e.muS > 0 || e.muK > 0 ? `, con roce (μs ${numeroEs(e.muS)}, μk ${numeroEs(e.muK)})` : ', sin roce';
+        return `Superficie curva (${e.barrido! > 0 ? 'valle' : 'loma'}) de radio ${m(arco.r)} y ${m(arco.largo)} de largo${roceC}`;
+      }
       const ang = Math.round((Math.atan2(e.b.y - e.a.y, e.b.x - e.a.x) * 180) / Math.PI);
       const roce = e.muS > 0 || e.muK > 0 ? `, con roce (μs ${numeroEs(e.muS)}, μk ${numeroEs(e.muK)})` : ', sin roce';
       return `${e.relleno === 'cuna' ? 'Plano inclinado' : 'Superficie'} de ${m(Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y))} a ${ang}°${roce}`;

@@ -1,4 +1,5 @@
 import type { Punto } from '../core/camara';
+import { arcoDe, largoTramo, marcoTramo, puntoEnTramo } from './curvas';
 import type { Bloque, Cuerda, Elemento, Esfera, Polea, Resorte, Superficie } from '../core/elementos';
 import { nuevoIdElemento } from '../core/elementos';
 
@@ -8,7 +9,7 @@ import { nuevoIdElemento } from '../core/elementos';
  * cuerpo libre (`dcl.ts`) infiere los contactos por cercanía.
  */
 
-export const TIPOS_OBJETO = ['bloque', 'esfera', 'superficie', 'plano', 'polea', 'cuerda', 'resorte'] as const;
+export const TIPOS_OBJETO = ['bloque', 'esfera', 'superficie', 'plano', 'curva', 'polea', 'cuerda', 'resorte'] as const;
 export type TipoObjeto = (typeof TIPOS_OBJETO)[number];
 
 export const NOMBRE_OBJETO: Readonly<Record<TipoObjeto, string>> = {
@@ -16,6 +17,7 @@ export const NOMBRE_OBJETO: Readonly<Record<TipoObjeto, string>> = {
   esfera: 'Esfera',
   superficie: 'Superficie',
   plano: 'Plano inclinado',
+  curva: 'Curva',
   polea: 'Polea',
   cuerda: 'Cuerda',
   resorte: 'Resorte',
@@ -117,6 +119,17 @@ const LARGO_ACHURADO = 0.14;
 
 /** Rayitas del achurado, del lado sólido. Cada una es un segmento [desde, hasta]. */
 export function achurado(s: Superficie): Array<[Punto, Punto]> {
+  if (arcoDe(s)) {
+    // En una curva, cada rayita sale de su punto con la normal y la tangente de ese punto.
+    const L = largoTramo(s);
+    const cuantas = Math.max(1, Math.floor(L / PASO_ACHURADO));
+    const margen = (L - (cuantas - 1) * PASO_ACHURADO) / 2;
+    return Array.from({ length: cuantas }, (_, i) => {
+      const p = puntoEnTramo(s, (margen + i * PASO_ACHURADO) / L);
+      const { n, t } = marcoTramo(s, p);
+      return [p, { x: p.x - n.x * LARGO_ACHURADO - t.x * LARGO_ACHURADO, y: p.y - n.y * LARGO_ACHURADO - t.y * LARGO_ACHURADO }] as [Punto, Punto];
+    });
+  }
   const l = largoSegmento(s.a, s.b);
   if (l < 1e-6) return [];
   const n = normalSuperficie(s);
@@ -155,11 +168,11 @@ export function etiquetaRoce(s: Superficie): { fuente: string; centro: Punto } |
   if (!(s.muS > 0) && !(s.muK > 0)) return null;
   const l = largoSegmento(s.a, s.b);
   if (l < 1e-6) return null;
-  const n = normalSuperficie(s);
+  const m = puntoEnTramo(s, 0.5);
+  const n = arcoDe(s) ? marcoTramo(s, m).n : normalSuperficie(s);
   const num = (x: number) => String(Math.round(x * 1000) / 1000).replace('.', '{,}');
   const fuente = `\\mu_s=${num(s.muS)},\\ \\mu_k=${num(s.muK)}`;
-  const d = s.relleno === 'cuna' ? 0.32 : 0.34;
-  const m = { x: (s.a.x + s.b.x) / 2, y: (s.a.y + s.b.y) / 2 };
+  const d = s.relleno === 'cuna' && !arcoDe(s) ? 0.32 : 0.34;
   return { fuente, centro: { x: m.x - n.x * d, y: m.y - n.y * d } };
 }
 
@@ -210,15 +223,13 @@ export function superficieCercana(c: Bloque | Esfera, elementos: readonly Elemen
   let mejor: { s: Superficie; holgura: number } | null = null;
   for (const e of elementos) {
     if (e.tipo !== 'superficie') continue;
-    const l = largoSegmento(e.a, e.b);
+    const l = largoTramo(e);
     if (l < 1e-6) continue;
-    const n = normalSuperficie(e);
-    const t = { x: (e.b.x - e.a.x) / l, y: (e.b.y - e.a.y) / l };
-    const rel = { x: c.centro.x - e.a.x, y: c.centro.y - e.a.y };
-    const u = rel.x * t.x + rel.y * t.y;
+    const { u, d, t } = marcoTramo(e, c.centro);
     if (u < -0.25 || u > l + 0.25) continue;
-    const d = rel.x * n.x + rel.y * n.y;
-    const h = c.tipo === 'esfera' ? c.radio : Math.abs(Math.cos(c.angulo - Math.atan2(t.y, t.x))) * c.alto / 2 + Math.abs(Math.sin(c.angulo - Math.atan2(t.y, t.x))) * c.ancho / 2;
+    // En una curva el bloque se apoya alineado con ella.
+    const rel = arcoDe(e) ? 0 : c.tipo === 'bloque' ? c.angulo - Math.atan2(t.y, t.x) : 0;
+    const h = c.tipo === 'esfera' ? c.radio : (Math.abs(Math.cos(rel)) * c.alto) / 2 + (Math.abs(Math.sin(rel)) * c.ancho) / 2;
     const holgura = Math.abs(Math.abs(d) - h);
     if (holgura <= IMAN_SUPERFICIE && (!mejor || holgura < mejor.holgura)) mejor = { s: e, holgura };
   }
@@ -250,6 +261,17 @@ export function apoyarSobre<T extends Bloque | Esfera>(c: T, b: Bloque): T {
 
 /** Apoya el cuerpo sobre la superficie: lo lleva hasta tocarla y, si es un bloque, lo deja paralelo a ella. */
 export function apoyarEn<T extends Bloque | Esfera>(c: T, s: Superficie): T {
+  if (arcoDe(s)) {
+    // En una curva: sobre el punto más cercano, del lado donde está, con la normal y la tangente de ese punto.
+    const mc = marcoTramo(s, c.centro);
+    const lado = mc.d >= 0 ? 1 : -1;
+    const q = puntoEnTramo(s, Math.min(Math.max(mc.u / mc.largo, 0), 1));
+    const { n, t } = marcoTramo(s, q);
+    const h = c.tipo === 'esfera' ? c.radio : c.alto / 2;
+    const centro = pt({ x: q.x + n.x * lado * h, y: q.y + n.y * lado * h });
+    if (c.tipo === 'esfera') return { ...c, centro };
+    return { ...c, centro, angulo: redondear(Math.atan2(t.y, t.x)) };
+  }
   const l = largoSegmento(s.a, s.b);
   const n = normalSuperficie(s);
   const t = { x: (s.b.x - s.a.x) / l, y: (s.b.y - s.a.y) / l };

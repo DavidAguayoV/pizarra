@@ -558,6 +558,12 @@ export class Entrada {
         return arrastro
           ? crearSuperficie(a, b, { id, relleno: 'cuna' })
           : crearSuperficie({ x: a.x - 1.5, y: a.y - 0.87 }, { x: a.x + 1.5, y: a.y + 0.87 }, { id, relleno: 'cuna' });
+      case 'curva':
+        // Arrastrando: un cuarto de circunferencia de a a b (antihoraria: de izquierda a derecha es un valle; de arriba
+        // hacia abajo, una rampa cóncava). Con un toque: un valle de 3 m de ancho (media circunferencia).
+        return arrastro
+          ? { ...crearSuperficie(a, b, { id }), barrido: Math.PI / 2 }
+          : { ...crearSuperficie({ x: a.x - 1.5, y: a.y + 1.5 }, { x: a.x + 1.5, y: a.y + 1.5 }, { id }), barrido: Math.PI };
       case 'cuerda':
         return arrastro ? crearCuerda(a, b, { id }) : crearCuerda({ x: a.x - 1, y: a.y }, { x: a.x + 1, y: a.y }, { id });
       case 'resorte':

@@ -1,4 +1,5 @@
 import type { Punto } from '../core/camara';
+import { arcoDe, muestrasTramo } from '../physics/curvas';
 import { claveColor, colorDeTinta, PALETA_EXPORTACION } from '../core/colores';
 import type { Bloque, ColorTinta, Ejes, Elemento, Esfera, Imagen, Linea, Polea, Resorte, Superficie, Texto, Tramo, Trazo, Vector } from '../core/elementos';
 import { COLORES_RESALTADOR, COLORES_TINTA, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
@@ -330,15 +331,18 @@ function esferaTikz(s: Esfera, escala: number, P: (p: Punto) => string, grosorPt
 function superficieTikz(s: Superficie, escala: number, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
   const col = nombreColor(s.color);
   const out: string[] = [];
-  if (s.relleno === 'cuna') {
+  const curva = arcoDe(s) !== null;
+  if (s.relleno === 'cuna' && !curva) {
     const [a, b, c] = trianguloCuna(s);
     out.push(`  \\fill[pzcuerpo, opacity=0.5] ${P(a)} -- ${P(b)} -- ${P(c)} -- cycle;`);
     out.push(`  \\draw[${col}, ${grosorPt(s.grosor * 0.6)}, line join=round] ${P(b)} -- ${P(c)} -- ${P(a)};`);
-  } else if (s.relleno === 'achurado') {
+  } else if (s.relleno === 'achurado' || (s.relleno === 'cuna' && curva)) {
     const rayas = achurado(s).map(([d, h]) => `${P(d)} -- ${P(h)}`).join(' ');
     if (rayas) out.push(`  \\draw[${col}, ${grosorPt(s.grosor * 0.5)}] ${rayas};`);
   }
-  out.push(`  \\draw[${col}, ${grosorPt(s.grosor)}, line cap=round] ${P(s.a)} -- ${P(s.b)};`);
+  // Una curva se escribe como una poligonal fina (cada 10 cm), que TikZ dibuja suave con line join=round.
+  if (curva) out.push(`  \\draw[${col}, ${grosorPt(s.grosor)}, line cap=round, line join=round] ${muestrasTramo(s, 0.1).map(P).join(' -- ')};`);
+  else out.push(`  \\draw[${col}, ${grosorPt(s.grosor)}, line cap=round] ${P(s.a)} -- ${P(s.b)};`);
   const roce = etiquetaRoce(s);
   if (roce) out.push(...nodoEtiqueta(anclarCaja(roce.fuente, roce.centro, 0.17), col, escala, P));
   return out;

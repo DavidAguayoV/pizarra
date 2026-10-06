@@ -1,6 +1,7 @@
 import type { Punto } from '../core/camara';
 import type { Bloque, Ejes, Elemento, Esfera, Polea, Vector } from '../core/elementos';
 import { esquinasBloque, extremosEjes } from '../core/elementos';
+import { arcoDe, barridoPorPunto, medioTramo } from './curvas';
 
 /**
  * Asas de edición: los puntos que se arrastran para modificar un elemento.
@@ -8,7 +9,7 @@ import { esquinasBloque, extremosEjes } from '../core/elementos';
  * Las demás figuras se mueven enteras.
  */
 
-export type NombreAsa = 'a' | 'b' | 'origen' | 'x' | 'y' | 'rotar' | 'tam' | 'radio';
+export type NombreAsa = 'a' | 'b' | 'origen' | 'x' | 'y' | 'rotar' | 'tam' | 'radio' | 'curva';
 
 export interface Asa {
   nombre: NombreAsa;
@@ -33,6 +34,8 @@ export function asasDe(e: Elemento): Asa[] {
       ];
     }
     case 'superficie':
+      // Una superficie curva tiene además el asa del medio, que cambia cuánto se curva.
+      return [{ nombre: 'a', p: e.a }, { nombre: 'b', p: e.b }, ...(arcoDe(e) ? [{ nombre: 'curva' as const, p: medioTramo(e) }] : [])];
     case 'cuerda':
     case 'resorte':
       return [
@@ -89,6 +92,14 @@ export function moverAsa(e: Elemento, asa: NombreAsa, p: Punto, ajustar = false)
       if (asa === 'y') angulo -= Math.PI / 2;
       return { ...ej, angulo: redondear(angulo), largo: redondear(largo) };
     }
+  }
+  if (e.tipo === 'superficie' && asa === 'curva') {
+    // El arco pasa por el asa (con Mayús, de 15° en 15°); casi recta, queda recta.
+    let beta = barridoPorPunto(e.a, e.b, p);
+    if (ajustar) beta = Math.round(beta / PASO_ANGULO) * PASO_ANGULO;
+    const { barrido: _, ...recta } = e;
+    void _;
+    return Math.abs(beta) < 1e-3 ? recta : { ...e, barrido: redondear(beta) };
   }
   if (e.tipo === 'superficie' || e.tipo === 'cuerda' || e.tipo === 'resorte') {
     if (asa === 'a') return { ...e, a: pt(ajustar ? ajustarAngulo(e.b, p) : p) };

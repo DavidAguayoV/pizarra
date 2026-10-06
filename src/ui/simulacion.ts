@@ -6,7 +6,7 @@ import { numeroEs } from '../physics/vectores';
 import { copiarTexto, descargarTexto } from '../export/descarga';
 import { elementosAnimados } from '../sim/animacion';
 import type { Analitica } from '../sim/analitico';
-import { errorMaximo, solucionAnalitica } from '../sim/analitico';
+import { analiticaVigente, errorMaximo, solucionAnalitica } from '../sim/analitico';
 import { validar } from '../grafo/validar';
 import { construirModelo } from '../sim/modelo';
 import { Simulacion } from '../sim/motor';
@@ -451,7 +451,7 @@ export class PanelSimulacion {
     const ctx = this.lienzo.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const g = graficoDe(sim, this.indice, this.campo, this.chkAnalitica.checked ? this.analitica : null);
+    const g = graficoDe(sim, this.indice, this.campo, this.chkAnalitica.checked && this.analitica ? analiticaVigente(sim, this.indice, this.analitica) : null);
     dibujarGrafico(ctx, w, h, g, { paleta: PALETAS[temaActual()], tActual: sim.estado.t });
   }
 
@@ -462,9 +462,10 @@ export class PanelSimulacion {
       this.compara.textContent = 'No hay solución analítica para esta escena (con cuerdas, roce en resortes o varios resortes); la simulación sigue siendo válida.';
       return;
     }
-    const err = errorMaximo(sim, this.indice, this.analitica);
-    const hasta = Number.isFinite(this.analitica.validoHasta) ? ` (vale hasta t = ${numeroEs(this.analitica.validoHasta)} s)` : '';
-    this.compara.textContent = `${this.analitica.descripcion}${hasta}. Diferencia máxima con la simulación: ${err.posicion.toExponential(1).replace('.', ',')} m en posición, ${err.velocidad.toExponential(1).replace('.', ',')} m/s en velocidad.`;
+    const an = analiticaVigente(sim, this.indice, this.analitica);
+    const err = errorMaximo(sim, this.indice, an);
+    const hasta = Number.isFinite(an.validoHasta) ? ` (vale hasta t = ${numeroEs(an.validoHasta)} s)` : '';
+    this.compara.textContent = `${an.descripcion}${hasta}. Diferencia máxima con la simulación: ${err.posicion.toExponential(1).replace('.', ',')} m en posición, ${err.velocidad.toExponential(1).replace('.', ',')} m/s en velocidad.`;
   }
 
   // -- exportación ------------------------------------------------------------------------------------------------------
@@ -482,7 +483,7 @@ export class PanelSimulacion {
 
   private async tikzGrafico(documento: boolean): Promise<void> {
     if (!this.sim) return;
-    const g = graficoDe(this.sim, this.indice, this.campo, this.chkAnalitica.checked ? this.analitica : null);
+    const g = graficoDe(this.sim, this.indice, this.campo, this.chkAnalitica.checked && this.analitica ? analiticaVigente(this.sim, this.indice, this.analitica) : null);
     const codigo = graficoATikz(g, { modo: documento ? 'documento' : 'fragmento' });
     if (documento) descargarTexto(`grafico-${this.campo}-${this.marca()}.tex`, codigo, 'application/x-tex');
     else this.host.avisar((await copiarTexto(codigo)) ? 'TikZ del gráfico copiado (requiere pgfplots).' : 'No se pudo copiar; usa "Descargar .tex".');

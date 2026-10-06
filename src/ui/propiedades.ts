@@ -1,4 +1,5 @@
 import type { Bloque, Ejes, Elemento, Esfera, Cuerda, Polea, Resorte, Superficie, Vector } from '../core/elementos';
+import { arcoDe, BARRIDO_MAXIMO, BARRIDO_MINIMO } from '../physics/curvas';
 import type { Alineacion, Distribucion } from '../grafo/disponer';
 import { alinear, desplazamientoCopia, distribuir, duplicar, rotar } from '../grafo/disponer';
 import { cajaDe, unirCajas } from '../core/elementos';
@@ -429,6 +430,33 @@ export class PanelPropiedades {
           return { ...s, b: { x: Math.round((s.a.x + l * Math.cos(ang)) * 1e4) / 1e4, y: Math.round((s.a.y + l * Math.sin(ang)) * 1e4) / 1e4 } };
         }), 'Inclinación de la superficie')),
     );
+    // Curvatura: el ángulo que barre el arco (0 = recta; positivo, un valle si va de izquierda a derecha; negativo, una
+    // loma). Con curvatura aparece el asa del medio para ajustarla arrastrando.
+    const arco = arcoDe(s0);
+    e.append(
+      campo('Curvatura (°): 0 recta, + valle, − loma', numerico(Math.round(((s0.barrido ?? 0) * 180) / Math.PI), '15', (x) =>
+        cambiar((s) => {
+          const beta = Math.max(-BARRIDO_MAXIMO, Math.min(BARRIDO_MAXIMO, (x * Math.PI) / 180));
+          const { barrido: _, ...recta } = s;
+          void _;
+          return Math.abs(beta) < BARRIDO_MINIMO ? recta : { ...s, barrido: Math.round(beta * 1e4) / 1e4 };
+        }), 'Curvatura de la superficie')),
+    );
+    e.append(
+      interruptor('Solo por un lado (pista)', s0.unLado === true, (v) =>
+        cambiar((s) => {
+          const { unLado: _, ...resto } = s;
+          void _;
+          return v ? { ...resto, unLado: true } : resto;
+        }),
+      ),
+    );
+    if (arco) {
+      const info = document.createElement('p');
+      info.className = 'nota';
+      info.textContent = `Arco de radio ${numeroEs(Math.round(arco.r * 100) / 100)} m y ${numeroEs(Math.round(arco.largo * 100) / 100)} m de largo. Arrastra el punto del medio para curvarla más o menos.`;
+      e.append(info);
+    }
     const rel = document.createElement('select');
     rel.setAttribute('aria-label', 'Relleno de la superficie');
     for (const [v, t] of [['achurado', 'Achurado'], ['cuna', 'Cuña (plano inclinado)'], ['ninguno', 'Sin relleno']] as const) rel.append(new Option(t, v, false, s0.relleno === v));
@@ -437,7 +465,8 @@ export class PanelPropiedades {
     const nota = document.createElement('p');
     nota.className = 'nota';
     nota.textContent = 'El lado sólido está a la derecha de a → b. Para pasarlo al otro lado, invierte la superficie.';
-    e.append(nota, boton('Invertir lado', 'Intercambia los extremos', () => cambiar((s) => ({ ...s, a: s.b, b: s.a }))));
+    // Invertir una curva es recorrerla al revés: el mismo arco con el barrido opuesto (el lado sólido cambia).
+    e.append(nota, boton('Invertir lado', 'Intercambia los extremos', () => cambiar((s) => ({ ...s, a: s.b, b: s.a, ...(s.barrido ? { barrido: -s.barrido } : {}) }))));
     e.append(boton('Borrar superficie', 'Suprimir', () => this.host.editar({ borrar: [s0.id] })));
   }
 

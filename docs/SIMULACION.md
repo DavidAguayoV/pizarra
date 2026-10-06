@@ -32,6 +32,8 @@ su ángulo (momento de inercia `m (a² + b²)/12` en un bloque, `2/5 m r²` en u
 | Polea con masa (Fase 3) | disco de masa M (`½ M r²`), fija: la cuerda no desliza sobre ella y cada lado tiene su tensión (T₁ ≠ T₂) |
 | Otro cuerpo (Fase 3) | contacto entre cuerpos: normal `N ≥ 0` y roce con el **mayor** μ del par (μ «con cuerpos» de cada uno); el que se suelta sobre un bloque parte apoyado en él |
 | Choque (Fase 3) | impulso con coeficiente de restitución `e` (panel de simulación; 0 = quedan juntos) |
+| Superficie curva | arco de circunferencia (`barrido`); normal y tangente del punto bajo el cuerpo, γ centrípeto; [ADR 0013](decisiones/0013-superficies-curvas-y-cambio-de-superficie.md) |
+| Cambio de superficie | el cuerpo apoyado que llega a otra pasa a ella (o queda en la esquina, con dos normales); al salir por un extremo sigue en la que toca |
 
 Todas las relaciones se **leen del grafo** de la escena (`grafo/lector.ts`, [ADR 0008](decisiones/0008-modelo-de-grafo.md)): un
 extremo **suelto** no ejerce fuerza, y lo que no se puede usar aparece en el panel como **problema de la escena**
@@ -76,6 +78,7 @@ que es exacta para aceleración constante) y la integración continúa desde ah�
 | Choque | dos cuerpos se tocan: impulso en el instante exacto (con `e`); si no rebotan, quedan en contacto («m₂ cae sobre m₁») |
 | Rebote | con `e > 0`, contra otro cuerpo o contra una superficie |
 | Se separan / cae por el borde | la normal entre dos cuerpos se haría negativa / el centro del de arriba sale de la cara del de abajo |
+| Pasa a la otra superficie | del plano al piso, del piso a la rampa o al loop, de un tramo al siguiente; o queda en una esquina |
 
 ### Energía
 
@@ -93,6 +96,8 @@ código de la Etapa 5: coinciden con error < 1e-7. Las únicas diferencias son *
 * un cuerpo que **aterriza deslizando** sobre un piso sin roce quedaba clavado en el punto de impacto (se le aplicaba el roce estático
   aunque se moviera a lo largo de la superficie); ahora sigue deslizando;
 * (Fase 3) en *bloques apilados* el bloque de arriba **atravesaba** al de abajo: los cuerpos no se tocaban. Ahora se apoya en él.
+* en *esquina piso-pared* el bloque empujado contra la pared la **atravesaba**: un cuerpo apoyado no veía otras superficies. Ahora queda
+  en la esquina, con la normal del piso y la de la pared (ADR 0013).
 
 ## Validación (contra soluciones analíticas)
 
@@ -118,6 +123,8 @@ código de la Etapa 5: coinciden con error < 1e-7. Las únicas diferencias son *
 | Atwood con polea de masa M (Fase 3) | `a = (m₂ − m₁) g /(m₁ + m₂ + M/2)`, `T₁ = m₁ (g + a)`, `T₂ = m₂ (g − a)`; E_mec conservada aunque los tramos se balanceen | < 1e-6 |
 | Bloque colgado de una esquina (Fase 3) | péndulo físico: E_mec conservada, la cuerda sigue en la esquina girada | < 1e-6 |
 | Bloque sobre bloque, tirando del de abajo (Fase 3) | juntos `a = F /(m₁ + m₂)`, `f = m₂ a`; si no alcanza μs, `a₂ = μk g`, `a₁ = (F − μk m₂ g)/m₁` | < 1e-5 |
+| Curvas | valle: T = 2π√((R − r)/g) desliza, 2π√(7(R − r)/(5g)) rueda; loop: con v₀² = 5gρ da la vuelta (N arriba = m(v²/ρ − g)), con 4gρ se despega a cos α = −2/3; loma: se despega a cos θ = 2/3 | < 1e-3 |
+| Cambio de superficie | plano → piso sin atravesarlo, piso → rampa, tramos seguidos sin pérdida, rampa → meseta, esquina con N de la pared = F | < 1e-6 |
 | Choques (Fase 3) | frontal elástico de masas iguales: intercambian velocidades; plástico: `v/2` y `ΔK` registrada; oblicuo elástico de esferas iguales: salen a 90°; pelota con `e = 0,8`: sube a `e² h` | < 1e-4 |
 
 ### Solución analítica en pantalla

@@ -1,4 +1,5 @@
 import type { Punto } from '../core/camara';
+import { arcoDe, marcoTramo, puntoEnTramo } from '../physics/curvas';
 import type { Elemento, Superficie, Union } from '../core/elementos';
 import type { LotePayload } from '../core/escena';
 import { aplicarLote } from '../core/escena';
@@ -21,6 +22,20 @@ const igual = (a: Punto, b: Punto): boolean => Math.abs(a.x - b.x) < 1e-9 && Mat
 
 /** El cuerpo, movido para que conserve su posición relativa a la superficie que cambió de lugar o de ángulo. */
 function seguirSuperficie<T extends Extract<Elemento, { tipo: 'bloque' | 'esfera' }>>(c: T, antes: Superficie, ahora: Superficie): T {
+  if (arcoDe(antes) || arcoDe(ahora)) {
+    // Con curvas: la misma fracción a lo largo y la misma distancia, con la normal y la tangente de cada punto.
+    const m0 = marcoTramo(antes, c.centro);
+    const f = Math.min(Math.max(m0.u / m0.largo, 0), 1);
+    const q1 = puntoEnTramo(ahora, f);
+    const q0 = puntoEnTramo(antes, f);
+    const k0 = marcoTramo(antes, q0);
+    const k1 = marcoTramo(ahora, q1);
+    const r4c = (n: number) => Math.round(n * 1e4) / 1e4;
+    const centro = { x: r4c(q1.x + k1.n.x * m0.d), y: r4c(q1.y + k1.n.y * m0.d) };
+    if (c.tipo === 'esfera') return { ...c, centro };
+    const giroC = Math.atan2(k1.t.y, k1.t.x) - Math.atan2(k0.t.y, k0.t.x);
+    return { ...c, centro, angulo: r4c(c.angulo + giroC) };
+  }
   const l0 = Math.hypot(antes.b.x - antes.a.x, antes.b.y - antes.a.y) || 1;
   const l1 = Math.hypot(ahora.b.x - ahora.a.x, ahora.b.y - ahora.a.y) || 1;
   const t0 = { x: (antes.b.x - antes.a.x) / l0, y: (antes.b.y - antes.a.y) / l0 };

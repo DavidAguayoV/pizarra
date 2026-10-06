@@ -1,4 +1,5 @@
 import type { Camara, Punto, Vista } from '../core/camara';
+import { arcoDe, muestrasTramo } from '../physics/curvas';
 import { pantallaAMundo } from '../core/camara';
 import { colorDeElemento } from '../core/colores';
 import type { Bloque, Caja2D, Ejes, Elemento, Esfera, Imagen, Polea, Resorte, Superficie, Trazo, Vector } from '../core/elementos';
@@ -467,7 +468,8 @@ function radioGiro(ctx: CanvasRenderingContext2D, c: Punto, r: number, giro: num
 function dibujarSuperficie(ctx: CanvasRenderingContext2D, s: Superficie, op: OpcionesDibujo): void {
   const roce = etiquetaRoce(s);
   if (roce) etiqueta(ctx, anclarCaja(roce.fuente, roce.centro, 0.17));
-  if (s.relleno === 'cuna') {
+  const curva = arcoDe(s) !== null;
+  if (s.relleno === 'cuna' && !curva) {
     const [a, b, c] = trianguloCuna(s);
     ctx.save();
     ctx.globalAlpha = 0.5;
@@ -485,7 +487,7 @@ function dibujarSuperficie(ctx: CanvasRenderingContext2D, s: Superficie, op: Opc
     ctx.lineTo(c.x, c.y);
     ctx.lineTo(a.x, a.y);
     ctx.stroke();
-  } else if (s.relleno === 'achurado') {
+  } else if (s.relleno === 'achurado' || (s.relleno === 'cuna' && curva)) {
     ctx.lineWidth = Math.max(s.grosor * 0.5, 1 / op.escala);
     ctx.beginPath();
     for (const [d, h] of achurado(s)) {
@@ -496,8 +498,9 @@ function dibujarSuperficie(ctx: CanvasRenderingContext2D, s: Superficie, op: Opc
   }
   ctx.lineWidth = Math.max(s.grosor, 1.5 / op.escala);
   ctx.beginPath();
-  ctx.moveTo(s.a.x, s.a.y);
-  ctx.lineTo(s.b.x, s.b.y);
+  const pts = muestrasTramo(s);
+  ctx.moveTo(pts[0]!.x, pts[0]!.y);
+  for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
   ctx.stroke();
 }
 

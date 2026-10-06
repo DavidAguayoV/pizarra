@@ -90,6 +90,7 @@ export function solucionAnalitica(sim: Simulacion, i: number): Analitica | null 
       Fc = dot(F, e);
     } else {
       const s = m.superficies[modo.s]!;
+      if (s.arco) return null; // en una curva no es unidimensional
       if (Math.abs(dot(s.t, perp)) > 1e-6) return null; // la superficie debe ser paralela al resorte
       if (s.muK > 0 || s.muS > 0) return null; // con roce ya no es armónico simple
       Fc = dot(F, e);
@@ -128,6 +129,7 @@ export function solucionAnalitica(sim: Simulacion, i: number): Analitica | null 
   }
   // Sobre una superficie: movimiento a lo largo de ella con roce cinético constante
   const s = m.superficies[modo.s]!;
+  if (s.arco) return null; // en una curva la aceleración no es constante
   const nOut = { x: s.n.x * modo.lado, y: s.n.y * modo.lado };
   const N = -dot(F, nOut);
   if (N < 0) return null; // se despega: no hay solución sencilla
@@ -151,6 +153,15 @@ export function solucionAnalitica(sim: Simulacion, i: number): Analitica | null 
     vel: (t) => ({ x: s.t.x * (vt + at * t), y: s.t.y * (vt + at * t) }),
     validoHasta: hasta,
   };
+}
+
+/**
+ * La solución analítica con su validez al día: vale hasta el primer evento del cuerpo que ya ocurrió en la simulación
+ * (sale por el extremo, pasa a otra superficie, choca…), que al construirla todavía no se conocía.
+ */
+export function analiticaVigente(sim: Simulacion, i: number, an: Analitica): Analitica {
+  const t = primerEvento(sim.eventos, i);
+  return t < an.validoHasta ? { ...an, validoHasta: t } : an;
 }
 
 /** Diferencia máxima entre la simulación y la solución analítica (en metros) mientras esta es válida. */

@@ -4,6 +4,7 @@ import type { Bloque, Elemento, Esfera } from '../src/core/elementos';
 import { apoyarEn, crearBloque, crearEsfera, crearSuperficie } from '../src/physics/objetos';
 import { construirModelo } from '../src/sim/modelo';
 import { Simulacion } from '../src/sim/motor';
+import { analiticaVigente, errorMaximo, solucionAnalitica } from '../src/sim/analitico';
 
 const G = 9.8;
 const th = Math.PI / 6;
@@ -45,6 +46,20 @@ describe('pasar de una superficie a otra', () => {
     expect(Math.abs(s.energiaActual().residuo)).toBeLessThan(1e-6);
   });
 
+  it('la solución analítica (aceleración constante en el plano) vale solo hasta que pasa al piso', () => {
+    const { piso, plano } = cunaEnPiso();
+    const b0 = crearBloque({ x: 2 * Math.cos(th), y: 2 * Math.sin(th) + 0.3 }, 0.5, 0.4, { id: 'b', masa: 1 });
+    const b: Bloque = { ...apoyarEn(b0, plano as never), apoyo: ['plano'] };
+    const s = new Simulacion(construirModelo([piso, plano, b], G), { h: 0.001 });
+    const an = solucionAnalitica(s, 0)!;
+    expect(an.validoHasta).toBe(Infinity);
+    for (let k = 0; k < 1600; k++) s.paso();
+    const cambio = s.eventos.find((e) => e.tipo === 'cambia-superficie')!.t;
+    const vig = analiticaVigente(s, 0, an);
+    expect(vig.validoHasta).toBe(cambio);
+    expect(errorMaximo(s, 0, vig).posicion).toBeLessThan(1e-6);
+  });
+
   it('un bloque que desliza por el piso hacia la cuña sube por ella', () => {
     const { piso, plano } = cunaEnPiso();
     const b: Bloque = { ...crearBloque({ x: -2, y: 0.2 }, 0.5, 0.4, { id: 'b', masa: 1, v0: { x: 4, y: 0 } }), apoyo: ['piso'] };
@@ -79,5 +94,119 @@ describe('pasar de una superficie a otra', () => {
     expect(s.estado.modo[0]).toMatchObject({ k: 'desliza', s: 1 });
     expect(s.estado.p[0]!.y).toBeCloseTo(1.25, 9);
     expect(s.eventos.map((x) => x.tipo)).toContain('impacto');
+  });
+});
+
+describe('superficies curvas', () => {
+  const r = 0.25;
+
+  /** Valle: semicircunferencia de radio R con centro en (0, R); fondo en el origen. */
+  function valle(R: number, mu = 0): Elemento {
+    return { ...crearSuperficie({ x: -R, y: R }, { x: R, y: R }, { id: 'valle', muS: mu, muK: mu * 0.8 }), barrido: Math.PI };
+  }
+  /** Esfera apoyada dentro del valle, a un ángulo φ del fondo. */
+  function esferaEnValle(R: number, phi: number, extra: Partial<Esfera> = {}): Esfera {
+    const d = R - r;
+    const c = { x: d * Math.sin(phi), y: R - d * Math.cos(phi) };
+    const e = { ...crearEsfera(c, r, { id: 'e', masa: 1, ...extra }), apoyo: ['valle'] } as Esfera;
+    e.centro = c;
+    return e;
+  }
+
+  /** Período: tiempo entre el 1.º y el 3.º cruce del fondo (x pasa por 0). */
+  function periodo(s: Simulacion, t: number): number {
+    const cruces: number[] = [];
+    let xPrev = s.estado.p[0]!.x;
+    for (let k = 0; k < Math.round(t / 0.001); k++) {
+      s.paso();
+      const x = s.estado.p[0]!.x;
+      if (xPrev * x < 0) cruces.push(s.estado.t - (0.001 * x) / (x - xPrev));
+      xPrev = x;
+    }
+    return cruces[2]! - cruces[0]!;
+  }
+
+  it('una esfera que desliza en un valle oscila con T = 2π √((R − r)/g) (amplitud pequeña) y conserva la energía', () => {
+    const R = 2;
+    const s = new Simulacion(construirModelo([valle(R), esferaEnValle(R, 0.05)], G), { h: 0.001 });
+    expect(s.estado.modo[0]).toMatchObject({ k: 'desliza', s: 0 });
+    const T = periodo(s, 6);
+    expect(T).toBeCloseTo(2 * Math.PI * Math.sqrt((R - r) / G), 3);
+    expect(Math.abs(s.energiaActual().residuo)).toBeLessThan(1e-6);
+  });
+
+  it('si rueda sin deslizar, el período es 2π √(7 (R − r)/(5 g))', () => {
+    const R = 2;
+    const s = new Simulacion(construirModelo([valle(R, 0.5), esferaEnValle(R, 0.05, { gira: true })], G), { h: 0.001 });
+    const T = periodo(s, 6);
+    expect(T).toBeCloseTo(2 * Math.PI * Math.sqrt((7 * (R - r)) / (5 * G)), 3);
+    expect(Math.abs(s.energiaActual().residuo)).toBeLessThan(1e-6);
+  });
+
+  /** Loop de radio R con el fondo en el origen: arco antihorario de casi una vuelta que empieza en el fondo. */
+  function loop(R: number): Elemento {
+    const beta = 2 * Math.PI - 0.3;
+    const b = { x: R * Math.cos(-Math.PI / 2 + beta), y: R + R * Math.sin(-Math.PI / 2 + beta) };
+    return { ...crearSuperficie({ x: 0, y: 0 }, { x: 0, y: 0 }, { id: 'loop' }), b, barrido: beta };
+  }
+  function enElFondo(v0: number): Esfera {
+    const e = { ...crearEsfera({ x: 0, y: r }, r, { id: 'e', masa: 1, v0: { x: v0, y: 0 } }), apoyo: ['loop'] } as Esfera;
+    e.centro = { x: 0.0001, y: r };
+    return e;
+  }
+
+  it('loop: con v₀² = 5 g (R − r) + un poco da la vuelta; arriba N = m (v²/ρ − g) ≥ 0', () => {
+    const R = 1;
+    const rho = R - r;
+    const v0 = Math.sqrt(5 * G * rho) * 1.02;
+    const s = new Simulacion(construirModelo([loop(R), enElFondo(v0)], G), { h: 0.001 });
+    let arriba = false;
+    for (let k = 0; k < 1500 && !arriba; k++) {
+      s.paso();
+      if (s.estado.p[0]!.y > 2 * R - r - 1e-3 && Math.abs(s.estado.p[0]!.x) < 0.02) arriba = true;
+    }
+    expect(arriba).toBe(true);
+    expect(s.eventos.some((x) => x.tipo === 'despegue')).toBe(false);
+    const v = Math.hypot(s.estado.v[0]!.x, s.estado.v[0]!.y);
+    expect(s.estado.N[0]).toBeCloseTo(v * v / rho - G, 1);
+    expect(s.estado.N[0]).toBeGreaterThan(0);
+    expect(Math.abs(s.energiaActual().residuo)).toBeLessThan(1e-6);
+  });
+
+  it('loop: con v₀² = 4 g (R − r) se despega antes de llegar arriba (donde N = 0: cos θ = −2/3 … desde el fondo)', () => {
+    const R = 1;
+    const rho = R - r;
+    const s = new Simulacion(construirModelo([loop(R), enElFondo(Math.sqrt(4 * G * rho))], G), { h: 0.001 });
+    for (let k = 0; k < 1500 && !s.eventos.some((x) => x.tipo === 'despegue'); k++) s.paso();
+    expect(s.eventos.some((x) => x.tipo === 'despegue')).toBe(true);
+    // N = 0 cuando v² = −g ρ cos α (α desde el fondo): con v² = v₀² − 2 g ρ (1 − cos α) ⇒ cos α = −(v₀²/(gρ) − 2)/3 = −2/3
+    const altura = s.estado.p[0]!.y - r;
+    expect(altura / rho).toBeCloseTo(1 + 2 / 3, 2);
+  });
+
+  it('loma: partiendo casi quieta desde arriba, se despega a cos θ = 2/3 (bajó ρ/3)', () => {
+    const R = 2;
+    const loma = { ...crearSuperficie({ x: -R, y: 0 }, { x: R, y: 0 }, { id: 'loma' }), barrido: -Math.PI } as Elemento;
+    const rho = R + r;
+    const e = { ...crearEsfera({ x: 0, y: rho }, r, { id: 'e', masa: 1, v0: { x: 0.01, y: 0 } }), apoyo: ['loma'] } as Esfera;
+    e.centro = { x: 0, y: rho };
+    const s = new Simulacion(construirModelo([loma, e], G), { h: 0.001 });
+    expect(s.estado.modo[0]).toMatchObject({ k: 'desliza', s: 0 });
+    for (let k = 0; k < 4000 && !s.eventos.some((x) => x.tipo === 'despegue'); k++) s.paso();
+    expect(s.eventos.some((x) => x.tipo === 'despegue')).toBe(true);
+    expect(s.estado.p[0]!.y / rho).toBeCloseTo(2 / 3, 2);
+  });
+
+  it('un bloque que no gira desliza por el valle alineado con la curva', () => {
+    const R = 2;
+    const phi = 0.6;
+    const d = R - 0.2;
+    const b: Bloque = { ...crearBloque({ x: d * Math.sin(phi), y: R - d * Math.cos(phi) }, 0.5, 0.4, { id: 'b', masa: 1, angulo: phi }), apoyo: ['valle'] };
+    b.centro = { x: d * Math.sin(phi), y: R - d * Math.cos(phi) };
+    const s = simular([valle(R), b], 0.4);
+    const ang = Math.atan2(s.estado.p[0]!.x, R - s.estado.p[0]!.y); // ángulo desde el fondo
+    expect(s.estado.th[0]).toBeCloseTo(ang, 6);
+    expect(Math.hypot(s.estado.p[0]!.x, s.estado.p[0]!.y - R)).toBeCloseTo(d, 9);
+    expect(Math.abs(s.energiaActual().residuo)).toBeLessThan(1e-6);
   });
 });

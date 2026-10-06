@@ -1,4 +1,5 @@
 import { colorDeElemento, PALETA_EXPORTACION } from '../core/colores';
+import { arcoDe, muestrasTramo } from '../physics/curvas';
 import type { Bloque, Caja2D, Ejes, Elemento, Esfera, Polea, Resorte, Superficie, Trazo, Vector } from '../core/elementos';
 import { ASCENSO, cajaDe, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe, unirCajas } from '../core/elementos';
 import { componerLinea, matASvg } from '../core/matematica';
@@ -225,14 +226,18 @@ function esferaSvg(e: Esfera, c: string, paleta: PaletaTema, X: Conv, Y: Conv, L
 
 function superficieSvg(s: Superficie, c: string, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv): string {
   const partes: string[] = [];
-  if (s.relleno === 'cuna') {
+  const curva = arcoDe(s) !== null;
+  if (s.relleno === 'cuna' && !curva) {
     const t = trianguloCuna(s);
     partes.push(`<polygon points="${t.map((p) => `${X(p.x)},${Y(p.y)}`).join(' ')}" fill="${paleta.cuerpo}" fill-opacity="0.5" stroke="${c}" stroke-width="${L(s.grosor * 0.6)}" stroke-linejoin="round"/>`);
-  } else if (s.relleno === 'achurado') {
+  } else if (s.relleno === 'achurado' || (s.relleno === 'cuna' && curva)) {
     const d = achurado(s).map(([a, b]) => `M${X(a.x)} ${Y(a.y)} L${X(b.x)} ${Y(b.y)}`).join(' ');
     if (d) partes.push(`<path d="${d}" stroke="${c}" stroke-width="${L(s.grosor * 0.5)}" fill="none"/>`);
   }
-  partes.push(`<line x1="${X(s.a.x)}" y1="${Y(s.a.y)}" x2="${X(s.b.x)}" y2="${Y(s.b.y)}" stroke="${c}" stroke-width="${L(s.grosor)}" stroke-linecap="round"/>`);
+  if (curva) {
+    const pts = muestrasTramo(s).map((q) => `${X(q.x)},${Y(q.y)}`).join(' ');
+    partes.push(`<polyline points="${pts}" stroke="${c}" stroke-width="${L(s.grosor)}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`);
+  } else partes.push(`<line x1="${X(s.a.x)}" y1="${Y(s.a.y)}" x2="${X(s.b.x)}" y2="${Y(s.b.y)}" stroke="${c}" stroke-width="${L(s.grosor)}" stroke-linecap="round"/>`);
   const roce = etiquetaRoce(s);
   if (roce) partes.push(etiquetaSvg(anclarCaja(roce.fuente, roce.centro, 0.17), c, X, Y, L));
   return partes.join('\n');

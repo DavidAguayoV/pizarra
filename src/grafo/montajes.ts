@@ -210,6 +210,51 @@ export const MONTAJES: readonly Montaje[] = [
     },
   },
   {
+    id: 'loop',
+    nombre: 'Loop',
+    descripcion: 'Una esfera baja por una rampa curva y entra a un loop de 0,8 m de radio.',
+    crear(escena, op) {
+      // Rampa: cuarto de circunferencia de radio 2,5 tangente al piso; piso; loop de casi una vuelta que parte en el piso.
+      const rampa: Superficie = { ...crearSuperficie({ x: -5.5, y: 2.5 }, { x: -3, y: 0 }, roce(op)), barrido: Math.PI / 2 };
+      const piso = crearSuperficie({ x: -3, y: 0 }, { x: 0, y: 0 }, roce(op));
+      const RL = 0.8;
+      const beta = 2 * Math.PI - 0.3;
+      const fin = { x: r4(RL * Math.cos(-Math.PI / 2 + beta)), y: r4(RL + RL * Math.sin(-Math.PI / 2 + beta)) };
+      // Pista de un solo lado: quien llega por fuera (por el piso, de vuelta) la atraviesa, como en un loop real.
+      const loop: Superficie = { ...crearSuperficie({ x: 0, y: 0 }, { x: 0, y: 0 }, { relleno: 'ninguno', ...roce(op) }), b: fin, barrido: r4(beta), unLado: true };
+      // La esfera, apoyada en la rampa a 15° de su borde de arriba (su centro a 1,9 m de altura)
+      const ang = Math.PI + Math.PI / 12;
+      const c = { x: -3 + (2.5 - R) * Math.cos(ang), y: 2.5 + (2.5 - R) * Math.sin(ang) };
+      const esf: Esfera = { ...crearEsfera(c, R, { etiqueta: etiqueta(proximoIndice(escena)), masa: 1 }), apoyo: [rampa.id] };
+      esf.centro = { x: r4(c.x), y: r4(c.y) };
+      return [rampa, piso, loop, esf];
+    },
+  },
+  {
+    id: 'valle',
+    nombre: 'Valle (media cañería)',
+    descripcion: 'Una esfera que oscila dentro de una semicircunferencia de 2 m de radio.',
+    crear(escena, op) {
+      const valle: Superficie = { ...crearSuperficie({ x: -2, y: 2 }, { x: 2, y: 2 }, roce(op)), barrido: Math.PI };
+      const ang = -Math.PI / 2 - 0.7; // 40° del fondo, a la izquierda
+      const c = { x: (2 - R) * Math.cos(ang), y: 2 + (2 - R) * Math.sin(ang) };
+      const esf: Esfera = { ...crearEsfera(c, R, { etiqueta: etiqueta(proximoIndice(escena)), masa: 1 }), apoyo: [valle.id] };
+      esf.centro = { x: r4(c.x), y: r4(c.y) };
+      return [valle, esf];
+    },
+  },
+  {
+    id: 'loma',
+    nombre: 'Loma',
+    descripcion: 'Una esfera parte casi quieta en la cima de una loma de 2 m de radio: se despega al bajar.',
+    crear(escena, op) {
+      const piso = crearSuperficie({ x: -5, y: 0 }, { x: 5, y: 0 }, roce(op));
+      const loma: Superficie = { ...crearSuperficie({ x: -2, y: 0 }, { x: 2, y: 0 }, { relleno: 'ninguno', ...roce(op) }), barrido: -Math.PI };
+      const esf: Esfera = { ...crearEsfera({ x: 0, y: 2 + R }, R, { etiqueta: etiqueta(proximoIndice(escena)), masa: 1, v0: { x: 0.2, y: 0 } }), apoyo: [loma.id] };
+      return [piso, loma, esf];
+    },
+  },
+  {
     id: 'proyectil',
     nombre: 'Proyectil',
     descripcion: 'Una esfera lanzada desde el suelo a 5 m/s y 45°.',
