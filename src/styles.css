@@ -989,3 +989,57 @@ button.interruptor-roce[aria-pressed='true'] {
   border-style: solid;
   color: var(--fondo);
 }
+
+/* --- Montajes (Fase 4): escenas clásicas listas para simular ------------------------------------- */
+.menu-montajes > summary {
+  background: transparent;
+  color: var(--texto);
+  font-weight: 600;
+}
+.menu-montajes[open] > summary {
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+.menu-montajes .menu-caja {
+  width: min(22rem, 92vw);
+  gap: 6px;
+}
+.menu-montajes button.montaje {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: 6px 10px;
+  text-align: left;
+  white-space: normal;
+  background: var(--fondo);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+}
+.menu-montajes button.montaje span {
+  font-size: 0.82rem;
+  color: var(--pz-texto-suave);
+  font-weight: 400;
+}
+.menu-montajes button.montaje:hover,
+.menu-montajes button.montaje:focus-visible {
+  border-color: var(--acento);
+}
+@media (max-width: 700px) {
+  /* La tira de herramientas se desplaza de lado y recortaría el menú: se abre como hoja fija sobre la barra. */
+  .barra .menu-montajes .menu-caja {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    top: auto;
+    bottom: calc(104px + env(safe-area-inset-bottom));
+    max-height: 55vh;
+    overflow: auto;
+  }
+  .barra .menu-montajes > summary {
+    flex: none;
+    white-space: nowrap;
+  }
+}

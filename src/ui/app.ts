@@ -28,6 +28,7 @@ import type { LotePayload } from '../core/escena';
 import type { ConexionPendiente, Marca } from '../grafo/conectar';
 import { apoyar, conectarNuevo, IMAN_PX, IMAN_TACTIL_PX, iman, marcasDeConexion, marcasDeUnion, PASO_PX, PASO_TACTIL_PX, regionDePaso, toque } from '../grafo/conectar';
 import { crearCuerda, crearResorte, ROCE_POR_DEFECTO } from '../physics/objetos';
+import { crearMontaje, MONTAJES } from '../grafo/montajes';
 import { loteVacio, prepararLote } from '../grafo/integridad';
 import { dependientes, resolverElemento, resolverEscena, sinDerivados } from '../grafo/resolver';
 import type { TipoObjeto } from '../physics/objetos';
@@ -158,6 +159,32 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   bRoce.classList.add('interruptor-roce');
   const filaArmar = filasHerr.get('armar')!;
   filaArmar.querySelector('[data-herramienta="objeto:plano"]')?.after(bRoce);
+  // «Montajes» (Armar): escenas clásicas ya conectadas, listas para simular; se agregan en el centro de la vista.
+  const menuMontajes = document.createElement('details');
+  menuMontajes.className = 'menu menu-montajes';
+  const resumenMontajes = document.createElement('summary');
+  resumenMontajes.textContent = 'Montajes';
+  resumenMontajes.title = 'Escenas clásicas listas para simular';
+  const cajaMontajes = document.createElement('div');
+  cajaMontajes.className = 'menu-caja';
+  for (const m of MONTAJES) {
+    const b = boton('', m.descripcion, () => {
+      menuMontajes.open = false;
+      const nuevos = crearMontaje(m.id, { x: L.camara.cx, y: L.camara.cy }, store.estado.elementos, { conRoce });
+      emitirLote({ agregar: nuevos });
+      avisar(`${m.nombre}: listo. Simular lo pone en movimiento.`);
+    });
+    b.classList.add('montaje');
+    b.dataset['montaje'] = m.id;
+    const nombre = document.createElement('strong');
+    nombre.textContent = m.nombre;
+    const desc = document.createElement('span');
+    desc.textContent = m.descripcion;
+    b.append(nombre, desc);
+    cajaMontajes.append(b);
+  }
+  menuMontajes.append(resumenMontajes, cajaMontajes);
+  filaArmar.querySelector('[data-herramienta="seleccionar"]')?.after(menuMontajes);
   const botonesModo = new Map<Modo, HTMLButtonElement>();
   for (const m of MODOS) {
     const b = botonIcono(m.icono, m.etiqueta, `Modo ${m.etiqueta}`, () => elegirModo(m.clave));
