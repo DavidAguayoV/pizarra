@@ -32,7 +32,7 @@ const VELOCIDADES = [0.1, 0.25, 0.5, 1, 2, 4] as const;
 const T_MAX = 600;
 const PERIODO_GRAFICOS_MS = 40;
 const PERIODO_TABLA_MS = 250;
-const sinMarcas = (s: string): string => s.replace(/\$/g, '').replace(/\\/g, '');
+import { sinMarcas } from './problemas';
 
 function boton(texto: string, titulo: string, onClick: () => void): HTMLButtonElement {
   const b = document.createElement('button');

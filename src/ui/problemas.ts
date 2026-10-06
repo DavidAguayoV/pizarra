@@ -7,7 +7,8 @@ import { validar } from '../grafo/validar';
 /**
  * Menú «Problemas de la escena» (Nivel 2): un aviso en la barra con la cantidad, que se despliega en la lista de
  * problemas con su botón *Arreglar* (cuando hay un arreglo automático) y *Mostrar* (selecciona los elementos).
- * Se oculta cuando no hay problemas. «Sin cuerpos» no se muestra aquí: una pizarra sin física no es un problema.
+ * Se oculta cuando no hay problemas. «Sin cuerpos» y «polea sin cuerda» no se muestran aquí (aparecerían a cada
+ * rato mientras se arma un montaje); siguen en el panel de simulación.
  */
 
 export interface AnfitrionProblemas {
@@ -26,7 +27,13 @@ const ARREGLO: Record<NonNullable<Problema['arreglo']>, string> = {
 };
 
 /** Texto para la interfaz: sin las marcas de LaTeX de las etiquetas (`$m_1$` → `m_1`). */
-export const sinMarcas = (s: string): string => s.replace(/\$/g, '').replace(/\\/g, '');
+export const sinMarcas = (s: string): string =>
+  s
+    .replace(/\$/g, '')
+    .replace(/_\{?(\d+)\}?/g, (_, d: string) => [...d].map((c) => SUBINDICES[c] ?? c).join(''))
+    .replace(/\\/g, '');
+
+const SUBINDICES: Readonly<Record<string, string>> = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉' };
 
 export class MenuProblemas {
   readonly elemento = document.createElement('details');
@@ -55,7 +62,7 @@ export class MenuProblemas {
 
   /** Vuelve a validar la escena (llamar en cada cambio). */
   actualizar(): void {
-    const ps = validar(this.host.elementos()).filter((p) => p.tipo !== 'sin-cuerpos');
+    const ps = validar(this.host.elementos()).filter((p) => p.tipo !== 'sin-cuerpos' && p.tipo !== 'polea-sin-cuerda');
     const huella = JSON.stringify(ps);
     if (huella === this.huella) return;
     this.huella = huella;

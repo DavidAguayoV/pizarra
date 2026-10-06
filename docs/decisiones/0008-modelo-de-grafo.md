@@ -38,7 +38,7 @@ distintas y que no había forma de pasar una cuerda por una polea con un gesto.
 `grafo/conectar.ts` le asigna sus uniones con las **mismas distancias de la v1**: dibujar funciona como antes, pero el resultado
 queda **guardado y a la vista** (marcas en los extremos: punto = unido, triángulo = fijo, círculo = suelto). Dos cuerdas dibujadas
 hasta la misma polea se funden en una que la **envuelve de verdad** (sentido según el dibujo). En la Fase 2 este módulo se
-reemplaza por los imanes.
+reemplaza por los imanes. *(Hecho: [ADR 0009](0009-modos-e-imanes.md).)*
 
 **Alternativas.** (a) Seguir deduciendo con mejores heurísticas: no resuelve el problema de fondo (lo que se ve puede no ser lo que se
 simula). (b) Aristas como elementos aparte (`Union` como elemento): duplicaría la integridad referencial sin beneficio, porque una

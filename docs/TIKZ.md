@@ -52,6 +52,7 @@ descargan aparte: hay que dejarlas junto al `.tex`.
 | Superficie | Línea gruesa; achurado como rayitas en un solo `\draw`; la **cuña** del plano inclinado como `\fill[pzcuerpo, opacity=0.5]` más su contorno. |
 | Polea | Disco, circunferencia interior y punto central. |
 | Cuerda | `\draw ... -- ...;` y, si pasa por poleas, un solo trazado con sus tramos tangentes y `arc[start angle=…, end angle=…, radius=…]` en cada polea (Nivel 2) |
+| Polea móvil | La polea y su horquilla: `\draw ... (centro) -- (cara superior del cuerpo);` |
 | Resorte | Línea quebrada explícita (zigzag): no necesita la biblioteca `decorations`. |
 
 Los colores `pzcuerpo` y `pzborde` (relleno y contorno de los cuerpos, tomados del tema claro) se definen solo si hay cuerpos que los usen.

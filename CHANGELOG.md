@@ -1,5 +1,30 @@
 # Cambios
 
+## Nivel 2, Fase 2 — Menú por modos, imanes y cuerda por poleas en un gesto (2026-10-05)
+
+Decisión: [ADR 0009](docs/decisiones/0009-modos-e-imanes.md). Responde a lo que David pidió al probar la Fase 1.
+
+### Agregado
+- **Barra por modos**: Dibujar, Armar, Conectar y Simular, cada uno con sus herramientas. En el celular la barra va **abajo** y el
+  lienzo ocupa el **87 %** de la pantalla (antes, el 33 %); Rehacer, Exportar y Compartir pasan al menú *Más*.
+- **Piezas de tamaño fijo**: bloque, esfera y polea se colocan con un toque y se mueven arrastrándolas; el tamaño se cambia en su panel.
+  Los cuerpos nuevos se numeran solos (m₁ = 2 kg, m₂ = 3 kg…).
+- **Imanes visibles**: al conectar se marcan los puertos cercanos y el que se usará; radio fijo en pantalla (24 px), igual con cualquier
+  zoom y con el dedo. Las asas de los extremos también se pegan.
+- **Cuerda en un solo gesto** que envuelve cada polea por la que pasa (según el lado) y dobla en el **borde de una mesa**.
+- **Lo que cuelga cae vertical**: al unir, un cuerpo que cuelga de una polea se alinea bajo su tangente (hasta 25°).
+- **⚠ Problemas de la escena** en la barra, con **Arreglar**: tramo inclinado (oscilaría como un péndulo), tramo no paralelo al plano
+  (mueve la polea), cuerpos superpuestos, extremo suelto, apoyo lejano.
+- **Polea móvil** (una polea soltada sobre un cuerpo queda montada) y su horquilla en pantalla, SVG y TikZ.
+- La simulación se **detiene** con un evento cuando un cuerpo llega a la polea.
+- Verificado contra la teoría: polea móvil, mesa con borde sin polea; e2e de aceptación: **Atwood en un celular en 8 acciones** con un
+  solo gesto para la cuerda y la T de la teoría. 375 pruebas unitarias y 49 e2e.
+
+### Cambiado
+- Atajos de teclado de los objetos: Bloque K, Esfera E, Polea Y, Superficie U, Plano I, Cuerda C, Resorte Z.
+- La polea ya no tiene asa de radio; el bloque por defecto mide 0,5 × 0,4 m (antes 0,9 × 0,6, y dos se superponían).
+- Una superficie atrae extremos con la mitad del radio del imán (para no pegar un resorte que se dibuja a ras del piso).
+
 ## Nivel 2, Fase 1 — Modelo de grafo y migración (2026-10-05)
 
 Auditoría previa y decisiones: [docs/AUDITORIA_NIVEL2.md](docs/AUDITORIA_NIVEL2.md). Decisión: [ADR 0008](docs/decisiones/0008-modelo-de-grafo.md).

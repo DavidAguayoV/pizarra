@@ -25,6 +25,8 @@ Cada bloque o esfera es una **partícula** (con orientación fija: no gira). Act
 | Resorte | `k (largo − largo natural)` a lo largo del resorte, entre sus dos extremos unidos (cuerpo–cuerpo o cuerpo–punto fijo) |
 | Cuerda | restricción de largo constante entre dos extremos (cuerpo–cuerpo o cuerpo–punto fijo); ideal: sin masa e inextensible |
 | Cuerda que pasa por poleas | una sola cuerda con su **ruta**: el largo es el del camino tangente a las poleas más los arcos de contacto, y cada extremo tira en la dirección de su tramo tangente. Las poleas son fijas, sin masa ni roce. (Un proyecto v1 conserva los puntos de paso que tenía: `|A − P₁| + |B − P₂|`.) |
+| Polea móvil | una polea **montada** sobre un cuerpo: su centro se mueve con él; el cuerpo siente la tensión de los dos tramos (gradiente del largo respecto del centro, `e_entra − e_sale`) |
+| Borde de mesa | la cuerda dobla en el extremo de una superficie (un punto, sin roce) |
 | Superficie | contacto unilateral (`N ≥ 0`) con roce estático y cinético de Coulomb; el cuerpo parte apoyado en la superficie de su `apoyo` |
 
 Todas las relaciones se **leen del grafo** de la escena (`grafo/lector.ts`, [ADR 0008](decisiones/0008-modelo-de-grafo.md)): un
@@ -63,6 +65,7 @@ que es exacta para aceleración constante) y la integración continúa desde ah�
 | Cambia de sentido | se detiene y vuelve (solo se registra si hay roce) |
 | Cuerda se afloja / se tensa | la tensión se haría negativa / la cuerda vuelve a su largo (el tirón disipa energía, que se registra) |
 | Resorte en su largo natural | la elongación cambia de signo |
+| Llega a la polea | un cuerpo alcanza la polea por la que pasa su cuerda: la simulación se **detiene** (todavía no hay choques) |
 
 ### Energía
 
@@ -97,6 +100,8 @@ código de la Etapa 5: coinciden con error < 1e-7. Las únicas diferencias son *
 | Péndulo lanzado desde abajo con `v² = 3 g L` | la cuerda se afloja, el cuerpo vuela y se tensa de nuevo; balance de energía | < 1e-6 |
 | Mesa → suelo | sale por el borde a `v₀`, aterriza a `v₀ √(2h/g)` | < 1e-2 |
 | Atwood **dibujado** (cuerda que envuelve la polea, Nivel 2) | `a = (m₁ − m₂) g /(m₁ + m₂)`, `T = 2 m₁ m₂ g /(m₁ + m₂)`, sin aceleración lateral aunque la cuerda termine en el centro de la polea | < 1e-6 |
+| Polea móvil (Fase 2) | `a₂ = (2m₁ − m₂) g /(4m₁ + m₂)`, `a₁ = 2 a₂`, `T = m₁ (g − a₁)`; equilibrio con `m₂ = 2 m₁`; E_mec conservada | < 1e-5 |
+| Mesa con roce + borde, sin polea (Fase 2) | `a = (m₂ − μk m₁) g /(m₁ + m₂)`, `T = m₂ (g − a)` | < 1e-5 |
 | Plano 30° + polea en la arista + colgante (envoltura) | `a = (m₂ g − m₁ g sen θ − μk m₁ g cos θ)/(m₁ + m₂)`, `T = m₂ (g − a)` | < 5e-4 (coordenadas a 0,1 mm) |
 
 ### Solución analítica en pantalla

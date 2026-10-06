@@ -852,3 +852,12 @@ button.con-icono .ico,
     font-size: 0.85rem;
   }
 }
+
+/* Dentro del menú Más (celular), Exportar se despliega en el mismo lugar, no como otro menú flotante. */
+.menu-mas .menu .menu-caja {
+  position: static;
+  min-width: 0;
+  max-height: none;
+  padding: 8px 0 0;
+  border: none;
+}

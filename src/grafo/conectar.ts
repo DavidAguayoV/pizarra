@@ -84,7 +84,9 @@ export function iman(p: Punto, escena: readonly Elemento[], radio: number, exclu
     } else if (e.tipo === 'superficie') {
       const { d: ds, t } = distSegmento(p, e.a, e.b);
       const u = r4(t);
-      proponer({ x: e.a.x + (e.b.x - e.a.x) * u, y: e.a.y + (e.b.y - e.a.y) * u }, e.id, `u:${u}`, ds + 2e-9);
+      // Una superficie atrae con la mitad del radio: hay que apuntarle (si no, un resorte dibujado a ras del piso
+      // se pegaría al piso).
+      proponer({ x: e.a.x + (e.b.x - e.a.x) * u, y: e.a.y + (e.b.y - e.a.y) * u }, e.id, `u:${u}`, ds + 2e-9, radio / 2);
     }
   }
   return mejor;

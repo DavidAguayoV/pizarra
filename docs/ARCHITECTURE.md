@@ -41,8 +41,10 @@ elementos (ops)  ──completarV1──▶  completos  ──resolverEscena─�
   mover un extremo lo vuelve a unir). Toda edición de la app pasa por aquí: las consecuencias viajan en la misma op.
 - `grafo/v1.ts` (congelado) y `grafo/migracion.ts`: reglas de cercanía de la v1 para completar escenas antiguas; al abrir un
   archivo v1 se agrega una op `escena/migracion` que no se deshace (`TIPOS_NO_DESHACIBLES` en `core/ops.ts`).
-- `grafo/conectar.ts`: uniones al soltar un objeto (**provisorio** hasta los imanes de la Fase 2) y marcas de las uniones.
-- `grafo/validar.ts`: problemas de la escena, con el elemento y el arreglo posible.
+- `grafo/conectar.ts`: imanes (radio fijo en pantalla), regiones de paso para el gesto de la cuerda, alineación de lo que cuelga,
+  montaje de poleas móviles, numeración de cuerpos y las marcas de uniones y conexión. Decisión: [ADR 0009](decisiones/0009-modos-e-imanes.md).
+- `grafo/validar.ts` y `grafo/arreglos.ts`: problemas de la escena (con el elemento al que se refieren) y sus arreglos automáticos.
+- `ui/modos.ts` (barra por modos), `ui/problemas.ts` (menú de problemas con *Arreglar*).
 - Prueba de que nada cambió para los proyectos guardados: `tests/equivalencia-v1.test.ts` contra `tests/golden/v1-referencia.json`
   (grabado con el código de la Etapa 5).
 

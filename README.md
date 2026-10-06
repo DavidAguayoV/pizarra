@@ -4,33 +4,39 @@ Pizarra web para resolver problemas de física en clase: dibujo libre, sistema d
 
 Sitio: https://davidaguayov.github.io/pizarra/ (cuando el repositorio esté publicado).
 
-> **Estado:** Etapas 0–5 (pizarra, compartir en vivo, vectores, objetos y DCL, simulación) y **Nivel 2, Fase 1**: la escena es un grafo con uniones explícitas (las cuerdas siguen a los cuerpos y envuelven las poleas). Ver [CHANGELOG](CHANGELOG.md), la [auditoría del Nivel 2](docs/AUDITORIA_NIVEL2.md) y la hoja de ruta en [docs/PROMPT_MAESTRO.md](docs/PROMPT_MAESTRO.md).
+> **Estado:** Etapas 0–5 (pizarra, compartir en vivo, vectores, objetos y DCL, simulación) y **Nivel 2, Fases 1 y 2**: la escena es un grafo con uniones explícitas; barra por modos, imanes, cuerda por poleas en un gesto, polea móvil y problemas con arreglo. Ver [CHANGELOG](CHANGELOG.md), la [auditoría del Nivel 2](docs/AUDITORIA_NIVEL2.md) y la hoja de ruta en [docs/PROMPT_MAESTRO.md](docs/PROMPT_MAESTRO.md).
 
 ## Usarla en clase
 
-Herramientas (también con teclado):
+La barra tiene **cuatro modos**; cada uno muestra solo sus herramientas (en el celular, la barra va abajo):
 
-| Tecla | Herramienta |
-|---|---|
-| **P** | Lápiz (con presión si el lápiz la entrega) |
-| **H** | Resaltador |
-| **B** | Borrador (borra el objeto completo que toca) |
-| **L** · **F** | Línea · Flecha (Mayús = ángulos de 45°) |
-| **R** · **O** | Rectángulo · Elipse (Mayús = cuadrado / círculo) |
-| **T** | Texto (clic, escribir, **Enter** coloca, **Mayús+Enter** nueva línea, **Esc** cancela; `$...$` = matemática en la exportación a TikZ) |
-| **S** | Seleccionar: clic, Mayús+clic (varios), arrastrar para mover; las asas editan vectores y ejes; **Supr** borra; **Esc** suelta |
-| **X** | Ejes (sistema de referencia): arrastra para fijar el ángulo; Mayús = de 15° en 15° |
-| **V** | Vector: elige su tipo (peso, normal, tensión, roce…) y arrastra, o escribe módulo y ángulo y *Agregar por valores* |
-| **C** | Cuerpos: bloque, esfera, superficie, plano inclinado, polea, cuerda y resorte (un clic los coloca; arrastrar los dimensiona) |
-| **M** | Mover vista |
-| **1 2 3** | Grosor fino / medio / grueso |
-| **Ctrl+Z**, **Ctrl+Y** | Deshacer, rehacer |
-| **0** | Centrar la vista |
+| Modo | Para qué | Herramientas (tecla) |
+|---|---|---|
+| **Dibujar** | Tinta y formas | Seleccionar (**S**), Lápiz (**P**), Resaltador (**H**), Borrador (**B**), Línea (**L**), Flecha (**F**), Rectángulo (**R**), Elipse (**O**), Texto (**T**), Imagen, Mover vista (**M**) |
+| **Armar** | Piezas físicas | Bloque (**K**), Esfera (**E**), Polea (**Y**), Superficie (**U**), Plano inclinado (**I**), Ejes (**X**), Vector (**V**) |
+| **Conectar** | Cuerdas y resortes | Cuerda (**C**), Resorte (**Z**) |
+| **Simular** | Abre y cierra el panel de simulación | |
 
+Otras teclas: **1 2 3** grosor fino / medio / grueso · **Ctrl+Z**, **Ctrl+Y** deshacer y rehacer · **0** centrar la vista ·
+**Supr** borra lo seleccionado · **Esc** suelta la selección. Abrir, Centrar, Tema y Escala están en el menú **⋯ Más**
+(en el celular también Rehacer, Exportar y Compartir).
+
+- **Armar un Atwood en 8 toques:** *Armar* → *Polea* → toca dónde va → *Bloque* → toca dos veces (se numeran solos: m₁ = 2 kg,
+  m₂ = 3 kg) → *Conectar* → **un solo gesto**: desde m₁, sube por un lado de la polea, pasa por encima y baja hasta m₂. *Simular*.
+- **Piezas de tamaño fijo:** bloque, esfera y polea aparecen con un toque y se mueven arrastrándolas; su tamaño se cambia en su panel.
+  Una polea soltada **sobre un bloque** queda montada en él (**polea móvil**).
+- **Imanes:** al conectar, los puertos de los objetos cercanos se marcan y el extremo se pega al más próximo (anillo grande). Al
+  soltar, un punto en el extremo indica que quedó unido; un triángulo, que quedó fijo en el espacio; un círculo vacío, que está
+  suelto. Mover un cuerpo arrastra sus cuerdas y resortes.
+- **Cuerda por poleas en un gesto:** si el trazo pasa sobre una polea (se marca con un anillo punteado), la cuerda la envuelve por el
+  lado por donde pasaste; también dobla en el **borde de una mesa** (el extremo de una superficie). Un cuerpo que cuelga de la polea
+  se corre solo para que su tramo quede **vertical** (si no, oscilaría como un péndulo).
+- **⚠ Problemas de la escena:** el aviso de la barra lista lo que la simulación no puede usar o lo que conviene revisar (un tramo
+  inclinado, un tramo que no es paralelo al plano, cuerpos superpuestos, un extremo suelto…) con un botón para **arreglarlo**.
 - **Mover y zoom:** rueda = zoom; dos dedos = mover y zoom; barra espaciadora o botón central + arrastrar = mover.
 - **Lápiz de tablet:** si hay un lápiz cerca, los toques de dedo se ignoran (rechazo de palma).
 - **Vectores y ejes:** dibuja unos **ejes** (puedes girarlos para un plano inclinado) y luego los **vectores**: su ángulo se mide desde el eje x de esos ejes. Selecciona un vector para escribir su módulo y ángulo exactos, mostrar su valor, sus **componentes** y el **ángulo**, o cambiar su sistema de referencia. Selecciona varios para **sumarlos** punta con cola.
-- **Cuerdas, resortes y poleas:** el extremo que sueltas a menos de 9 cm de un cuerpo **se une** a él (un punto en el extremo lo muestra; un triángulo = fijo en el espacio; un círculo vacío = suelto). Si **mueves el cuerpo, la cuerda lo sigue**. Para pasar una cuerda por una polea, dibuja una cuerda desde cada cuerpo hasta la polea: se funden en una sola que **la envuelve**. Detalle: [ADR 0008](docs/decisiones/0008-modelo-de-grafo.md).
+- **Cómo se guardan las uniones:** [ADR 0008](docs/decisiones/0008-modelo-de-grafo.md) (grafo) y [ADR 0009](docs/decisiones/0009-modos-e-imanes.md) (modos e imanes).
 - **Diagrama de cuerpo libre:** dibuja un **plano inclinado** y un **bloque** (se apoya solo), pon el roce en la superficie y selecciona el bloque: el panel muestra las fuerzas detectadas y la aceleración. *Generar diagrama de cuerpo libre* dibuja el cuerpo aislado, los ejes, las fuerzas a escala y **ΣF = m a** por componente. g = 9,80 m/s² (editable). Límites y fórmulas verificadas: [docs/PHYSICS.md](docs/PHYSICS.md).
 - **Simulación:** *Simular* abre un panel que corre el movimiento de la escena (RK4 con roce, cuerdas, poleas y resortes): ves los cuerpos moverse con sus vectores v y a y la trayectoria, **gráficos** de posición, velocidad, aceleración y energía, tabla de valores, la **comparación con la solución analítica**, y exportas a CSV o a TikZ (pgfplots). Dale velocidad inicial a un cuerpo seleccionándolo. Lo que no se puede simular (un extremo suelto, cuerpos superpuestos…) aparece en el panel como **problema de la escena**, nunca se ignora en silencio. Detalle y validación: [docs/SIMULACION.md](docs/SIMULACION.md).
 - **Etiquetas:** en el texto libre y en las etiquetas de los vectores se escribe LaTeX entre `$...$` (`$\vec{F}_g$`, `$\theta$`, `$\frac{a}{b}$`).

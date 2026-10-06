@@ -28,7 +28,8 @@ Para el cuerpo seleccionado:
 1. **Peso** `m g`, siempre.
 2. **Normal** y **roce** de la superficie en la que se apoya (la normal sale de la superficie hacia el cuerpo).
 3. **Tensión** de cada cuerda unida al cuerpo, en la dirección del tramo que sale de él: hacia el otro extremo o, si pasa por
-   una polea, hacia el punto de tangencia (valor: incógnita).
+   una polea, hacia el punto de tangencia (valor: incógnita). Si el cuerpo lleva una **polea móvil**, la cuerda que la envuelve
+   tira de él por sus dos tramos (dos tensiones T, sin subíndice: es la misma cuerda).
 4. **Fuerza elástica** de cada resorte unido: tira hacia el otro extremo si está estirado y empuja si está comprimido.
 5. **Fuerzas aplicadas**: vectores `aplicada` o `tension` que actúan sobre el cuerpo.
 

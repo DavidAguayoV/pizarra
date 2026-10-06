@@ -103,7 +103,8 @@ test('al mover un bloque, la cuerda lo sigue (la unión no se rompe)', async ({ 
   const sup = posPuerto(bloque, 'cara-sup')!;
   expect(cuerda.b.x).toBeCloseTo(sup.x, 6);
   expect(cuerda.b.y).toBeCloseTo(sup.y, 6);
-  expect(sup.x).toBeCloseTo(1.3, 1);
+  // Se arrastró 1 m a la derecha (al unirlo se había alineado bajo la polea, en x = 0,25).
+  expect(sup.x).toBeCloseTo(1.25, 2);
 });
 
 test('un proyecto v1 se abre migrado (una op que no se deshace) y se guarda como v2', async ({ page }) => {

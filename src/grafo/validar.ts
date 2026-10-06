@@ -199,7 +199,8 @@ export function validar(entrada: readonly Elemento[]): Problema[] {
       out.push({ tipo: 'fuerza-sin-cuerpo', gravedad: 'aviso', elementos: [e.id], texto: `${mayus(nombre(e, todos))} no sale de ningún cuerpo: no actúa sobre nada.` });
     }
   }
-  return out;
+  // Contracciones del español: «de el bloque» → «del bloque», «a el bloque» → «al bloque».
+  return out.map((p) => ({ ...p, texto: p.texto.replace(/(^|\s)de el(?=\s)/g, '$1del').replace(/(^|\s)a el(?=\s)/g, '$1al') }));
 }
 
 /** Caja del cuerpo un poco menor que la real, para no contar como superposición dos cuerpos que solo se tocan. */
