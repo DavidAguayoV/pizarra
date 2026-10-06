@@ -1,5 +1,6 @@
 import type { Punto } from '../core/camara';
-import type { Elemento, Trazo, Vector } from '../core/elementos';
+import type { Bloque, Elemento, Esfera, Trazo, Vector } from '../core/elementos';
+import { apoyoEn } from '../physics/dcl';
 import { resolverEscena } from '../grafo/resolver';
 import { completarV1 } from '../grafo/v1';
 import { crearVector } from '../physics/vectores';
@@ -45,6 +46,23 @@ function flecha(id: string, rol: 'velocidad' | 'acel', origen: Punto, vec: Punto
   });
 }
 
+/** Separación (m) entre el borde del cuerpo y el origen de la flecha, y entre dos flechas paralelas. */
+const HOLGURA = 0.04;
+const SEPARACION = 0.08;
+
+/**
+ * Origen de una flecha de v o a: en el borde del cuerpo, en la dirección del vector, corrido de costado (`lado` = ±1)
+ * cuando hay que separarla de otra paralela.
+ */
+function origenFuera(cuerpo: Bloque | Esfera, centro: Punto, vec: Punto, lado: number): Punto {
+  const l = Math.hypot(vec.x, vec.y);
+  if (l < 1e-9) return centro;
+  const u = { x: vec.x / l, y: vec.y / l };
+  const d = apoyoEn(cuerpo, u) + HOLGURA;
+  const r4 = (n: number) => Math.round(n * 1e4) / 1e4;
+  return { x: r4(centro.x + u.x * d - u.y * lado * SEPARACION), y: r4(centro.y + u.y * d + u.x * lado * SEPARACION) };
+}
+
 export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], op: OpcionesAnimacion): Animacion {
   const m = sim.modelo;
   const e = sim.estado;
@@ -58,8 +76,13 @@ export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], 
     cuerpos.push({ ...c.elemento, centro: { ...e.p[i]! } });
     ocultos.add(c.id);
     if (op.vectores) {
-      const v = flecha(`sim-v-${c.id}`, 'velocidad', e.p[i]!, e.v[i]!);
-      const a = flecha(`sim-a-${c.id}`, 'acel', e.p[i]!, e.a[i]!);
+      // Las flechas nacen en el borde del cuerpo (no tapan su etiqueta) y, si v y a apuntan casi para el mismo
+      // lado, se separan un poco de costado para que no se monten.
+      const vv = e.v[i]!;
+      const aa = e.a[i]!;
+      const paralelas = Math.hypot(vv.x, vv.y) > 1e-3 && Math.hypot(aa.x, aa.y) > 1e-3 && (vv.x * aa.x + vv.y * aa.y) / (Math.hypot(vv.x, vv.y) * Math.hypot(aa.x, aa.y)) > Math.cos((25 * Math.PI) / 180);
+      const v = flecha(`sim-v-${c.id}`, 'velocidad', origenFuera(c.elemento, e.p[i]!, vv, paralelas ? 1 : 0), vv);
+      const a = flecha(`sim-a-${c.id}`, 'acel', origenFuera(c.elemento, e.p[i]!, aa, paralelas ? -1 : 0), aa);
       if (v) vectores.push(v);
       if (a) vectores.push(a);
     }

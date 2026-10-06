@@ -1,5 +1,13 @@
 # Cambios
 
+## Nivel 2, Fase 2c — DCL al seleccionar y vectores que no tapan el cuerpo (2026-10-05)
+
+- **Al seleccionar un bloque o una esfera se ve su diagrama de cuerpo libre** en una tarjeta del panel (también con el panel
+  plegado en el celular): el cuerpo, sus fuerzas saliendo del borde con su valor (las incógnitas como «T = ?»), los ejes del
+  diagrama y la aceleración. No agrega nada a la pizarra; *Generar diagrama de cuerpo libre* lo sigue dibujando.
+- Las flechas v y a de la simulación salen del **borde** del cuerpo (no tapan su etiqueta) y, si son paralelas, se separan de
+  costado para no montarse. En el DCL dibujado en la pizarra, las fuerzas también salen del borde.
+
 ## Nivel 2, Fase 2b — Celular: conectar toque a toque y paneles que no tapan (2026-10-05)
 
 Responde a la prueba de David en su teléfono: «conectar cosas con el teléfono es muy difícil y el menú tapa casi toda la pantalla».

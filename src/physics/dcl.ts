@@ -394,15 +394,20 @@ export function construirDcl(r: ResultadoDcl, origen: Punto): Elemento[] {
   const mayorFlecha = Math.max(1.1, ...r.fuerzas.map((f) => (f.valor === null ? 1.1 : f.valor / porMetro)));
   // Los ejes sobresalen de la flecha más larga, para que su letra no tape una etiqueta.
   const ejes: Ejes = crearEjes(origen, r.anguloEjes, Math.max(1.5, mayorFlecha + 0.8), { id: nuevoIdElemento(), grosor: 0.012 });
-  const cuerpo: Elemento =
+  // El cuerpo aislado no se apoya en nada ni actúa en la simulación: es un dibujo.
+  const cuerpo: Cuerpo =
     r.cuerpo.tipo === 'bloque'
-      ? { ...r.cuerpo, id: nuevoIdElemento(), centro: origen, angulo: r.superficie ? r.anguloEjes : r.cuerpo.angulo }
-      : { ...r.cuerpo, id: nuevoIdElemento(), centro: origen };
+      ? { ...r.cuerpo, id: nuevoIdElemento(), centro: origen, angulo: r.superficie ? r.anguloEjes : r.cuerpo.angulo, apoyo: [] }
+      : { ...r.cuerpo, id: nuevoIdElemento(), centro: origen, apoyo: [] };
 
+  const r4 = (n: number): number => Math.round(n * 1e4) / 1e4;
   const vectores = r.fuerzas.map((f): Vector => {
     const largo = f.valor === null ? 1.1 : f.valor / porMetro;
     const u = unitario(f.angulo);
-    return crearVector(f.rol, origen, { x: Math.round((origen.x + u.x * largo) * 1e4) / 1e4, y: Math.round((origen.y + u.y * largo) * 1e4) / 1e4 }, {
+    // Cada fuerza sale del borde del cuerpo (no lo tapa ni tapa su etiqueta).
+    const d = apoyoEn(cuerpo, u) + 0.04;
+    const a = { x: r4(origen.x + u.x * d), y: r4(origen.y + u.y * d) };
+    return crearVector(f.rol, a, { x: r4(a.x + u.x * largo), y: r4(a.y + u.y * largo) }, {
       etiqueta: f.etiqueta,
       porMetro,
       mostrarValor: f.valor !== null,

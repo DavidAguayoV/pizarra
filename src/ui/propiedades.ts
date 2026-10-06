@@ -4,6 +4,7 @@ import type { LotePayload } from '../core/escena';
 import { temaActual } from '../core/tema';
 import { colorDeRol } from './tokens';
 import { PALETAS } from './tokens';
+import { dibujarMiniDcl } from './minidcl';
 import {
   aGrados,
   anguloRespecto,
@@ -332,6 +333,7 @@ export class PanelPropiedades {
     const e = this.elemento;
     const cambiar = (f: (b: Bloque) => Bloque) => this.host.editar({ actualizar: [f(this.vigente(b0))] });
     this.titulo('Bloque');
+    this.tarjetaDcl(b0);
     e.append(campo('Etiqueta (LaTeX)', texto(b0.etiqueta, (t) => cambiar((b) => ({ ...b, etiqueta: t })), 'Etiqueta del bloque')));
     e.append(campo('Masa (kg)', numerico(b0.masa, '0.1', (x) => x > 0 && cambiar((b) => ({ ...b, masa: x })), 'Masa del bloque')));
     const fila = document.createElement('div');
@@ -351,6 +353,7 @@ export class PanelPropiedades {
     const e = this.elemento;
     const cambiar = (f: (s: Esfera) => Esfera) => this.host.editar({ actualizar: [f(this.vigente(s0))] });
     this.titulo('Esfera');
+    this.tarjetaDcl(s0);
     e.append(campo('Etiqueta (LaTeX)', texto(s0.etiqueta, (t) => cambiar((s) => ({ ...s, etiqueta: t })), 'Etiqueta de la esfera')));
     e.append(
       campo('Masa (kg)', numerico(s0.masa, '0.1', (x) => x > 0 && cambiar((s) => ({ ...s, masa: x })), 'Masa de la esfera')),
@@ -442,7 +445,41 @@ export class PanelPropiedades {
   private previa: { el: HTMLElement; cuerpo: Bloque | Esfera } | null = null;
 
   /** Recalcula y muestra las fuerzas detectadas, la aceleración y los avisos del cuerpo seleccionado. */
+  /**
+   * Tarjeta con el diagrama de cuerpo libre del cuerpo seleccionado (se ve apenas se selecciona, también con el panel
+   * plegado en el celular). No agrega nada a la pizarra: para eso está *Generar diagrama de cuerpo libre*.
+   */
+  private tarjetaDcl(cuerpo: Bloque | Esfera): void {
+    const tarjeta = document.createElement('figure');
+    tarjeta.className = 'dcl-tarjeta';
+    const lienzo = document.createElement('canvas');
+    lienzo.setAttribute('role', 'img');
+    lienzo.setAttribute('aria-label', 'Diagrama de cuerpo libre del cuerpo seleccionado');
+    const pie = document.createElement('figcaption');
+    tarjeta.append(lienzo, pie);
+    this.elemento.append(tarjeta);
+    this.mini = { lienzo, pie, cuerpo };
+    requestAnimationFrame(() => this.pintarMini());
+  }
+
+  private mini: { lienzo: HTMLCanvasElement; pie: HTMLElement; cuerpo: Bloque | Esfera } | null = null;
+
+  private pintarMini(): void {
+    const m = this.mini;
+    if (!m || !m.lienzo.isConnected) return;
+    const r = resolverDcl(this.vigente(m.cuerpo), this.host.elementos(), this.g, this.modoRoce);
+    dibujarMiniDcl(m.lienzo, r);
+    const ax = r.aceleracion.x;
+    m.pie.textContent =
+      ax === null
+        ? 'Diagrama de cuerpo libre · la aceleración depende de las tensiones (Simular la calcula)'
+        : r.superficie
+          ? `Diagrama de cuerpo libre · a = ${numeroEs(ax)} m/s² a lo largo de la superficie${r.estadoRoce === 'estatico' ? ' (en reposo)' : ''}`
+          : `Diagrama de cuerpo libre · a = (${numeroEs(ax)}; ${numeroEs(r.aceleracion.y ?? 0)}) m/s²`;
+  }
+
   private refrescarPrevia(): void {
+    this.pintarMini();
     const p = this.previa;
     if (!p || !p.el.isConnected) return;
     const cuerpo = this.vigente(p.cuerpo);

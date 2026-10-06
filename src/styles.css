@@ -941,7 +941,7 @@ button.con-icono .ico,
   .propiedades .cab-prop .plegar {
     display: inline-block;
   }
-  .propiedades.plegado > :not(.cab-prop) {
+  .propiedades.plegado > :not(.cab-prop):not(.dcl-tarjeta) {
     display: none;
   }
   .propiedades .cab-prop {
@@ -949,5 +949,27 @@ button.con-icono .ico,
   }
   .propiedades.plegado .cab-prop {
     margin-bottom: 0;
+  }
+}
+
+/* Diagrama de cuerpo libre en miniatura al seleccionar un cuerpo (también con el panel plegado). */
+.dcl-tarjeta {
+  margin: 6px 0 8px;
+}
+.dcl-tarjeta canvas {
+  display: block;
+  width: 100%;
+  height: 200px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--fondo);
+}
+.dcl-tarjeta figcaption {
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+@media (max-width: 700px) {
+  .dcl-tarjeta canvas {
+    height: 180px;
   }
 }

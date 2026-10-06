@@ -303,7 +303,11 @@ describe('construcción del diagrama', () => {
       if (v.tipo !== 'vector') continue;
       const f = r.fuerzas.find((x) => x.etiqueta === v.etiqueta)!;
       expect(modulo(v)).toBeCloseTo(f.valor!, 2); // la flecha mide su valor a la escala común
-      expect(v.a).toEqual({ x: 6, y: 0 });
+      // Sale del borde del cuerpo, en la dirección de la fuerza (no del centro: taparía el cuerpo).
+      const dx = v.a.x - 6;
+      const dy = v.a.y;
+      expect(Math.hypot(dx, dy)).toBeGreaterThan(0.15);
+      expect(Math.atan2(dy, dx)).toBeCloseTo(Math.atan2(v.b.y - v.a.y, v.b.x - v.a.x), 2);
       expect(v.ref).toBe(ejes.id);
     }
   });

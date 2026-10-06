@@ -71,6 +71,9 @@ test('el panel de un bloque parte plegado en el celular y se suelta al simular',
   await toque(page, 0, 0);
   const prop = page.locator('section.propiedades');
   await expect(prop.getByRole('button', { name: 'Editar' })).toBeVisible();
+  // Aunque esté plegado, el diagrama de cuerpo libre se ve apenas se selecciona el cuerpo.
+  await expect(prop.getByRole('img', { name: 'Diagrama de cuerpo libre del cuerpo seleccionado' })).toBeVisible();
+  await expect(prop.locator('figcaption')).toContainText('a = (0; -9,8) m/s²');
   await expect(prop.getByLabel('Masa del bloque')).toBeHidden();
   await prop.getByRole('button', { name: 'Editar' }).click();
   await expect(prop.getByLabel('Masa del bloque')).toBeVisible();
