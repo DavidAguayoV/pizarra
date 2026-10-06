@@ -301,6 +301,9 @@ export class PanelSimulacion {
     if (this.sim.estado.t >= T_MAX) {
       this.pausar();
       this.host.avisar('La simulación llegó al límite de 10 minutos de tiempo simulado.');
+    } else if (this.sim.detenida) {
+      this.pausar();
+      this.host.avisar(sinMarcas(this.sim.detenida) + '.');
     }
     this.pintar(false);
     if (this.reproduciendo) this.marco = requestAnimationFrame((t) => this.cuadro(t));

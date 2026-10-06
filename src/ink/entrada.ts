@@ -3,6 +3,9 @@ import { acercarEn, desplazar, pantallaAMundo } from '../core/camara';
 import type { ColorTinta, Elemento } from '../core/elementos';
 import { cajaCacheada, nuevoIdElemento, tocaElemento, trasladar } from '../core/elementos';
 import type { LotePayload } from '../core/escena';
+import type { Paso, Union } from '../core/elementos';
+import type { RegionPaso } from '../grafo/conectar';
+import { pasoAlSalir } from '../grafo/conectar';
 import type { NombreAsa } from '../physics/edicion';
 import { ajustarAngulo, asasDe, moverAsa } from '../physics/edicion';
 import type { TipoObjeto } from '../physics/objetos';
@@ -46,6 +49,12 @@ export interface Anfitrion {
   seleccionar(ids: readonly string[]): void;
   /** Aplica varios cambios como una sola operación (un deshacer los revierte juntos). */
   editar(cambio: LotePayload): void;
+  /** Imán para el extremo de una cuerda o un resorte en `p`: dónde se pegaría y a qué (o null). */
+  iman(p: Punto, excluir?: ReadonlySet<string>): { p: Punto; union: Union } | null;
+  /** Polea (o borde de superficie) que el gesto de una cuerda envuelve si pasa por `p`. */
+  regionPaso(p: Punto): RegionPaso | null;
+  /** Dónde está el puntero mientras se conecta (para resaltar puertos e imanes); null al terminar. */
+  apuntar(p: Punto | null): void;
 }
 
 /** Distancia (px de pantalla) a la que se agarra un asa o se acierta a un elemento. */
@@ -72,6 +81,13 @@ interface Activo {
   vivos: readonly Elemento[];
   /** Id del elemento en construcción: el mismo en la vista previa, en la transmisión y al confirmarlo. */
   idVivo: string;
+  /** Cuerda o resorte en construcción (Fase 2): extremo inicial ya unido y poleas que el gesto fue envolviendo. */
+  conexion?: {
+    inicio: { p: Punto; union: Union };
+    pasos: Paso[];
+    dentro: { region: RegionPaso; entrada: Punto; ignorar: boolean } | null;
+    ultimo: Punto;
+  };
 }
 
 /**
@@ -197,6 +213,17 @@ export class Entrada {
       this.empezarSeleccion(this.activo, p, w, e.shiftKey);
       return;
     }
+    if (herramienta === 'objeto' && this.conecta()) {
+      const region = this.host.regionPaso(w);
+      this.activo.conexion = {
+        inicio: this.host.iman(w) ?? { p: w, union: { fijo: true } },
+        pasos: [],
+        // Si el gesto empieza sobre una polea, salir de ella no cuenta como envolverla.
+        dentro: region ? { region, entrada: w, ignorar: true } : null,
+        ultimo: w,
+      };
+      this.host.apuntar(w);
+    }
     this.agregarPunto(this.activo, e, p, w, true);
     this.actualizarVivo(this.activo, e.shiftKey);
   }
@@ -221,6 +248,7 @@ export class Entrada {
       return;
     }
     const a = this.activo;
+    if (!a && this.host.herramienta() === 'objeto' && this.conecta()) this.host.apuntar(this.mundo(p));
     if (!a || a.id !== e.pointerId) return;
     const eventos = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
     if (a.herramienta === 'seleccionar') {
@@ -310,6 +338,7 @@ export class Entrada {
     }
     if (a.herramienta !== 'lapiz' && a.herramienta !== 'resaltador') {
       a.ultimaPantalla = p; // formas: solo importa dónde está el puntero ahora
+      if (a.conexion) this.seguirConexion(a, w);
       return;
     }
     const lejos = Math.hypot(p.x - a.ultimaPantalla.x, p.y - a.ultimaPantalla.y) >= DISTANCIA_MIN_PX;
@@ -347,7 +376,7 @@ export class Entrada {
       case 'objeto': {
         let b = this.mundo(a.ultimaPantalla);
         if (shift) b = ajustarAngulo(a.inicio, b);
-        a.vivo = this.crearObjeto(this.host.tipoObjeto(), a.inicio, b, a.idVivo);
+        a.vivo = (a.conexion && this.vivoConexion(a, b)) || this.crearObjeto(this.host.tipoObjeto(), a.inicio, b, a.idVivo);
         break;
       }
       case 'ejes': {
@@ -376,6 +405,7 @@ export class Entrada {
   }
 
   private terminar(a: Activo): void {
+    if (a.conexion) this.host.apuntar(null);
     // Primero se confirma y después se retira la vista previa: así quien mira por la red
     // recibe el elemento definitivo antes de que desaparezca el trazo en construcción.
     if (a.herramienta === 'borrador') {
@@ -440,13 +470,20 @@ export class Entrada {
       a.vivos = r.originales.map((o) => trasladar(o, dx, dy));
       a.ocultos = new Set(r.originales.map((o) => o.id));
     } else {
-      a.vivos = [moverAsa(r.original, r.asa, w, shift)];
+      let q = w;
+      const extremo = (r.original.tipo === 'cuerda' || r.original.tipo === 'resorte') && (r.asa === 'a' || r.asa === 'b');
+      if (extremo) {
+        this.host.apuntar(w);
+        q = this.host.iman(w, new Set([r.original.id]))?.p ?? w;
+      }
+      a.vivos = [moverAsa(r.original, r.asa, q, shift && !extremo)];
       a.ocultos = new Set([r.original.id]);
     }
     this.host.previsualizar(a.vivos, a.ocultos);
   }
 
   private terminarSeleccion(a: Activo): void {
+    if (a.arrastre?.tipo === 'asa') this.host.apuntar(null);
     if (a.movido && a.vivos.length > 0) this.host.editar({ actualizar: a.vivos.map((v) => this.host.acomodar(v)) });
     this.host.previsualizar(null, VACIO);
   }
@@ -485,6 +522,43 @@ export class Entrada {
       case 'resorte':
         return arrastro ? crearResorte(a, b, { id }) : crearResorte({ x: a.x - 1, y: a.y }, { x: a.x + 1, y: a.y }, { id });
     }
+  }
+
+  /** ¿La herramienta activa es la de conectar (cuerda o resorte)? */
+  private conecta(): boolean {
+    const t = this.host.tipoObjeto();
+    return t === 'cuerda' || t === 'resorte';
+  }
+
+  /** Lleva la cuenta de las poleas (y bordes) que el gesto de una cuerda va envolviendo. */
+  private seguirConexion(a: Activo, w: Punto): void {
+    const c = a.conexion!;
+    this.host.apuntar(w);
+    if (this.host.tipoObjeto() !== 'cuerda') return;
+    const reg = this.host.regionPaso(w);
+    const misma = (x: RegionPaso | null, y: RegionPaso): boolean => !!x && x.el === y.el && x.extremo === y.extremo;
+    if (c.dentro && !misma(reg, c.dentro.region)) {
+      if (!c.dentro.ignorar) {
+        const paso = pasoAlSalir(c.dentro.region, c.dentro.entrada, w);
+        const ultimo = c.pasos.at(-1);
+        if (!ultimo || ultimo.el !== paso.el) c.pasos.push(paso);
+      }
+      c.dentro = null;
+    }
+    if (!c.dentro && reg) c.dentro = { region: reg, entrada: c.ultimo, ignorar: false };
+    c.ultimo = w;
+  }
+
+  /** La cuerda o el resorte del gesto, con sus extremos pegados a los imanes; null si casi no se arrastró (un clic). */
+  private vivoConexion(a: Activo, b: Punto): Elemento | null {
+    const c = a.conexion!;
+    const p0 = this.aPantalla(a.inicio);
+    const p1 = this.aPantalla(b);
+    if (Math.hypot(p1.x - p0.x, p1.y - p0.y) < 8) return null;
+    const fin = this.host.iman(b) ?? { p: b, union: { fijo: true } as Union };
+    const union: [Union, Union] = [c.inicio.union, fin.union];
+    if (this.host.tipoObjeto() === 'resorte') return crearResorte(c.inicio.p, fin.p, { id: a.idVivo, union });
+    return crearCuerda(c.inicio.p, fin.p, { id: a.idVivo, union, ...(c.pasos.length > 0 ? { ruta: [...c.pasos] } : {}) });
   }
 
   private cancelarActivo(): void {

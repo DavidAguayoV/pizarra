@@ -30,7 +30,9 @@ export type TipoEvento =
   | 'invierte'
   | 'cuerda-floja'
   | 'cuerda-tensa'
-  | 'resorte-natural';
+  | 'resorte-natural'
+  /** Un cuerpo llega a la polea por la que pasa su cuerda: la simulación se detiene (todavía no hay choques). */
+  | 'llega-polea';
 
 export interface EventoSim {
   t: number;
@@ -70,6 +72,8 @@ export interface Estado {
 const EPS_V = 1e-9;
 const EPS_F = 1e-9;
 const MAX_EVENTOS = 400;
+/** Largo mínimo del tramo entre un cuerpo y su polea antes de detener la simulación (m). */
+const TRAMO_MINIMO = 0.02;
 /** Distancia máxima entre un cuerpo y la superficie de su `apoyo` para respetarlo (la del imán al soltarlo). */
 export const APOYO_MAXIMO = 0.3;
 
@@ -518,6 +522,7 @@ export class Simulacion {
     });
     this.historial = [];
     this.eventos = [];
+    this.detenida = null;
     this.acumulado = 0;
     this.periodo = this.periodo > 0 ? this.periodo : 0.01;
     this.proxima = 0;
@@ -545,11 +550,15 @@ export class Simulacion {
 
   // -- avance -----------------------------------------------------------------------------------------------
 
+  /** Si la simulación se detuvo sola (un cuerpo llegó a una polea), el motivo; null mientras sigue. */
+  detenida: string | null = null;
+
   /** Avanza `dt` segundos de tiempo simulado (en pasos fijos); devuelve cuántos pasos dio. */
   avanzar(dt: number, maxPasos = 2000): number {
+    if (this.detenida) return 0;
     this.acumulado += dt;
     let n = 0;
-    while (this.acumulado >= this.h - 1e-15 && n < maxPasos) {
+    while (this.acumulado >= this.h - 1e-15 && n < maxPasos && !this.detenida) {
       this.paso();
       this.acumulado -= this.h;
       n++;
@@ -560,7 +569,34 @@ export class Simulacion {
 
   /** Un paso RK4 de duración `h` (los eventos que ocurren dentro de él se tratan en su instante exacto). */
   paso(): void {
+    if (this.detenida) return;
     this.integrar(this.h, 0);
+    this.revisarTopes();
+  }
+
+  /**
+   * Un cuerpo que llega a la polea por la que pasa su cuerda (el tramo que los une se acaba) no puede seguir: no hay
+   * choques todavía, así que la simulación se detiene ahí con un evento, en vez de seguir con una geometría imposible.
+   */
+  private revisarTopes(): void {
+    const m = this.modelo;
+    const e = this.estado;
+    m.cuerdas.forEach((c, k) => {
+      if (this.detenida || !c.ruta || !e.cuerdaActiva[k]) return;
+      const q0 = posExtremo(c.ext[0], e.p);
+      const q1 = posExtremo(c.ext[1], e.p);
+      const geo = geometriaRuta(q0, c.moviles ? pasosEn(c, e.p) : c.ruta, q1);
+      const lados: Array<[number, Punto, Punto]> = [];
+      if (c.ext[0].tipo === 'cuerpo') lados.push([c.ext[0].i, q0, geo.haciaA]);
+      if (c.ext[1].tipo === 'cuerpo') lados.push([c.ext[1].i, q1, geo.haciaB]);
+      for (const [i, q, t] of lados) {
+        if (geo.valida && Math.hypot(q.x - t.x, q.y - t.y) > TRAMO_MINIMO) continue;
+        const texto = `${this.nombre(i)} llega a la polea: la simulación se detiene aquí`;
+        this.evento(e.t, 'llega-polea', i, texto);
+        this.detenida = texto;
+        return;
+      }
+    });
   }
 
   /** Un paso RK4 de duración `hh` a partir del estado actual. */

@@ -38,7 +38,7 @@ function seguirSuperficie<T extends Extract<Elemento, { tipo: 'bloque' | 'esfera
   return { ...c, centro, angulo: r4(c.angulo + giro) };
 }
 
-export function prepararLote(cambio: LotePayload, previos: readonly Elemento[]): LotePayload {
+export function prepararLote(cambio: LotePayload, previos: readonly Elemento[], opciones: { radioIman?: number } = {}): LotePayload {
   const borrar = new Set(cambio.borrar ?? []);
   const resueltosAntes = new Map(resolverEscena(previos).map((e) => [e.id, e]));
   const crudosAntes = new Map(previos.map((e) => [e.id, e]));
@@ -50,7 +50,7 @@ export function prepararLote(cambio: LotePayload, previos: readonly Elemento[]):
   for (const e0 of cambio.actualizar ?? []) {
     let e = sinDerivados(e0);
     const antes = resueltosAntes.get(e.id);
-    if ((e.tipo === 'cuerda' || e.tipo === 'resorte') && antes && antes.tipo === e.tipo) e = reconectar(e, antes as typeof e, despues, editados);
+    if ((e.tipo === 'cuerda' || e.tipo === 'resorte') && antes && antes.tipo === e.tipo) e = reconectar(e, antes as typeof e, despues, editados, opciones.radioIman);
     actualizados.set(e.id, e);
   }
 

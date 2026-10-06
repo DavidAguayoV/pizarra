@@ -24,9 +24,9 @@ import {
   tamTextoDeGrosor,
 } from '../ink/herramientas';
 import type { LotePayload } from '../core/escena';
-import { apoyar, conectarNuevo, marcasDeUnion } from '../grafo/conectar';
+import { apoyar, conectarNuevo, IMAN_PX, iman, marcasDeConexion, marcasDeUnion, PASO_PX, regionDePaso } from '../grafo/conectar';
 import { loteVacio, prepararLote } from '../grafo/integridad';
-import { dependientes, resolverEscena, sinDerivados } from '../grafo/resolver';
+import { dependientes, resolverElemento, resolverEscena, sinDerivados } from '../grafo/resolver';
 import type { TipoObjeto } from '../physics/objetos';
 import type { RolVector } from '../physics/vectores';
 import { elegirTransport } from '../share';
@@ -309,13 +309,19 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   /** La escena resuelta (la geometría de lo unido derivada del grafo): es lo que se ve, se toca y se exporta. */
   const escena = (): Elemento[] => resolverEscena(store.estado.elementos);
   /** Toda edición pasa por la integridad del grafo: las consecuencias viajan en la misma op. */
+  /** Radio del imán y margen del paso por poleas, en metros (fijos en pantalla). */
+  const radioIman = (): number => IMAN_PX / L.camara.escala;
+  const margenPaso = (): number => PASO_PX / L.camara.escala;
+  /** Dónde está el puntero mientras se conecta (marcas de puertos e imanes). */
+  let puntero: Punto | null = null;
+  let arrastrando = false;
   function emitirLote(c: LotePayload): void {
-    const l = prepararLote(c, store.estado.elementos);
+    const l = prepararLote(c, store.estado.elementos, { radioIman: radioIman() });
     if (!loteVacio(l)) store.emitir(OP_LOTE, l);
   }
   /** Un elemento recién dibujado, con sus uniones (puede fundirse con otra cuerda en una polea). */
   function confirmarElemento(e: Elemento): void {
-    const c = conectarNuevo(sinDerivados(e), store.estado.elementos);
+    const c = conectarNuevo(sinDerivados(e), store.estado.elementos, radioIman());
     if (c.agregar?.length === 1 && !c.actualizar?.length && !c.borrar?.length) store.emitir(OP_AGREGAR, c.agregar[0]!);
     else emitirLote(c);
   }
@@ -324,8 +330,14 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       actualizarBarra();
       publicarVista();
     },
-    // Marcas de las uniones (solo en la pantalla de quien edita, nunca en las exportaciones).
-    marcas: () => (herramienta === 'seleccionar' || herramienta === 'objeto' ? marcasDeUnion(escena()) : []),
+    // Marcas de las uniones y, mientras se conecta, de los puertos e imanes (solo en la pantalla de quien edita,
+    // nunca en las exportaciones ni en el celular del estudiante).
+    marcas: () => {
+      const conectando = herramienta === 'objeto' && (tipoObjeto === 'cuerda' || tipoObjeto === 'resorte');
+      const base = (herramienta === 'seleccionar' || herramienta === 'objeto') && !arrastrando ? marcasDeUnion(escena()) : [];
+      if (puntero && (conectando || herramienta === 'seleccionar')) return [...base, ...marcasDeConexion(escena(), puntero, radioIman(), margenPaso())];
+      return base;
+    },
   });
   const ponerCamara = L.ponerCamara.bind(L);
   zona.append(lienzo);
@@ -452,9 +464,13 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     elementos: escena,
     previsualizar(v0, o0) {
       // Lo que está unido a lo que se arrastra (cuerdas, resortes) se redibuja siguiéndolo.
-      const lista: readonly Elemento[] = v0 === null ? [] : Array.isArray(v0) ? (v0 as readonly Elemento[]) : [v0 as Elemento];
+      // La cuerda en construcción se muestra con su camino por las poleas.
+      const lista: readonly Elemento[] = (v0 === null ? [] : Array.isArray(v0) ? (v0 as readonly Elemento[]) : [v0 as Elemento]).map((x) =>
+        resolverElemento(x, store.estado.elementos),
+      );
+      arrastrando = lista.length > 0;
       const deps = dependientes(store.estado.elementos, lista);
-      const v = deps.length > 0 ? [...lista, ...deps] : v0;
+      const v = deps.length > 0 ? [...lista, ...deps] : lista;
       const o = deps.length > 0 ? new Set([...o0, ...deps.map((d) => d.id)]) : o0;
       L.fijarVivo(v, o);
       transmision?.difusor.vivo(v, o);
@@ -474,6 +490,12 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     seleccion: seleccionEls,
     seleccionar,
     editar: emitirLote,
+    iman: (p, excluir) => iman(p, escena(), radioIman(), excluir),
+    regionPaso: (p) => regionDePaso(p, escena(), margenPaso()),
+    apuntar: (p) => {
+      puntero = p;
+      L.pedirCuadro();
+    },
   });
 
   // --- Texto ----------------------------------------------------------------------

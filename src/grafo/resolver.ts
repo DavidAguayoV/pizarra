@@ -86,6 +86,13 @@ export function resolverEscena(elementos: readonly Elemento[]): Elemento[] {
   return out;
 }
 
+/** Un elemento suelto (una vista previa) resuelto contra la escena: la cuerda en construcción con su camino. */
+export function resolverElemento<T extends Elemento>(e: T, elementos: readonly Elemento[]): T {
+  if (e.tipo !== 'cuerda' && e.tipo !== 'resorte') return e;
+  const porId = new Map(resolverEscena(elementos).map((x) => [x.id, x]));
+  return (e.tipo === 'cuerda' ? resolverCuerda(e, porId) : resolverResorte(e, porId)) as T;
+}
+
 /** Quita lo derivado antes de guardar un elemento en una op. */
 export function sinDerivados<T extends Elemento>(e: T): T {
   if (e.tipo === 'polea' && e.soporte) {

@@ -5,6 +5,7 @@ import type { Ejes, Elemento } from '../core/elementos';
 import { cajaDe } from '../core/elementos';
 import { asasDe } from '../physics/edicion';
 import { aplicarCamara, CacheImagenes, cajaVisible, dibujarElemento, dibujarElementos, dibujarGrilla } from '../ink/dibujo';
+import type { Marca } from '../grafo/conectar';
 import { PALETAS } from './tokens';
 
 export interface OpcionesLienzo {
@@ -13,7 +14,7 @@ export interface OpcionesLienzo {
   /** Se llama cuando cambia el tamaño del lienzo (giro del celular, ventana). */
   alTamano?: () => void;
   /** Marcas de las uniones de cuerdas y resortes (en píxeles de pantalla, encima de todo). */
-  marcas?: () => ReadonlyArray<{ p: { x: number; y: number }; tipo: 'unido' | 'fijo' | 'suelto' }>;
+  marcas?: () => readonly Marca[];
 }
 
 /**
@@ -140,7 +141,6 @@ export class Lienzo {
    * Tamaño fijo en pantalla (no escala con el zoom), como las asas. Mientras se arrastra no se muestran.
    */
   private dibujarMarcas(color: string, contorno: string): void {
-    if (this.vivos.length > 0) return;
     const marcas = this.opciones.marcas?.() ?? [];
     if (marcas.length === 0) return;
     const c = this.ctx;
@@ -151,26 +151,63 @@ export class Lienzo {
       const x = ancho / 2 + (m.p.x - camara.cx) * camara.escala;
       const y = alto / 2 - (m.p.y - camara.cy) * camara.escala;
       c.beginPath();
-      if (m.tipo === 'fijo') {
-        c.moveTo(x, y - 5);
-        c.lineTo(x + 5, y + 4);
-        c.lineTo(x - 5, y + 4);
-        c.closePath();
-        c.fillStyle = contorno;
-        c.fill();
-      } else if (m.tipo === 'unido') {
-        c.arc(x, y, 4, 0, Math.PI * 2);
-        c.fillStyle = color;
-        c.fill();
-        c.strokeStyle = contorno;
-        c.stroke();
-      } else {
-        c.arc(x, y, 5, 0, Math.PI * 2);
-        c.strokeStyle = color;
-        c.stroke();
+      switch (m.tipo) {
+        case 'fijo':
+          c.moveTo(x, y - 5);
+          c.lineTo(x + 5, y + 4);
+          c.lineTo(x - 5, y + 4);
+          c.closePath();
+          c.fillStyle = contorno;
+          c.fill();
+          break;
+        case 'unido':
+          c.arc(x, y, 4, 0, Math.PI * 2);
+          c.fillStyle = color;
+          c.fill();
+          c.strokeStyle = contorno;
+          c.stroke();
+          break;
+        case 'suelto':
+          c.arc(x, y, 5, 0, Math.PI * 2);
+          c.strokeStyle = color;
+          c.stroke();
+          break;
+        case 'puerto':
+          // Puertos disponibles cerca del puntero: discretos.
+          c.arc(x, y, 3.5, 0, Math.PI * 2);
+          c.globalAlpha = 0.55;
+          c.strokeStyle = color;
+          c.stroke();
+          c.globalAlpha = 1;
+          break;
+        case 'iman':
+          // El imán que se usará al soltar: anillo grande y punto.
+          c.lineWidth = 2.5;
+          c.arc(x, y, 11, 0, Math.PI * 2);
+          c.strokeStyle = color;
+          c.stroke();
+          c.beginPath();
+          c.arc(x, y, 3.5, 0, Math.PI * 2);
+          c.fillStyle = color;
+          c.fill();
+          c.lineWidth = 1.5;
+          break;
+        case 'paso': {
+          // La polea (o el borde) que la cuerda va a envolver: anillo punteado alrededor.
+          const r = (m.r ?? 0) * camara.escala + 8;
+          c.setLineDash([5, 4]);
+          c.lineWidth = 2;
+          c.arc(x, y, r, 0, Math.PI * 2);
+          c.strokeStyle = color;
+          c.stroke();
+          c.setLineDash([]);
+          c.lineWidth = 1.5;
+          break;
+        }
       }
     }
   }
+
 
   private pintar(): void {
     const paleta = PALETAS[temaActual()];
