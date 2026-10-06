@@ -225,6 +225,29 @@ export function superficieCercana(c: Bloque | Esfera, elementos: readonly Elemen
   return mejor?.s ?? null;
 }
 
+/**
+ * Bloque sobre el que se puede apoyar un cuerpo soltado encima (su cara de arriba horizontal, el centro del cuerpo sobre
+ * ella y su base a menos del imán): el más cercano, o null.
+ */
+export function cuerpoDebajo(c: Bloque | Esfera, elementos: readonly Elemento[]): Bloque | null {
+  const base = c.tipo === 'esfera' ? c.radio : Math.abs(Math.cos(c.angulo)) * (c.alto / 2) + Math.abs(Math.sin(c.angulo)) * (c.ancho / 2);
+  let mejor: { b: Bloque; holgura: number } | null = null;
+  for (const e of elementos) {
+    if (e.tipo !== 'bloque' || e.id === c.id || Math.abs(Math.sin(e.angulo)) > 1e-3) continue;
+    if (Math.abs(c.centro.x - e.centro.x) > e.ancho / 2) continue;
+    const holgura = Math.abs(c.centro.y - base - (e.centro.y + e.alto / 2));
+    if (holgura <= IMAN_SUPERFICIE && c.centro.y > e.centro.y && (!mejor || holgura < mejor.holgura)) mejor = { b: e, holgura };
+  }
+  return mejor?.b ?? null;
+}
+
+/** Deja el cuerpo justo sobre la cara de arriba del bloque `b` (un bloque, sin inclinar). */
+export function apoyarSobre<T extends Bloque | Esfera>(c: T, b: Bloque): T {
+  const base = c.tipo === 'esfera' ? c.radio : c.alto / 2;
+  const centro = { x: c.centro.x, y: Math.round((b.centro.y + b.alto / 2 + base) * 1e4) / 1e4 };
+  return c.tipo === 'bloque' ? { ...c, centro, angulo: 0 } : { ...c, centro };
+}
+
 /** Apoya el cuerpo sobre la superficie: lo lleva hasta tocarla y, si es un bloque, lo deja paralelo a ella. */
 export function apoyarEn<T extends Bloque | Esfera>(c: T, s: Superficie): T {
   const l = largoSegmento(s.a, s.b);

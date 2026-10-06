@@ -151,7 +151,7 @@ export function validar(entrada: readonly Elemento[]): Problema[] {
     for (let j = i + 1; j < cajas.length; j++) {
       if (cajasSeCruzan(cajas[i]!.k, cajas[j]!.k)) {
         const [p, q] = [cajas[i]!.c, cajas[j]!.c];
-        out.push({ tipo: 'superpuestos', gravedad: 'aviso', elementos: [p.id, q.id], texto: `${mayus(nombre(p, todos))} y ${nombre(q, todos)} se superponen: en la simulación se atraviesan.`, arreglo: 'separar' });
+        out.push({ tipo: 'superpuestos', gravedad: 'aviso', elementos: [p.id, q.id], texto: `${mayus(nombre(p, todos))} y ${nombre(q, todos)} se superponen: en la simulación no chocan hasta que se separen.`, arreglo: 'separar' });
       }
     }
   }

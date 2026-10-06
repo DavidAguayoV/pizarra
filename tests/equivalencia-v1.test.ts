@@ -95,6 +95,7 @@ const DIFERENCIAS: Record<string, string> = {
   'proyectil al suelo':
     'Dos errores de la v1: un cuerpo apoyado que parte alejándose de la superficie quedaba pegado a ella (perdía su velocidad normal), ' +
     'y un cuerpo que aterriza deslizando sobre un piso sin roce quedaba clavado.',
+  'bloques apilados': 'En la v1 los cuerpos no se tocaban entre sí: el bloque de arriba atravesaba al de abajo. Ahora se apoya en él.',
 };
 
 describe('diferencias intencionales con la v1', () => {
@@ -109,6 +110,15 @@ describe('diferencias intencionales con la v1', () => {
     const impacto = s.eventos.find((e) => e.tipo === 'impacto')!;
     expect(impacto.t).toBeCloseTo((2 * 4) / G, 4); // vuelve a y = 0,25 en t = 2 v₀y / g
     expect(s.estado.p[0]!.x).toBeCloseTo(0.9 + 0.7 * 3, 6); // y sigue deslizando sin roce a 3 m/s
+  });
+
+  it('bloques apilados: el de arriba queda en reposo sobre el de abajo (N = m₂ g entre ellos, (m₁ + m₂) g del suelo)', () => {
+    const escena = ESCENAS_V1.find((e) => e.nombre === 'bloques apilados')!.elementos;
+    const s = new Simulacion(construirModelo(escena, G), { h: 0.001 });
+    for (let k = 0; k < 500; k++) s.paso();
+    expect(s.estado.p[1]!.y).toBeCloseTo(0.6, 9);
+    expect(s.estado.Nc[0]).toBeCloseTo(1 * G, 9);
+    expect(s.estado.N[0]).toBeCloseTo(3 * G, 9);
   });
 });
 

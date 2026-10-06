@@ -2,6 +2,8 @@ import type { Punto } from '../core/camara';
 import { apoyoEn } from '../physics/dcl';
 import type { PasoGeo } from '../grafo/ruta';
 import { geometriaRuta, largosPorPieza } from '../grafo/ruta';
+import type { Caracteristica, Par } from './contactos';
+import { geoContacto, radioEnvolvente, separacion } from './contactos';
 import type { CuerdaDef, Extremo, Modelo } from './modelo';
 
 /**
@@ -15,8 +17,13 @@ import type { CuerdaDef, Extremo, Modelo } from './modelo';
  *
  * de tamaño igual al número de restricciones activas (no al de coordenadas): contacto con una superficie (λ = N ≥ 0),
  * adherencia (roce estático o rodadura sin deslizar: λ = f, con |f| ≤ μs N), cuerdas con o sin poleas (λ = −T, T ≥ 0;
- * una por pieza si pasan por poleas con masa) y el bloqueo del giro de un bloque apoyado (no se vuelca). El roce
- * cinético (μk N, opuesto al deslizamiento del punto de contacto) se itera con N hasta converger.
+ * una por pieza si pasan por poleas con masa), contacto entre dos cuerpos (λ = N ≥ 0, con su adherencia) y el bloqueo
+ * del giro de un bloque apoyado (no se vuelca). El roce cinético (μk N, opuesto al deslizamiento del punto de contacto)
+ * se itera con N hasta converger.
+ *
+ * Los choques entre cuerpos (y contra una superficie, si e > 0) se resuelven con un **impulso** en su instante exacto:
+ * la velocidad relativa normal pasa a −e·vₙ y todas las demás restricciones activas se respetan en el mismo impulso.
+ * Si no rebota (e = 0, o el rebote sería menor a 5 cm/s), los cuerpos quedan en contacto.
  *
  * Los cambios de régimen (despegue, impacto, estático → cinético, detención, cuerda que se afloja o se tensa, salida
  * por el extremo de una superficie, resorte en su largo natural, cuerpo que llega a la polea) se detectan al final de
@@ -34,7 +41,13 @@ export type TipoEvento =
   | 'cuerda-tensa'
   | 'resorte-natural'
   /** Un cuerpo llega a la polea por la que pasa su cuerda: la simulación se detiene. */
-  | 'llega-polea';
+  | 'llega-polea'
+  /** Dos cuerpos chocan. */
+  | 'choque'
+  /** Un cuerpo rebota (e > 0). */
+  | 'rebote'
+  /** Dos cuerpos en contacto se separan. */
+  | 'separa';
 
 export interface EventoSim {
   t: number;
@@ -50,6 +63,13 @@ export type Modo =
   | { k: 'desliza'; s: number; lado: 1 | -1; dir: number }
   /** Apoyado y sin deslizar: en reposo (roce estático) o, si es una esfera que gira, rodando sin deslizar. */
   | { k: 'adherido'; s: number; lado: 1 | -1 };
+
+/** Contacto persistente entre dos cuerpos (ver `contactos.ts`): deslizando o adherido. */
+export interface Contacto extends Par {
+  k: 'desliza' | 'adherido';
+  /** Sentido en que está por deslizar (si parte en reposo relativo). */
+  dir: number;
+}
 
 export interface Estado {
   t: number;
@@ -74,6 +94,10 @@ export interface Estado {
   T: number[];
   /** Tensión de cada pieza de cada cuerda (una sola si no pasa por poleas con masa). */
   Tp: number[][];
+  /** Contactos entre cuerpos, con su normal y su roce (con signo, a lo largo de su tangente). */
+  contactos: Contacto[];
+  Nc: number[];
+  fc: number[];
   /** Trabajo acumulado de las fuerzas no conservativas. */
   W: { roce: number; aplicadas: number; impactos: number };
   /** Elongación anterior de cada resorte (para detectar el largo natural). */
@@ -87,6 +111,10 @@ const MAX_EVENTOS = 400;
 const TRAMO_MINIMO = 0.02;
 /** Distancia máxima entre un cuerpo y la superficie de su `apoyo` para respetarlo (la del imán al soltarlo). */
 export const APOYO_MAXIMO = 0.3;
+/** Velocidad normal mínima de un rebote: por debajo, los cuerpos quedan en contacto (evita infinitos botes). */
+const V_REBOTE = 0.05;
+/** Separación máxima (m) entre dos cuerpos dibujados en contacto sin `apoyo` explícito. */
+const TOCA = 2e-3;
 
 const cero = (): Punto => ({ x: 0, y: 0 });
 const dot = (a: Punto, b: Punto): number => a.x * b.x + a.y * b.y;
@@ -335,6 +363,83 @@ function compactar(e: readonly Entrada[]): Entrada[] {
   return [...m].map(([k, g]) => ({ k, g }));
 }
 
+/** Componente k de las velocidades generalizadas. */
+function qp(vel: Vel, k: number): number {
+  const n = vel.v.length;
+  if (k >= 3 * n) return vel.wrot[k - 3 * n]!;
+  const i = Math.floor(k / 3);
+  const r = k % 3;
+  return r === 0 ? vel.v[i]!.x : r === 1 ? vel.v[i]!.y : vel.w[i]!;
+}
+
+/** Entradas de una restricción entre dos puntos de los cuerpos i y j en la dirección d (sobre i: +d; sobre j: −d). */
+function entradasPar(m: Modelo, i: number, j: number, d: Punto, ri: Punto, rj: Punto): Entrada[] {
+  const e: Entrada[] = [
+    { k: dX(i), g: d.x },
+    { k: dY(i), g: d.y },
+    { k: dX(j), g: -d.x },
+    { k: dY(j), g: -d.y },
+  ];
+  if (m.cuerpos[i]!.I > 0) e.push({ k: dT(i), g: cruz(ri, d) });
+  if (m.cuerpos[j]!.I > 0) e.push({ k: dT(j), g: -cruz(rj, d) });
+  return e;
+}
+
+/** ¿El contacto involucra algún cuerpo que gira? (si no, y es una cara, su normal no cambia y γ = 0) */
+const giraAlguno = (m: Modelo, c: Par): boolean => m.cuerpos[c.i]!.I > 0 || m.cuerpos[c.j]!.I > 0;
+
+/** Filas de un contacto entre cuerpos: normal (con su γ si se pide) y, si está adherido, tangencial. */
+function filasContacto(m: Modelo, c: Contacto, pose: Pose, vel: Vel | null): { normal: Fila; tang: Fila | null; bloqueo: Fila | null } {
+  const g = geoContacto(m, c, pose);
+  const filaEn = (ps: Pose, dir: 'n' | 't'): Entrada[] => {
+    const gg = ps === pose ? g : geoContacto(m, c, ps);
+    return entradasPar(m, c.i, c.j, gg[dir], gg.ri, gg.rj);
+  };
+  const eN = filaEn(pose, 'n');
+  let gN = 0;
+  let gT = 0;
+  if (vel) {
+    const gira = giraAlguno(m, c);
+    if (c.cara < 0 && !gira) {
+      const dv = { x: vel.v[c.i]!.x - vel.v[c.j]!.x, y: vel.v[c.i]!.y - vel.v[c.j]!.y };
+      const L = Math.hypot(pose.p[c.i]!.x - pose.p[c.j]!.x, pose.p[c.i]!.y - pose.p[c.j]!.y) || 1e-12;
+      gN = -(dot(dv, dv) - dot(g.n, dv) ** 2) / L;
+    } else if (gira) gN = gammaNumerico((ps) => geoContacto(m, c, ps).gap, pose, vel);
+    if (c.k === 'adherido' && (gira || c.cara < 0)) {
+      // γ = −(dJ/dt) q̇ de la fila de velocidad, por diferencia centrada a lo largo del movimiento.
+      const vmax = Math.max(1e-9, ...vel.v.map((q) => Math.hypot(q.x, q.y)), ...vel.w.map(Math.abs));
+      const eps = 1e-5 / Math.max(1, vmax);
+      const jq = (ps: Pose): number => filaEn(ps, 't').reduce((s, x) => s + x.g * qp(vel, x.k), 0);
+      gT = -(jq(avanzarPose(pose, vel, eps)) - jq(avanzarPose(pose, vel, -eps))) / (2 * eps);
+    }
+  }
+  const tang = c.k === 'adherido' ? { e: filaEn(pose, 't'), gamma: gT } : null;
+  // Dos bloques apoyados cara a cara no se vuelcan uno sobre el otro: su giro relativo queda bloqueado.
+  const bi = m.cuerpos[c.i]!;
+  const bj = m.cuerpos[c.j]!;
+  let bloqueo: Fila | null = null;
+  if (c.cara >= 0 && bi.elemento.tipo === 'bloque' && (bi.I > 0 || bj.I > 0)) {
+    const e: Entrada[] = [];
+    if (bi.I > 0) e.push({ k: dT(c.i), g: 1 });
+    if (bj.I > 0) e.push({ k: dT(c.j), g: -1 });
+    bloqueo = { e, gamma: 0 };
+  }
+  return { normal: { e: eN, gamma: gN }, tang, bloqueo };
+}
+
+/** Velocidad relativa (de i respecto de j) del punto de contacto a lo largo de la tangente del contacto. */
+function vTangPar(m: Modelo, c: Par, pose: Pose, vel: Vel): number {
+  const g = geoContacto(m, c, pose);
+  return entradasPar(m, c.i, c.j, g.t, g.ri, g.rj).reduce((s, x) => s + x.g * qp(vel, x.k), 0);
+}
+
+/** Coeficientes de roce entre dos cuerpos: el mayor de los dos. */
+function rocePar(m: Modelo, c: Par): { muS: number; muK: number } {
+  const a = m.cuerpos[c.i]!;
+  const b = m.cuerpos[c.j]!;
+  return { muS: Math.max(a.muS, b.muS), muK: Math.max(a.muK, b.muK) };
+}
+
 // --- Dinámica -----------------------------------------------------------------------------------------------------
 
 interface Din {
@@ -345,8 +450,22 @@ interface Din {
   fric: number[];
   T: number[];
   Tp: number[][];
+  Nc: number[];
+  fc: number[];
   potRoce: number;
   potAp: number;
+}
+
+type Meta = Pick<Estado, 'modo' | 'cuerdaActiva' | 'N' | 'contactos' | 'Nc'>;
+
+/** Filas de las restricciones activas, con el índice de cada una por cuerpo, cuerda y contacto. */
+interface Restricciones {
+  filas: Fila[];
+  contacto: number[];
+  tang: number[];
+  cuerda: number[][];
+  cn: number[];
+  ct: number[];
 }
 
 /** Datos que no cambian: inversas de masas e inercias y apoyo de cada cuerpo (que no gira) sobre cada superficie. */
@@ -391,7 +510,65 @@ function vTangente(m: Modelo, i: number, md: Extract<Modo, { s: number }>, v: Pu
   return dot(v, s.t) + (rc ? w * cruz(rc, s.t) : 0);
 }
 
-function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Pick<Estado, 'modo' | 'cuerdaActiva' | 'N'>): Din {
+function restricciones(m: Modelo, pose: Pose, vel: Vel | null, meta: Meta, sinAdherencia = false): Restricciones {
+  const n = m.cuerpos.length;
+  const filas: Fila[] = [];
+  const filaContacto = new Array<number>(n).fill(-1);
+  const filaTang = new Array<number>(n).fill(-1);
+  const filaCuerda: number[][] = m.cuerdas.map(() => []);
+  for (let i = 0; i < n; i++) {
+    const md = meta.modo[i]!;
+    if (md.k === 'libre') continue;
+    const s = m.superficies[md.s]!;
+    const nOut = { x: s.n.x * md.lado, y: s.n.y * md.lado };
+    filaContacto[i] = filas.length;
+    filas.push({ e: [{ k: dX(i), g: nOut.x }, { k: dY(i), g: nOut.y }], gamma: 0 });
+    // Un bloque que gira, mientras está apoyado, no se vuelca: su giro queda bloqueado.
+    if (m.cuerpos[i]!.I > 0 && m.cuerpos[i]!.elemento.tipo === 'bloque') filas.push({ e: [{ k: dT(i), g: 1 }], gamma: 0 });
+    if (md.k === 'adherido' && !sinAdherencia) {
+      // Sin deslizar: el punto de contacto no se mueve a lo largo de la superficie (en una esfera que gira: rodadura).
+      const rc = brazoContacto(m, i, nOut);
+      filaTang[i] = filas.length;
+      filas.push({ e: [{ k: dX(i), g: s.t.x }, { k: dY(i), g: s.t.y }, ...(rc ? [{ k: dT(i), g: cruz(rc, s.t) }] : [])], gamma: 0 });
+    }
+  }
+  const cn: number[] = [];
+  const ct: number[] = [];
+  for (const c of meta.contactos) {
+    const f = filasContacto(m, c, pose, vel);
+    cn.push(filas.length);
+    filas.push({ e: compactar(f.normal.e), gamma: f.normal.gamma });
+    if (f.bloqueo) filas.push(f.bloqueo);
+    const tang = sinAdherencia ? null : f.tang;
+    ct.push(tang ? filas.length : -1);
+    if (tang) filas.push({ e: compactar(tang.e), gamma: tang.gamma });
+  }
+  m.cuerdas.forEach((c, k) => {
+    if (!meta.cuerdaActiva[k]) return;
+    for (const { fila } of filasCuerda(m, c, pose, vel)) {
+      filaCuerda[k]!.push(filas.length);
+      filas.push({ e: compactar(fila.e), gamma: fila.gamma });
+    }
+  });
+  return { filas, contacto: filaContacto, tang: filaTang, cuerda: filaCuerda, cn, ct };
+}
+
+/** A = J M⁻¹ Jᵀ de un conjunto de filas. */
+function matrizA(filas: readonly Fila[], invM: readonly number[]): number[][] {
+  const nf = filas.length;
+  const A: number[][] = Array.from({ length: nf }, () => new Array<number>(nf).fill(0));
+  for (let r = 0; r < nf; r++) {
+    for (let s = r; s < nf; s++) {
+      let suma = 0;
+      for (const a of filas[r]!.e) for (const b of filas[s]!.e) if (a.k === b.k) suma += a.g * b.g * invM[a.k]!;
+      A[r]![s] = suma;
+      A[s]![r] = suma;
+    }
+  }
+  return A;
+}
+
+function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Meta): Din {
   const n = m.cuerpos.length;
   const D = 3 * n + m.rotores.length;
   const Q = new Array<number>(D).fill(0);
@@ -423,53 +600,34 @@ function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Pick<Estado, 
   }
 
   // Restricciones activas
-  const filas: Fila[] = [];
-  const filaContacto = new Array<number>(n).fill(-1);
-  const filaTang = new Array<number>(n).fill(-1);
-  const filaCuerda: number[][] = m.cuerdas.map(() => []);
-  for (let i = 0; i < n; i++) {
-    const md = meta.modo[i]!;
-    if (md.k === 'libre') continue;
-    const s = m.superficies[md.s]!;
-    const nOut = { x: s.n.x * md.lado, y: s.n.y * md.lado };
-    filaContacto[i] = filas.length;
-    filas.push({ e: [{ k: dX(i), g: nOut.x }, { k: dY(i), g: nOut.y }], gamma: 0 });
-    // Un bloque que gira, mientras está apoyado, no se vuelca: su giro queda bloqueado.
-    if (m.cuerpos[i]!.I > 0 && m.cuerpos[i]!.elemento.tipo === 'bloque') filas.push({ e: [{ k: dT(i), g: 1 }], gamma: 0 });
-    if (md.k === 'adherido') {
-      // Sin deslizar: el punto de contacto no se mueve a lo largo de la superficie (en una esfera que gira: rodadura).
-      const rc = brazoContacto(m, i, nOut);
-      filaTang[i] = filas.length;
-      filas.push({ e: [{ k: dX(i), g: s.t.x }, { k: dY(i), g: s.t.y }, ...(rc ? [{ k: dT(i), g: cruz(rc, s.t) }] : [])], gamma: 0 });
-    }
-  }
-  m.cuerdas.forEach((c, k) => {
-    if (!meta.cuerdaActiva[k]) return;
-    for (const { fila } of filasCuerda(m, c, pose, vel)) {
-      filaCuerda[k]!.push(filas.length);
-      filas.push({ e: compactar(fila.e), gamma: fila.gamma });
-    }
-  });
-
-  const hayDeslizando = meta.modo.some((md) => md.k === 'desliza');
+  const R = restricciones(m, pose, vel, meta);
+  const { filas, contacto: filaContacto, tang: filaTang, cuerda: filaCuerda } = R;
+  const nc = meta.contactos.length;
+  const hayDeslizando = meta.modo.some((md) => md.k === 'desliza') || meta.contactos.some((c) => c.k === 'desliza');
   let Nsup = meta.N.map((x, i) => (x > 0 ? x : m.cuerpos[i]!.masa * m.g * 0.5));
+  let Ncon = meta.contactos.map((c, q) => ((meta.Nc[q] ?? 0) > 0 ? meta.Nc[q]! : m.cuerpos[c.i]!.masa * m.g * 0.5));
   let q2: number[] = [];
   let lambda: number[] = [];
   let fricFuerza = new Array<number>(n).fill(0);
-  const nf = filas.length;
+  let fricCont = new Array<number>(nc).fill(0);
   // A = J M⁻¹ Jᵀ no depende del roce cinético: se arma una sola vez por evaluación.
-  const A0: number[][] = Array.from({ length: nf }, () => new Array<number>(nf).fill(0));
-  for (let r = 0; r < nf; r++) {
-    for (let s = r; s < nf; s++) {
-      let suma = 0;
-      for (const a of filas[r]!.e) for (const b of filas[s]!.e) if (a.k === b.k) suma += a.g * b.g * geo.invM[a.k]!;
-      A0[r]![s] = suma;
-      A0[s]![r] = suma;
-    }
-  }
+  const A0 = matrizA(filas, geo.invM);
+  // Geometría de los contactos que deslizan (para su roce cinético)
+  const geoDesl = meta.contactos.map((c) => (c.k === 'desliza' ? geoContacto(m, c, pose) : null));
   for (let it = 0; it < (hayDeslizando ? 6 : 1); it++) {
     const Qi = Q.slice();
     fricFuerza = new Array<number>(n).fill(0);
+    fricCont = new Array<number>(nc).fill(0);
+    meta.contactos.forEach((c, q) => {
+      const g = geoDesl[q];
+      if (!g) return;
+      const vt = entradasPar(m, c.i, c.j, g.t, g.ri, g.rj).reduce((s, x) => s + x.g * qp(vel, x.k), 0);
+      const sg = Math.abs(vt) > EPS_V ? signo(vt) : c.dir;
+      const fr = -sg * rocePar(m, c).muK * Math.max(Ncon[q]!, 0);
+      fricCont[q] = fr;
+      // Sobre i, fr a lo largo de t en el punto de contacto; sobre j, la reacción.
+      for (const x of entradasPar(m, c.i, c.j, g.t, g.ri, g.rj)) Qi[x.k]! += fr * x.g;
+    });
     for (let i = 0; i < n; i++) {
       const md = meta.modo[i]!;
       if (md.k !== 'desliza') continue;
@@ -495,8 +653,14 @@ function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Pick<Estado, 
     for (let k = 0; k < D; k++) q2[k] = q2[k]! * geo.invM[k]!;
     if (!hayDeslizando) break;
     const nueva = m.cuerpos.map((_, i) => (filaContacto[i]! >= 0 ? lambda[filaContacto[i]!]! : 0));
-    const dif = Math.max(0, ...nueva.map((x2, i) => Math.abs(x2 - Math.max(Nsup[i]!, 0))));
+    const nuevaC = R.cn.map((r) => lambda[r]!);
+    const dif = Math.max(
+      0,
+      ...nueva.map((x2, i) => (meta.modo[i]!.k === 'desliza' ? Math.abs(x2 - Math.max(Nsup[i]!, 0)) : 0)),
+      ...nuevaC.map((x2, q) => (meta.contactos[q]!.k === 'desliza' ? Math.abs(x2 - Math.max(Ncon[q]!, 0)) : 0)),
+    );
     Nsup = nueva.map((x2, i) => (meta.modo[i]!.k === 'desliza' ? x2 : Nsup[i]!));
+    Ncon = nuevaC.map((x2, q) => (meta.contactos[q]!.k === 'desliza' ? x2 : Ncon[q]!));
     if (dif < 1e-11) break;
   }
 
@@ -507,14 +671,19 @@ function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Pick<Estado, 
   const fric = m.cuerpos.map((_, i) => (meta.modo[i]!.k === 'adherido' ? lambda[filaTang[i]!]! : fricFuerza[i]!));
   const Tp = filaCuerda.map((rs) => rs.map((r) => -lambda[r]!));
   const T = m.cuerdas.map((_, k) => Tp[k]![0] ?? 0);
+  const Nc = R.cn.map((r) => lambda[r]!);
+  const fc = meta.contactos.map((c, q) => (c.k === 'adherido' ? lambda[R.ct[q]!]! : fricCont[q]!));
   let potRoce = 0;
+  meta.contactos.forEach((c, q) => {
+    if (c.k === 'desliza') potRoce += fricCont[q]! * vTangPar(m, c, pose, vel);
+  });
   let potAp = 0;
   for (let i = 0; i < n; i++) {
     const md = meta.modo[i]!;
     if (md.k === 'desliza') potRoce += fricFuerza[i]! * vTangente(m, i, md, vel.v[i]!, vel.w[i]!);
     potAp += dot(Fap[i]!, vel.v[i]!);
   }
-  return { a, alfa, arot, N, fric, T, Tp, potRoce, potAp };
+  return { a, alfa, arot, N, fric, T, Tp, Nc, fc, potRoce, potAp };
 }
 
 // --- Energías -------------------------------------------------------------------------------------------------------
@@ -588,6 +757,8 @@ export interface OpcionesSim {
   h?: number;
   /** Separación entre muestras guardadas para los gráficos. */
   periodoMuestreo?: number;
+  /** Coeficiente de restitución de los choques (0 = plástico, los cuerpos quedan juntos; 1 = elástico). */
+  restitucion?: number;
 }
 
 /** Estado al comienzo de un paso (para ubicar los eventos que ocurren dentro de él). */
@@ -638,6 +809,8 @@ const MAX_MUESTRAS = 20000;
 
 export class Simulacion {
   readonly h: number;
+  /** Coeficiente de restitución de los choques. */
+  readonly e: number;
   estado!: Estado;
   historial: Muestra[] = [];
   eventos: EventoSim[] = [];
@@ -650,6 +823,7 @@ export class Simulacion {
 
   constructor(readonly modelo: Modelo, opciones: OpcionesSim = {}) {
     this.h = opciones.h ?? PASO_POR_DEFECTO;
+    this.e = Math.min(1, Math.max(0, opciones.restitucion ?? 0));
     this.periodo = opciones.periodoMuestreo ?? 0.01;
     this.geo = geometria(modelo);
     this.reiniciar();
@@ -717,9 +891,13 @@ export class Simulacion {
       fric: new Array<number>(n).fill(0),
       T: new Array<number>(m.cuerdas.length).fill(0),
       Tp: m.cuerdas.map(() => [0]),
+      contactos: [],
+      Nc: [],
+      fc: [],
       W: { roce: 0, aplicadas: 0, impactos: 0 },
       elong: elongaciones(m, pose0),
     };
+    this.contactosIniciales();
     this.inicial = modo.map((x) => ({ ...x }));
     // Una cuerda cuyos extremos ya se están acercando parte floja (no puede empujar).
     m.cuerdas.forEach((c, k) => {
@@ -736,10 +914,49 @@ export class Simulacion {
     modo.forEach((md, i) => {
       if (md.k === 'desliza' && Math.abs(vTangente(m, i, md, v[i]!, 0)) < EPS_V) candidatos.add(i);
     });
-    this.reconciliar(candidatos, false);
+    const contCand = new Set<number>();
+    this.estado.contactos.forEach((c, q) => {
+      if (Math.abs(vTangPar(m, c, this.pose, this.vel)) < EPS_V) contCand.add(q);
+    });
+    this.reconciliar(candidatos, false, contCand);
     this.refrescar();
     this.energiaInicial = energias(m, this.pose, this.vel).E;
     this.registrar();
+  }
+
+  /**
+   * Cuerpos dibujados en contacto (uno en el `apoyo` del otro, o a menos de 2 mm): parten apoyados uno en otro. El que
+   * se apoya se acomoda justo sobre la cara del otro. Un par que parte traslapado se ignora hasta que se separe.
+   */
+  private contactosIniciales(): void {
+    const m = this.modelo;
+    const e = this.estado;
+    const n = m.cuerpos.length;
+    for (let a = 0; a < n; a++) {
+      for (let b = a + 1; b < n; b++) {
+        const dist = Math.hypot(e.p[a]!.x - e.p[b]!.x, e.p[a]!.y - e.p[b]!.y);
+        if (dist > radioEnvolvente(m, a) + radioEnvolvente(m, b) + APOYO_MAXIMO) continue;
+        const car = separacion(m, a, b, this.pose);
+        if (car.esquina) continue;
+        const ids = (k: number): readonly string[] => m.cuerpos[k]!.elemento.apoyo ?? [];
+        const iEnJ = ids(car.i).includes(m.cuerpos[car.j]!.id);
+        const jEnI = ids(car.j).includes(m.cuerpos[car.i]!.id);
+        if (Math.abs(car.gap) > (iEnJ || jEnI ? APOYO_MAXIMO : TOCA)) continue;
+        const g = geoContacto(m, car, this.pose);
+        // Se mueve el que se apoya en el otro (por defecto, i): la separación queda en cero.
+        const mover = jEnI && !iEnJ ? car.j : car.i;
+        const sg = mover === car.i ? -1 : 1;
+        e.p[mover] = { x: e.p[mover]!.x + sg * g.n.x * g.gap, y: e.p[mover]!.y + sg * g.n.y * g.gap };
+        // Si parten alejándose, no quedan en contacto; si se acercan, la velocidad relativa normal se anula.
+        const dv = { x: e.v[car.i]!.x - e.v[car.j]!.x, y: e.v[car.i]!.y - e.v[car.j]!.y };
+        const vn = dot(dv, g.n);
+        if (vn > 2e-3 * Math.hypot(dv.x, dv.y) + EPS_V) continue;
+        if (vn < 0) e.v[mover] = { x: e.v[mover]!.x + sg * vn * g.n.x, y: e.v[mover]!.y + sg * vn * g.n.y };
+        e.contactos.push({ i: car.i, j: car.j, cara: car.cara, k: 'desliza', dir: 0 });
+        e.Nc.push(0);
+        e.fc.push(0);
+      }
+    }
   }
 
   /** Superficie en la que el cuerpo está apoyado al empezar (null si parte en el aire). */
@@ -811,7 +1028,7 @@ export class Simulacion {
     const h = hh;
     const n = m.cuerpos.length;
     const nr = m.rotores.length;
-    const meta = { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N };
+    const meta: Meta = { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc };
     const prev: Prev = {
       pose: { p: e.p.map((q) => ({ ...q })), th: e.th.slice(), rot: e.rot.slice() },
       vel: { v: e.v.map((q) => ({ ...q })), w: e.w.slice(), wrot: e.wrot.slice() },
@@ -906,10 +1123,55 @@ export class Simulacion {
           }
         }
       });
+      for (const c of e.contactos) {
+        const g = geoContacto(m, c, this.pose);
+        this.proyectarFila(entradasPar(m, c.i, c.j, g.n, g.ri, g.rj), g.gap);
+        const f = filasContacto(m, c, this.pose, null);
+        this.proyectarFila(compactar(f.normal.e), null);
+        if (f.bloqueo) this.proyectarFila(f.bloqueo.e, null);
+        if (f.tang) this.proyectarFila(compactar(f.tang.e), null);
+      }
       m.cuerdas.forEach((c, k) => {
         if (e.cuerdaActiva[k]) this.proyectarCuerda(c);
       });
     }
+  }
+
+  /**
+   * Corrige una restricción por el camino de menor energía: si `phi` no es null, la posición (φ → 0, linealizado); si es
+   * null, la velocidad (J q̇ → 0).
+   */
+  private proyectarFila(e0: readonly Entrada[], phi: number | null): void {
+    const e = compactar(e0);
+    const invM = this.geo.invM;
+    const w = e.reduce((s, x) => s + invM[x.k]! * x.g * x.g, 0);
+    if (w < 1e-18) return;
+    const d = phi ?? this.dotQ(e);
+    for (const x of e) this.moverQ(x.k, (-d / w) * invM[x.k]! * x.g, phi === null);
+  }
+
+  /**
+   * Impulso en un choque: la fila `nueva` (velocidad relativa normal) pasa a `objetivo` y todas las demás restricciones
+   * activas quedan con velocidad nula, en un solo sistema (J M⁻¹ Jᵀ) Λ = objetivo − J q̇;  Δq̇ = M⁻¹ Jᵀ Λ. El choque es
+   * instantáneo y sin roce: la adherencia no se impone y los que quedan moviéndose pasan a deslizar.
+   */
+  private impulso(nueva: Fila, objetivo: number): void {
+    const m = this.modelo;
+    const e = this.estado;
+    const R = restricciones(m, this.pose, null, { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc }, true);
+    const filas = [...R.filas, { e: compactar(nueva.e), gamma: 0 }];
+    const A = matrizA(filas, this.geo.invM);
+    const b = filas.map((f, r) => (r === filas.length - 1 ? objetivo : 0) - this.dotQ(f.e));
+    const L = resolver(A, b);
+    filas.forEach((f, r) => {
+      for (const x of f.e) this.moverQ(x.k, this.geo.invM[x.k]! * x.g * L[r]!, true);
+    });
+    e.modo.forEach((md, i) => {
+      if (md.k === 'adherido' && Math.abs(vTangente(m, i, md, e.v[i]!, e.w[i]!)) > EPS_V) e.modo[i] = { k: 'desliza', s: md.s, lado: md.lado, dir: 0 };
+    });
+    e.contactos.forEach((c, q) => {
+      if (c.k === 'adherido' && Math.abs(vTangPar(m, c, this.pose, this.vel)) > EPS_V) e.contactos[q] = { ...c, k: 'desliza', dir: 0 };
+    });
   }
 
   /** Velocidad de cambio del largo de una cuerda (positiva si se estira). */
@@ -985,7 +1247,7 @@ export class Simulacion {
 
   private din(): Din {
     const e = this.estado;
-    return dinamica(this.modelo, this.geo, this.pose, this.vel, { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N });
+    return dinamica(this.modelo, this.geo, this.pose, this.vel, { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc });
   }
 
   private cinetica(): number {
@@ -1058,6 +1320,14 @@ export class Simulacion {
         }
       });
     }
+    // 1b) Choques entre cuerpos que no estaban en contacto (el primero del paso)
+    const choque = profundidad < 4 ? this.primerChoque(prev, h) : null;
+    if (choque && (!primero || choque.frac < (primero as { frac: number }).frac)) {
+      this.retroceder(prev, choque.frac, h);
+      this.chocar(choque.a, choque.b);
+      this.terminarPaso(h * (1 - choque.frac), profundidad);
+      return true;
+    }
     if (primero && profundidad < 4) {
       const { i, s, lado, frac } = primero as { i: number; s: number; lado: 1 | -1; frac: number };
       // Se vuelve al instante del choque y se aplica allí el impacto.
@@ -1065,6 +1335,16 @@ export class Simulacion {
       const sup = m.superficies[s]!;
       const c = m.cuerpos[i]!;
       const kAntes = this.cinetica();
+      // Con e > 0 rebota (si el rebote alcanza): la velocidad normal se invierte y se reduce en e.
+      const nRebote = { x: sup.n.x * lado, y: sup.n.y * lado };
+      const vnR = dot(e.v[i]!, nRebote);
+      if (this.e > 0 && -vnR * this.e > V_REBOTE) {
+        e.v[i] = { x: e.v[i]!.x - (1 + this.e) * vnR * nRebote.x, y: e.v[i]!.y - (1 + this.e) * vnR * nRebote.y };
+        e.W.impactos = prev.W.impactos + this.cinetica() - kAntes;
+        this.evento(e.t, 'rebote', i, `${this.nombre(i)} rebota en la superficie`);
+        this.terminarPaso(h * (1 - frac), profundidad);
+        return true;
+      }
       // Un bloque que gira cae sobre una cara: queda alineado con la superficie y deja de girar (choque inelástico).
       if (c.I > 0 && c.elemento.tipo === 'bloque') {
         const base = Math.atan2(sup.t.y, sup.t.x);
@@ -1164,8 +1444,41 @@ export class Simulacion {
         }
       }
     }
-    if (candidatos.size > 0) {
-      this.reconciliar(candidatos, true);
+    // 4b) Contactos entre cuerpos: separación, caída por el borde, detención relativa
+    for (let vuelta = 0; vuelta <= e.contactos.length; vuelta++) {
+      const q = e.contactos.findIndex((c, k) => {
+        if (d.Nc[k]! < -EPS_F) return true;
+        const g = geoContacto(m, c, this.pose);
+        return Math.abs(g.u) > g.semiCara;
+      });
+      if (q < 0) break;
+      const c = e.contactos[q]!;
+      const cae = d.Nc[q]! >= -EPS_F;
+      this.quitarContacto(q);
+      this.evento(e.t, cae ? 'sale-extremo' : 'separa', c.i, cae ? `${this.nombre(c.i)} cae por el borde de ${this.nombre(c.j)}` : `${this.nombre(c.i)} y ${this.nombre(c.j)} se separan`);
+      d = this.din();
+    }
+    const contCand = new Set<number>();
+    const velAntesC = new Map<number, Vel>();
+    e.contactos.forEach((c, q) => {
+      if (c.k !== 'desliza') return;
+      const vtPrev = vTangPar(m, c, this.pose, prev.vel);
+      const vtNew = vTangPar(m, c, this.pose, this.vel);
+      if (Math.abs(vtPrev) > EPS_V && (vtPrev * vtNew < 0 || Math.abs(vtNew) < EPS_V)) {
+        velAntesC.set(q, { v: e.v.map((x) => ({ ...x })), w: e.w.slice(), wrot: e.wrot.slice() });
+        const g = geoContacto(m, c, this.pose);
+        this.proyectarFila(entradasPar(m, c.i, c.j, g.t, g.ri, g.rj), null);
+        contCand.add(q);
+      }
+    });
+    if (candidatos.size > 0 || contCand.size > 0) {
+      this.reconciliar(candidatos, true, contCand);
+      // Un contacto que no quedó adherido sigue con la velocidad que traía (ya cambió de sentido).
+      for (const [q, x] of velAntesC) {
+        if (e.contactos[q]?.k !== 'desliza') continue;
+        e.v.splice(0, e.v.length, ...x.v);
+        e.w.splice(0, e.w.length, ...x.w);
+      }
       // Si no quedó adherido, no hay razón para frenarlo: sigue con la velocidad que traía (ya cambió de sentido).
       for (const [i, x] of velAntes) {
         if (e.modo[i]!.k !== 'desliza') continue;
@@ -1185,7 +1498,84 @@ export class Simulacion {
         d = this.din();
       }
     }
+    e.contactos.forEach((c, q) => {
+      if (c.k !== 'adherido') return;
+      if (Math.abs(d.fc[q]!) > rocePar(m, c).muS * Math.max(d.Nc[q]!, 0) + 1e-9) {
+        e.contactos[q] = { ...c, k: 'desliza', dir: -signo(d.fc[q]!) };
+        this.evento(e.t, 'estatico-cinetico', c.i, `${this.nombre(c.i)} empieza a deslizar sobre ${this.nombre(c.j)}`);
+        d = this.din();
+      }
+    });
     return false;
+  }
+
+  private quitarContacto(q: number): void {
+    const e = this.estado;
+    e.contactos.splice(q, 1);
+    e.Nc.splice(q, 1);
+    e.fc.splice(q, 1);
+  }
+
+  /** El primer choque del paso entre dos cuerpos que no estaban en contacto (fracción del paso), o null. */
+  private primerChoque(prev: Prev, h: number): { a: number; b: number; frac: number } | null {
+    const m = this.modelo;
+    const e = this.estado;
+    const n = m.cuerpos.length;
+    if (n < 2) return null;
+    const enContacto = new Set(e.contactos.map((c) => `${Math.min(c.i, c.j)},${Math.max(c.i, c.j)}`));
+    const pose = this.pose;
+    const vel = this.vel;
+    let mejor: { a: number; b: number; frac: number } | null = null;
+    for (let a = 0; a < n; a++) {
+      for (let b = a + 1; b < n; b++) {
+        if (enContacto.has(`${a},${b}`)) continue;
+        if (Math.hypot(e.p[a]!.x - e.p[b]!.x, e.p[a]!.y - e.p[b]!.y) > radioEnvolvente(m, a) + radioEnvolvente(m, b)) continue;
+        if (separacion(m, a, b, pose).gap >= 0) continue;
+        // Si ya se traslapaban al comienzo del paso (dibujados así), no es un choque: se ignoran hasta que se separen.
+        if (separacion(m, a, b, prev.pose).gap < -1e-9) continue;
+        const f = (u: number): number => separacion(m, a, b, poseIntermedia(prev, pose, vel, h, u)).gap;
+        const frac = f(0) <= 0 ? 0 : bisectar(f);
+        if (!mejor || frac < mejor.frac) mejor = { a, b, frac };
+      }
+    }
+    return mejor;
+  }
+
+  /** Choque entre a y b en el instante actual: impulso con restitución y, si no rebotan, contacto persistente. */
+  private chocar(a: number, b: number): void {
+    const m = this.modelo;
+    const e = this.estado;
+    const car: Caracteristica = separacion(m, a, b, this.pose);
+    let fila: Fila;
+    let n: Punto;
+    if (car.esquina) {
+      const ri = { x: car.P.x - e.p[car.i]!.x, y: car.P.y - e.p[car.i]!.y };
+      const rj = { x: car.P.x - e.p[car.j]!.x, y: car.P.y - e.p[car.j]!.y };
+      n = car.n;
+      fila = { e: entradasPar(m, car.i, car.j, n, ri, rj), gamma: 0 };
+    } else {
+      const g = geoContacto(m, car, this.pose);
+      n = g.n;
+      fila = { e: entradasPar(m, car.i, car.j, n, g.ri, g.rj), gamma: 0 };
+    }
+    const vn = this.dotQ(compactar(fila.e));
+    if (vn >= 0) return; // ya se están separando
+    const kAntes = this.cinetica();
+    const rebota = this.e > 0 && -vn * this.e > V_REBOTE;
+    this.impulso(fila, rebota ? -this.e * vn : 0);
+    e.W.impactos += this.cinetica() - kAntes;
+    const [ni, nj] = [this.nombre(car.i), this.nombre(car.j)];
+    if (rebota || car.esquina) {
+      if (-vn > 1e-4) this.evento(e.t, rebota ? 'rebote' : 'choque', car.i, rebota ? `${ni} y ${nj} chocan y rebotan` : `${ni} choca con ${nj}`);
+      return;
+    }
+    e.contactos.push({ i: car.i, j: car.j, cara: car.cara, k: 'desliza', dir: 0 });
+    e.Nc.push(0);
+    e.fc.push(0);
+    const sobre = n.y > 0.5 ? `${ni} cae sobre ${nj}` : n.y < -0.5 ? `${nj} cae sobre ${ni}` : `${ni} choca con ${nj}`;
+    this.evento(e.t, 'choque', car.i, `${sobre} y quedan en contacto`);
+    const q = e.contactos.length - 1;
+    if (Math.abs(vTangPar(m, e.contactos[q]!, this.pose, this.vel)) < EPS_V) this.reconciliar(new Set(), true, new Set([q]));
   }
 
   /** ¿Es una esfera que gira (rueda)? */
@@ -1199,16 +1589,18 @@ export class Simulacion {
    * los sostiene el roce estático (o ruedan sin deslizar). Los prueba como adheridos y suelta a los que necesitan más
    * roce del que hay (|f| > μs N): esos pasan a deslizar en el sentido en que los empuja el resto de las fuerzas.
    */
-  private reconciliar(candidatos: Set<number>, avisar: boolean): void {
+  private reconciliar(candidatos: Set<number>, avisar: boolean, contCand: Set<number> = new Set()): void {
     const m = this.modelo;
     const e = this.estado;
-    if (candidatos.size === 0) return;
+    if (candidatos.size === 0 && contCand.size === 0) return;
     for (const i of candidatos) {
       const md = e.modo[i]!;
       if (md.k === 'desliza') e.modo[i] = { k: 'adherido', s: md.s, lado: md.lado };
     }
+    for (const q of contCand) e.contactos[q] = { ...e.contactos[q]!, k: 'adherido' };
     const sueltos = new Set<number>();
-    for (let vuelta = 0; vuelta <= candidatos.size; vuelta++) {
+    const sueltosC = new Set<number>();
+    for (let vuelta = 0; vuelta <= candidatos.size + contCand.size; vuelta++) {
       const d = this.din();
       let cambio = false;
       for (const i of candidatos) {
@@ -1222,9 +1614,27 @@ export class Simulacion {
           break;
         }
       }
+      if (!cambio) {
+        for (const q of contCand) {
+          const c = e.contactos[q]!;
+          if (c.k !== 'adherido') continue;
+          if (Math.abs(d.fc[q]!) > rocePar(m, c).muS * Math.max(d.Nc[q]!, 0) + 1e-9) {
+            e.contactos[q] = { ...c, k: 'desliza', dir: -signo(d.fc[q]!) };
+            sueltosC.add(q);
+            cambio = true;
+            break;
+          }
+        }
+      }
       if (!cambio) break;
     }
     if (!avisar) return;
+    for (const q of contCand) {
+      const c = e.contactos[q]!;
+      const mu = rocePar(m, c);
+      if (c.k === 'adherido') this.evento(e.t, 'detencion', c.i, `${this.nombre(c.i)} queda en reposo respecto de ${this.nombre(c.j)}`);
+      else if (sueltosC.has(q) && (mu.muS > 0 || mu.muK > 0)) this.evento(e.t, 'invierte', c.i, `${this.nombre(c.i)} cambia de sentido sobre ${this.nombre(c.j)}`);
+    }
     for (const i of candidatos) {
       if (e.modo[i]!.k === 'adherido') {
         if (this.rueda(i) && Math.hypot(e.v[i]!.x, e.v[i]!.y) > 1e-6) this.evento(e.t, 'detencion', i, `${this.nombre(i)} rueda sin deslizar`);
@@ -1250,6 +1660,8 @@ export class Simulacion {
     e.fric = d.fric;
     e.T = d.T;
     e.Tp = d.Tp.map((x) => (x.length > 0 ? x : [0]));
+    e.Nc = d.Nc;
+    e.fc = d.fc;
   }
 
   private registrar(): void {
@@ -1303,9 +1715,22 @@ export class Simulacion {
   /** Una descripción corta del estado de un cuerpo, para mostrar en la interfaz. */
   descripcion(i: number): string {
     const md = this.estado.modo[i]!;
-    if (md.k === 'libre') return 'en el aire';
+    if (md.k === 'libre') {
+      // Sobre otro cuerpo (o en contacto con él)
+      for (const c of this.estado.contactos) {
+        if (c.i !== i && c.j !== i) continue;
+        const g = geoContacto(this.modelo, c, this.pose);
+        const otro = c.i === i ? c.j : c.i;
+        const arriba = c.i === i ? g.n.y > 0.5 : g.n.y < -0.5;
+        return `${arriba ? 'sobre' : 'en contacto con'} ${this.nombre(otro)}`;
+      }
+      return 'en el aire';
+    }
     const moviendo = Math.abs(dot(this.estado.v[i]!, this.modelo.superficies[md.s]!.t)) > 1e-6;
-    if (md.k === 'adherido') return this.rueda(i) && moviendo ? 'rueda sin deslizar' : 'en reposo (roce estático)';
+    if (md.k === 'adherido') {
+      if (this.rueda(i) && moviendo) return 'rueda sin deslizar';
+      return this.modelo.superficies[md.s]!.muS > 0 ? 'en reposo (roce estático)' : 'en reposo';
+    }
     return moviendo ? 'deslizando' : 'apoyado';
   }
 }

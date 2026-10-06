@@ -331,6 +331,24 @@ export class PanelPropiedades {
     return fila;
   }
 
+  /** Coeficientes de roce con otros cuerpos (apilados o que se tocan): entre dos cuerpos vale el mayor de los dos. */
+  private filaRoceCuerpos(c0: Bloque | Esfera): HTMLElement {
+    const fila = document.createElement('div');
+    fila.className = 'fila-campos';
+    const cambiar = (k: 'muS' | 'muK', x: number): void => {
+      if (!(x >= 0)) return;
+      const c = { ...this.vigente(c0) };
+      if (x > 0) c[k] = x;
+      else delete c[k];
+      this.host.editar({ actualizar: [c] });
+    };
+    fila.append(
+      campo('μs con cuerpos', numerico(c0.muS ?? 0, '0.05', (x) => cambiar('muS', x), 'Coeficiente de roce estático con otros cuerpos')),
+      campo('μk con cuerpos', numerico(c0.muK ?? 0, '0.05', (x) => cambiar('muK', x), 'Coeficiente de roce cinético con otros cuerpos')),
+    );
+    return fila;
+  }
+
   /** Interruptor «Gira» de un cuerpo (sin él, se mueve como partícula con orientación fija). */
   private filaGira(c0: Bloque | Esfera, ayuda: string): HTMLElement {
     const div = document.createElement('div');
@@ -364,6 +382,7 @@ export class PanelPropiedades {
     e.append(fila);
     e.append(campo('Ángulo (°)', numerico(aGrados(b0.angulo), '1', (x) => cambiar((b) => ({ ...b, angulo: Math.round(((x * Math.PI) / 180) * 1e4) / 1e4 })), 'Ángulo del bloque')));
     e.append(this.filaGira(b0, 'Cuerpo rígido: gira si una cuerda o un resorte tira fuera de su centro; apoyado no se vuelca.'));
+    e.append(this.filaRoceCuerpos(b0));
     e.append(this.filaVelocidad(b0));
     this.seccionDcl(b0);
     e.append(boton('Borrar bloque', 'Suprimir', () => this.host.editar({ borrar: [b0.id] })));
@@ -380,6 +399,7 @@ export class PanelPropiedades {
       campo('Radio (m)', numerico(s0.radio, '0.05', (x) => x >= 0.1 && cambiar((s) => ({ ...s, radio: x })), 'Radio de la esfera')),
     );
     e.append(this.filaGira(s0, 'Esfera sólida (I = 2/5 m r²): rueda sin deslizar si el roce estático alcanza; si no, desliza girando.'));
+    e.append(this.filaRoceCuerpos(s0));
     e.append(this.filaVelocidad(s0));
     this.seccionDcl(s0);
     e.append(boton('Borrar esfera', 'Suprimir', () => this.host.editar({ borrar: [s0.id] })));
@@ -508,7 +528,7 @@ export class PanelPropiedades {
     const ax = r.aceleracion.x;
     m.pie.textContent =
       ax === null
-        ? 'Diagrama de cuerpo libre · la aceleración depende de las tensiones (Simular la calcula)'
+        ? `Diagrama de cuerpo libre · la aceleración depende de ${r.avisos.some((x) => x.includes('entre cuerpos')) ? 'las fuerzas entre cuerpos' : 'las tensiones'} (Simular la calcula)`
         : r.superficie
           ? `Diagrama de cuerpo libre · a = ${numeroEs(ax)} m/s² a lo largo de la superficie${r.estadoRoce === 'estatico' ? ' (en reposo)' : ''}`
           : `Diagrama de cuerpo libre · a = (${numeroEs(ax)}; ${numeroEs(r.aceleracion.y ?? 0)}) m/s²`;

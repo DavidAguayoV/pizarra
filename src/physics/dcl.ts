@@ -174,6 +174,22 @@ function reunir(c: Cuerpo, gr: Grafo, g: number) {
     });
   });
 
+  // Cuerpos apilados (grafo: `apoyo` con el id de otro cuerpo): el de abajo empuja hacia arriba al de arriba, y este
+  // empuja hacia abajo al de abajo (tercera ley). Su valor depende del movimiento de los dos: queda como incógnita.
+  const num = (k: Cuerpo): string => /_\{?(\d+)\}?$/.exec(k.etiqueta.trim())?.[1] ?? '';
+  const parN = (de: Cuerpo, sobre: Cuerpo): string => (num(de) && num(sobre) ? `_{${num(de)}${num(sobre)}}` : '');
+  for (const otro of gr.cuerpos) {
+    if (otro.id === c.id) continue;
+    if (c.apoyo?.includes(otro.id)) {
+      const sub = parN(otro, c);
+      otras.push({ rol: 'normal', simbolo: `N${sub}`, etiqueta: `\\vec{N}${sub}`, angulo: Math.PI / 2, valor: null });
+    }
+    if (otro.apoyo?.includes(c.id)) {
+      const sub = parN(otro, c);
+      otras.push({ rol: 'normal', simbolo: `N${sub}`, etiqueta: `\\vec{N}${sub}`, angulo: -Math.PI / 2, valor: null });
+    }
+  }
+
   for (const { v, cuerpo } of gr.vectores) {
     if (cuerpo.id !== c.id) continue;
     const d = { x: v.b.x - v.a.x, y: v.b.y - v.a.y };
@@ -206,7 +222,10 @@ export function resolverDcl(c0: Cuerpo, elementos: readonly Elemento[], g = G_PO
   const fuerzas: FuerzaDcl[] = [peso, ...otras];
 
   const base: Pick<ResultadoDcl, 'cuerpo' | 'g' | 'fuerzas' | 'avisos'> = { cuerpo: c, g, fuerzas, avisos };
-  if (desconocidas.length > 0) avisos.push('Hay fuerzas cuyo valor no se puede determinar solo con lo dibujado (tensiones): quedan como incógnitas.');
+  if (desconocidas.length > 0) {
+    const entre = desconocidas.some((f) => f.rol === 'normal');
+    avisos.push(`Hay fuerzas cuyo valor no se puede determinar solo con lo dibujado (${entre ? 'tensiones o fuerzas entre cuerpos' : 'tensiones'}): quedan como incógnitas.`);
+  }
 
   // Sin superficie: ejes del mundo.
   if (!unico) {

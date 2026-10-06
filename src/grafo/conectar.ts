@@ -1,7 +1,7 @@
 import type { Punto } from '../core/camara';
 import type { Bloque, Cuerda, Elemento, Esfera, Paso, Polea, Union } from '../core/elementos';
 import { distanciaAlCuerpo, TOLERANCIA_CONTACTO } from '../physics/dcl';
-import { apoyarEn, MASA_POR_DEFECTO, superficieCercana } from '../physics/objetos';
+import { apoyarEn, apoyarSobre, cuerpoDebajo, MASA_POR_DEFECTO, superficieCercana } from '../physics/objetos';
 import type { CuerpoG } from './lector';
 import { leerGrafo } from './lector';
 import { posPuerto, puertosDe } from './puertos';
@@ -128,8 +128,12 @@ export function pasoAlSalir(region: RegionPaso, entrada: Punto, salida: Punto): 
 
 /** El cuerpo con su `apoyo` según la superficie que tenga cerca (y apoyado sobre ella). */
 export function apoyar<T extends CuerpoC>(c: T, escena: readonly Elemento[]): T {
-  const s = superficieCercana(c, escena.filter((x) => x.id !== c.id));
-  return s ? { ...apoyarEn(c, s), apoyo: [s.id] } : { ...c, apoyo: [] };
+  const otros = escena.filter((x) => x.id !== c.id);
+  const s = superficieCercana(c, otros);
+  if (s) return { ...apoyarEn(c, s), apoyo: [s.id] };
+  // Sobre otro cuerpo (bloques apilados): se apoya en la cara de arriba del de abajo.
+  const b = cuerpoDebajo(c, otros);
+  return b ? { ...apoyarSobre(c, b), apoyo: [b.id] } : { ...c, apoyo: [] };
 }
 
 /** Una polea soltada sobre un cuerpo queda montada encima de él (polea móvil); si no, queda fija. */

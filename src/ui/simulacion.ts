@@ -54,6 +54,8 @@ export class PanelSimulacion {
   private sim: Simulacion | null = null;
   private analitica: Analitica | null = null;
   private g = G_POR_DEFECTO;
+  /** Coeficiente de restitución de los choques. */
+  private restitucion = 0;
   private indice = 0;
   private campo: CampoGrafico = 'posicion';
   private velocidad = 1;
@@ -129,10 +131,28 @@ export class PanelSimulacion {
     const etG = document.createElement('label');
     etG.className = 'sim-g';
     etG.append('g (m/s²) ', gIn);
+    const eIn = document.createElement('input');
+    eIn.type = 'text';
+    eIn.inputMode = 'decimal';
+    eIn.value = numeroEs(this.restitucion);
+    eIn.setAttribute('aria-label', 'Coeficiente de restitución de los choques');
+    eIn.title = '0: los cuerpos que chocan quedan juntos. 1: choque elástico (rebotan sin perder energía).';
+    eIn.addEventListener('change', () => {
+      const v = Number(eIn.value.replace(',', '.'));
+      if (Number.isFinite(v) && v >= 0 && v <= 1) {
+        this.restitucion = v;
+        this.construir();
+        this.pintar(true);
+      } else eIn.value = numeroEs(this.restitucion);
+    });
+    const etE = document.createElement('label');
+    etE.className = 'sim-g';
+    etE.append('e (choques) ', eIn);
     const bPaso = boton('Paso', 'Avanza 0,05 s', () => this.paso());
     bPaso.classList.add('sim-extra');
     etG.classList.add('sim-extra');
-    controles.append(this.bPlay, bPaso, boton('Reiniciar', 'Vuelve al instante inicial', () => this.reiniciar()), vel, etG);
+    etE.classList.add('sim-extra');
+    controles.append(this.bPlay, bPaso, boton('Reiniciar', 'Vuelve al instante inicial', () => this.reiniciar()), vel, etG, etE);
 
     const opciones = document.createElement('div');
     opciones.className = 'sim-opciones';
@@ -252,7 +272,7 @@ export class PanelSimulacion {
   private construir(): void {
     const modelo = construirModelo(this.host.elementos(), this.g);
     this.versionEscena = this.host.version();
-    this.sim = new Simulacion(modelo, { h: 0.001 });
+    this.sim = new Simulacion(modelo, { h: 0.001, restitucion: this.restitucion });
     this.eventosVistos = 0;
     const n = modelo.cuerpos.length;
     this.indice = Math.min(this.indice, Math.max(0, n - 1));
@@ -338,12 +358,23 @@ export class PanelSimulacion {
     const i = this.indice;
     const c = sim.modelo.cuerpos[i]!;
     const v = Math.hypot(e.v[i]!.x, e.v[i]!.y);
-    this.info.textContent = `${c.elemento.etiqueta.trim() ? sinMarcas(c.elemento.etiqueta) : `Cuerpo ${i + 1}`}: x = ${numeroEs(e.p[i]!.x)} m; y = ${numeroEs(e.p[i]!.y)} m; v = ${numeroEs(v)} m/s; ${sim.descripcion(i)}`;
+    this.info.textContent = `${c.elemento.etiqueta.trim() ? sinMarcas(c.elemento.etiqueta) : `Cuerpo ${i + 1}`}: x = ${numeroEs(e.p[i]!.x)} m; y = ${numeroEs(e.p[i]!.y)} m; v = ${numeroEs(v)} m/s; ${sinMarcas(sim.descripcion(i))}`;
 
     // Normal, roce y tensiones en este instante
     const partes: string[] = [];
     if (e.modo[i]!.k !== 'libre') partes.push(`N = ${numeroEs(e.N[i]!)} N`);
     if (Math.abs(e.fric[i]!) > 1e-9) partes.push(`f = ${numeroEs(Math.abs(e.fric[i]!))} N`);
+    // Fuerzas con los cuerpos que lo tocan
+    const nombreDe = (k: number): string => {
+      const et = sim.modelo.cuerpos[k]!.elemento.etiqueta.trim();
+      return et ? sinMarcas(et) : `cuerpo ${k + 1}`;
+    };
+    e.contactos.forEach((c, q) => {
+      if (c.i !== i && c.j !== i) return;
+      const otro = nombreDe(c.i === i ? c.j : c.i);
+      partes.push(`N con ${otro} = ${numeroEs(Math.max(e.Nc[q]!, 0))} N`);
+      if (Math.abs(e.fc[q]!) > 1e-9) partes.push(`f con ${otro} = ${numeroEs(Math.abs(e.fc[q]!))} N`);
+    });
     const varias = sim.modelo.cuerdas.length > 1;
     sim.modelo.cuerdas.forEach((_, k) => {
       if (!e.cuerdaActiva[k]) {
