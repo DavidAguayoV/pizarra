@@ -9,10 +9,21 @@ export function herramienta(page: Page, nombre: string): { click: () => Promise<
     async click() {
       const objetivo = nombre === 'Cuerpos' ? 'Armar' : nombre;
       const b = page.getByRole('button', { name: objetivo, exact: true });
-      if (await b.isVisible()) return b.click();
-      for (const modo of ['Dibujar', 'Armar', 'Conectar']) {
-        await page.getByRole('button', { name: modo, exact: true }).click();
-        if (await b.isVisible()) return b.click();
+      const intentar = async (): Promise<boolean> => {
+        if (!(await b.isVisible())) return false;
+        try {
+          await b.click({ timeout: 3000 });
+          return true;
+        } catch {
+          return false; // se ocultó entre medio (la barra se estaba armando): se busca de nuevo
+        }
+      };
+      for (let vuelta = 0; vuelta < 2; vuelta++) {
+        if (await intentar()) return;
+        for (const modo of ['Dibujar', 'Armar', 'Conectar']) {
+          await page.getByRole('button', { name: modo, exact: true }).click();
+          if (await intentar()) return;
+        }
       }
       throw new Error(`No se encontró la herramienta «${nombre}» en ningún modo`);
     },

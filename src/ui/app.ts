@@ -146,6 +146,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     });
     const g = grupo(`Herramientas de ${m.etiqueta}`, ...botones);
     g.classList.add('herramientas');
+    g.hidden = m.clave !== modo; // desde el principio, solo la fila del modo activo
     filasHerr.set(m.clave, g);
   }
   const botonesModo = new Map<Modo, HTMLButtonElement>();
