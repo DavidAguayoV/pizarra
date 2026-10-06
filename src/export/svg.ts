@@ -238,6 +238,7 @@ function superficieSvg(s: Superficie, c: string, paleta: PaletaTema, X: Conv, Y:
 
 function poleaSvg(p: Polea, c: string, paleta: PaletaTema, X: Conv, Y: Conv, L: Conv): string {
   return [
+    ...(p.soporte ? [`<line x1="${X(p.centro.x)}" y1="${Y(p.centro.y)}" x2="${X(p.soporte.x)}" y2="${Y(p.soporte.y)}" stroke="${c}" stroke-width="${L(p.grosor * 1.4)}"/>`] : []),
     `<circle cx="${X(p.centro.x)}" cy="${Y(p.centro.y)}" r="${L(p.radio)}" ${cuerpoAttrs(paleta, L)}/>`,
     `<circle cx="${X(p.centro.x)}" cy="${Y(p.centro.y)}" r="${L(p.radio * 0.72)}" fill="none" stroke="${c}" stroke-width="${L(p.grosor * 0.6)}"/>`,
     `<circle cx="${X(p.centro.x)}" cy="${Y(p.centro.y)}" r="${L(Math.max(p.radio * 0.1, 0.02))}" fill="${c}"/>`,

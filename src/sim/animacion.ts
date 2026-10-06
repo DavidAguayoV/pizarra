@@ -83,7 +83,8 @@ export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], 
   const quedan = new Set(escenaAnimada.map((x) => x.id));
   for (const x of escena) if (!quedan.has(x.id)) ocultos.add(x.id);
   for (const x of resolverEscena(escenaAnimada)) {
-    if ((x.tipo === 'cuerda' || x.tipo === 'resorte') && enModelo.has(x.id)) {
+    const movil = x.tipo === 'polea' && x.montaje !== undefined && animados.has(x.montaje.el);
+    if (((x.tipo === 'cuerda' || x.tipo === 'resorte') && enModelo.has(x.id)) || movil) {
       otros.push(x);
       ocultos.add(x.id);
     }

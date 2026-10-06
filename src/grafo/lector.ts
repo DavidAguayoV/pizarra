@@ -1,7 +1,7 @@
 import type { Punto } from '../core/camara';
 import type { Bloque, Cuerda, Elemento, Esfera, Resorte, Superficie, Union, Vector } from '../core/elementos';
 import { posUnion, pasosGeo, resolverEscena } from './resolver';
-import type { PasoGeo } from './ruta';
+import type { GeometriaRuta, PasoGeo } from './ruta';
 import { geometriaRuta } from './ruta';
 import { completarV1 } from './v1';
 
@@ -27,6 +27,8 @@ export interface CuerdaG {
   pasos: PasoGeo[];
   /** Hacia dónde tira la cuerda en cada extremo: el otro extremo, o el primer punto de contacto con una polea. */
   hacia: [Punto, Punto];
+  /** Por cada paso: dónde llega y sale, y hacia dónde tiran sus dos tramos (para las poleas móviles en el DCL). */
+  nodos: GeometriaRuta['nodos'];
 }
 
 export interface ResorteG {
@@ -79,6 +81,7 @@ export function leerGrafo(entrada: readonly Elemento[]): Grafo {
       ext: [extremoG(e.union?.[0], e.a, porId), extremoG(e.union?.[1], e.b, porId)],
       pasos,
       hacia: geo ? [geo.haciaA, geo.haciaB] : [e.b, e.a],
+      nodos: geo?.nodos ?? [],
     };
     if (g.pasos.length > 0) conRuta.push({ ...g, orden: indice.get(e.ruta![0]!.el) ?? Infinity });
     else sinRuta.push(g);

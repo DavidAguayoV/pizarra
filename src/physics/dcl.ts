@@ -138,11 +138,20 @@ function reunir(c: Cuerpo, gr: Grafo, g: number) {
   const atadas = gr.cuerdas
     .map((q) => ({ q, en: esDe(q.ext[0], c) ? 0 : esDe(q.ext[1], c) ? 1 : -1, ambos: esDe(q.ext[0], c) && esDe(q.ext[1], c) }))
     .filter((x) => x.en >= 0 && !x.ambos);
-  atadas.forEach(({ q, en }, i) => {
-    const propio = q.ext[en]!.p;
-    const otro = q.hacia[en]!;
-    const sub = atadas.length > 1 ? `_${i + 1}` : '';
-    otras.push({ rol: 'tension', simbolo: `T${sub}`, etiqueta: `\\vec{T}${sub}`, angulo: Math.atan2(otro.y - propio.y, otro.x - propio.x), valor: null });
+  // Polea móvil montada en este cuerpo: la misma cuerda tira de ella por sus dos tramos.
+  const enPolea: Array<{ desde: Punto; hacia: Punto }> = [];
+  for (const q of gr.cuerdas) {
+    q.pasos.forEach((p, j) => {
+      if (p.k !== 'circulo' || p.cuerpo?.id !== c.id) return;
+      const n = q.nodos[j]!;
+      enPolea.push({ desde: n.llega, hacia: n.desde }, { desde: n.sale, hacia: n.hasta });
+    });
+  }
+  const tiran = [...atadas.map(({ q, en }) => ({ desde: q.ext[en]!.p, hacia: q.hacia[en]! })), ...enPolea];
+  tiran.forEach(({ desde, hacia }, i) => {
+    // Los dos tramos de una polea móvil son la misma cuerda: la misma T (sin subíndice).
+    const sub = tiran.length > 1 && enPolea.length === 0 ? `_${i + 1}` : '';
+    otras.push({ rol: 'tension', simbolo: `T${sub}`, etiqueta: `\\vec{T}${sub}`, angulo: Math.atan2(hacia.y - desde.y, hacia.x - desde.x), valor: null });
   });
 
   const elast = gr.resortes

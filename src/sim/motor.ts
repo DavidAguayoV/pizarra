@@ -1,5 +1,6 @@
 import type { Punto } from '../core/camara';
 import { apoyoEn } from '../physics/dcl';
+import type { PasoGeo } from '../grafo/ruta';
 import { geometriaRuta } from '../grafo/ruta';
 import type { Modelo } from './modelo';
 import { posExtremo } from './modelo';
@@ -188,7 +189,11 @@ function dinamica(m: Modelo, _geo: Geo, p: readonly Punto[], v: readonly Punto[]
     const v1 = c.ext[1].tipo === 'cuerpo' ? v[c.ext[1].i]! : cero();
     const entradas: Fila['entradas'] = [];
     let gamma: number;
-    if (c.ruta) {
+    if (c.moviles) {
+      const r = restriccionMovil(c, p);
+      entradas.push(...r.g);
+      gamma = gammaMovil(c, p, v);
+    } else if (c.ruta) {
       // Cada extremo tira hacia su primer punto de contacto con una polea (la tangente). El largo de lo que hay
       // entre medio no depende de la posición de los extremos más que a través de esos tramos.
       const geo = geometriaRuta(q0, c.ruta, q1);
@@ -247,10 +252,11 @@ function dinamica(m: Modelo, _geo: Geo, p: readonly Punto[], v: readonly Punto[]
     }
     filas.forEach((f, r) => {
       for (const e of f.entradas) {
-        A[2 * n + r]![2 * e.i] = e.g.x;
-        A[2 * n + r]![2 * e.i + 1] = e.g.y;
-        A[2 * e.i]![2 * n + r] = -e.g.x;
-        A[2 * e.i + 1]![2 * n + r] = -e.g.y;
+        // Se acumula: un cuerpo puede estar en un extremo de la cuerda y además llevar una de sus poleas.
+        A[2 * n + r]![2 * e.i]! += e.g.x;
+        A[2 * n + r]![2 * e.i + 1]! += e.g.y;
+        A[2 * e.i]![2 * n + r]! -= e.g.x;
+        A[2 * e.i + 1]![2 * n + r]! -= e.g.y;
       }
       b[2 * n + r] = f.gamma;
     });
@@ -361,11 +367,53 @@ interface Prev {
   phi: number[];
 }
 
+/** Pasos de la ruta con el centro de cada polea móvil donde está su cuerpo en las posiciones `p`. */
+function pasosEn(c: Modelo['cuerdas'][number], p: readonly Punto[]): PasoGeo[] {
+  return c.ruta!.map((x) =>
+    x.k === 'circulo' && x.i !== undefined && x.cuerpo ? { ...x, c: { x: p[x.i]!.x + x.cuerpo.desp.x, y: p[x.i]!.y + x.cuerpo.desp.y } } : x,
+  );
+}
+
+/**
+ * Restricción de una cuerda que pasa por poleas móviles: valor φ = largo − largo inicial y gradiente por cuerpo
+ * (sumado si un cuerpo aparece dos veces). Un extremo tira hacia su tangente; una polea móvil, con e_entra − e_sale
+ * (`grafo/ruta.ts`), así que el cuerpo que la lleva siente las dos tensiones.
+ */
+function restriccionMovil(c: Modelo['cuerdas'][number], p: readonly Punto[]): { phi: number; g: Array<{ i: number; g: Punto }> } {
+  const q0 = posExtremo(c.ext[0], p);
+  const q1 = posExtremo(c.ext[1], p);
+  const geo = geometriaRuta(q0, pasosEn(c, p), q1);
+  const suma = new Map<number, Punto>();
+  const sumar = (i: number, g: Punto): void => {
+    const x = suma.get(i) ?? cero();
+    suma.set(i, { x: x.x + g.x, y: x.y + g.y });
+  };
+  const unit = (d: Punto): Punto => {
+    const l = Math.hypot(d.x, d.y) || 1e-12;
+    return { x: d.x / l, y: d.y / l };
+  };
+  if (c.ext[0].tipo === 'cuerpo') sumar(c.ext[0].i, unit({ x: q0.x - geo.haciaA.x, y: q0.y - geo.haciaA.y }));
+  if (c.ext[1].tipo === 'cuerpo') sumar(c.ext[1].i, unit({ x: q1.x - geo.haciaB.x, y: q1.y - geo.haciaB.y }));
+  c.ruta!.forEach((x, j) => {
+    if (x.k === 'circulo' && x.i !== undefined) sumar(x.i, geo.nodos[j]!.grad);
+  });
+  return { phi: geo.largo - c.largo, g: [...suma].map(([i, g]) => ({ i, g })) };
+}
+
+/** γ = −q̇ᵀ H q̇ de una cuerda con poleas móviles, por diferencia segunda de φ a lo largo de la velocidad. */
+function gammaMovil(c: Modelo['cuerdas'][number], p: readonly Punto[], v: readonly Punto[]): number {
+  const vmax = Math.max(1e-9, ...v.map((q) => Math.hypot(q.x, q.y)));
+  const eps = 1e-4 / Math.max(1, vmax);
+  const desplazar = (s: number) => p.map((q, i) => ({ x: q.x + s * v[i]!.x, y: q.y + s * v[i]!.y }));
+  const f = (s: number) => valorCuerda(c, desplazar(s));
+  return -(f(eps) - 2 * f(0) + f(-eps)) / (eps * eps);
+}
+
 /** Valor de la restricción de una cuerda con los cuerpos en las posiciones `p` (0 = tensa; < 0 = floja). */
 function valorCuerda(c: Modelo['cuerdas'][number], p: readonly Punto[]): number {
   const q0 = posExtremo(c.ext[0], p);
   const q1 = posExtremo(c.ext[1], p);
-  if (c.ruta) return geometriaRuta(q0, c.ruta, q1).largo - c.largo;
+  if (c.ruta) return geometriaRuta(q0, c.moviles ? pasosEn(c, p) : c.ruta, q1).largo - c.largo;
   return Math.hypot(q0.x - q1.x, q0.y - q1.y) - c.largo;
 }
 
@@ -600,6 +648,10 @@ export class Simulacion {
     const v0 = c.ext[0].tipo === 'cuerpo' ? e.v[c.ext[0].i]! : cero();
     const v1 = c.ext[1].tipo === 'cuerpo' ? e.v[c.ext[1].i]! : cero();
     const g: Array<{ i: number; g: Punto }> = [];
+    if (c.moviles) {
+      const r = restriccionMovil(c, e.p);
+      return { phi: r.phi, dphi: r.g.reduce((s, x) => s + dot(x.g, e.v[x.i]!), 0), g: r.g };
+    }
     if (c.ruta) {
       const geo = geometriaRuta(q0, c.ruta, q1);
       const d0 = { x: q0.x - geo.haciaA.x, y: q0.y - geo.haciaA.y };

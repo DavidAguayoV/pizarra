@@ -12,8 +12,8 @@ import type { Tramo } from '../core/elementos';
  */
 
 export type PasoGeo =
-  /** Polea (o borde, con r = 0) envuelta en sentido s. */
-  | { k: 'circulo'; c: Punto; r: number; s: 1 | -1 }
+  /** Polea (o borde, con r = 0) envuelta en sentido s. `cuerpo`: polea móvil, montada sobre ese cuerpo. */
+  | { k: 'circulo'; c: Punto; r: number; s: 1 | -1; cuerpo?: { id: string; desp: Punto } }
   /** Paso de un proyecto v1: la cuerda llega a `p[0]` y sale de `p[1]` (lo que hay entre medio no cuenta). */
   | { k: 'fijos'; p: [Punto, Punto] };
 
@@ -27,6 +27,11 @@ export interface GeometriaRuta {
   haciaB: Punto;
   /** false si algún tramo no existe (un extremo dentro de una polea, poleas que se tocan): se usan rectas a los centros. */
   valida: boolean;
+  /**
+   * Por cada paso: dónde llega y sale la cuerda, y los puntos hacia los que tiran los dos tramos (el contacto anterior y
+   * el siguiente). `grad` = ∂(largo)/∂(centro): lo que se alarga la cuerda si la polea se mueve (e_entra − e_sale).
+   */
+  nodos: Array<{ llega: Punto; sale: Punto; desde: Punto; hasta: Punto; grad: Punto }>;
 }
 
 interface Nodo {
@@ -107,7 +112,20 @@ export function geometriaRuta(a: Punto, pasos: readonly PasoGeo[], b: Punto): Ge
     }
     conArcos.push(tramos[i + 1]!);
   });
-  return { tramos: conArcos, largo, haciaA, haciaB, valida };
+  // Nodos: para cada paso, los extremos de sus tramos vecinos (el tramo que llega y el que sale).
+  const rectas = tramos as Array<Extract<Tramo, { k: 'recta' }>>;
+  const unit = (de: Punto, a: Punto): Punto => {
+    const l = Math.hypot(a.x - de.x, a.y - de.y) || 1e-12;
+    return { x: (a.x - de.x) / l, y: (a.y - de.y) / l };
+  };
+  const nodos = pasos.map((_, i) => {
+    const entra = rectas[i]!;
+    const sale = rectas[i + 1]!;
+    const eIn = unit(entra.a, entra.b);
+    const eOut = unit(sale.a, sale.b);
+    return { llega: entra.b, sale: sale.a, desde: entra.a, hasta: sale.b, grad: { x: eIn.x - eOut.x, y: eIn.y - eOut.y } };
+  });
+  return { tramos: conArcos, largo, haciaA, haciaB, valida, nodos };
 }
 
 /**

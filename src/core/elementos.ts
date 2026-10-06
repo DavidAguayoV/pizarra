@@ -128,7 +128,14 @@ export type Union = { el: string; puerto: string } | { fijo: true };
  * antihorario y −1 si en sentido horario. `fijos` solo existe en proyectos migrados de la v1: los dos puntos
  * donde la v1 tomaba el paso por la polea (así se simulan igual que antes).
  */
-export type Paso = { el: string; sentido: 1 | -1 } | { el: string; fijos: [Punto, Punto] };
+export type Paso =
+  | {
+      el: string;
+      sentido: 1 | -1;
+      /** Si `el` es una superficie: la cuerda dobla en ese extremo (el borde de una mesa, sin roce). */
+      extremo?: 'a' | 'b';
+    }
+  | { el: string; fijos: [Punto, Punto] };
 
 /** Tramo del camino de una cuerda (derivado: lo calcula `grafo/resolver.ts`, nunca se guarda en una op). */
 export type Tramo = { k: 'recta'; a: Punto; b: Punto } | { k: 'arco'; c: Punto; r: number; desde: number; barrido: number };
@@ -180,6 +187,13 @@ export interface Polea extends Base {
   centro: Punto;
   radio: number;
   grosor: number;
+  /**
+   * Polea **móvil**: montada sobre un cuerpo (su eje está en ese puerto del cuerpo, normalmente `local:` sobre la
+   * cara superior) y se mueve con él. Sin montaje, la polea está fija donde se dibujó.
+   */
+  montaje?: { el: string; puerto: string };
+  /** Derivado (escena resuelta): el punto del cuerpo del que cuelga la polea móvil, para dibujar su soporte. */
+  soporte?: Punto;
 }
 
 /**
@@ -293,7 +307,7 @@ export function cajaDe(e: Elemento): Caja2D {
     case 'esfera':
       return envolver([{ x: e.centro.x - e.radio, y: e.centro.y - e.radio }, { x: e.centro.x + e.radio, y: e.centro.y + e.radio }], 0.03);
     case 'polea':
-      return envolver([{ x: e.centro.x - e.radio, y: e.centro.y - e.radio }, { x: e.centro.x + e.radio, y: e.centro.y + e.radio }], 0.06);
+      return envolver([{ x: e.centro.x - e.radio, y: e.centro.y - e.radio }, { x: e.centro.x + e.radio, y: e.centro.y + e.radio }, ...(e.soporte ? [e.soporte] : [])], 0.06);
     case 'superficie':
       return envolver([e.a, e.b], e.relleno === 'ninguno' ? 0.05 : 0.4);
     case 'cuerda':

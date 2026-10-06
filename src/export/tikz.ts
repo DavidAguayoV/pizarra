@@ -363,6 +363,8 @@ function caminoTikz(camino: readonly Tramo[], escala: number, P: (p: Punto) => s
 function poleaTikz(p: Polea, escala: number, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
   const col = nombreColor(p.color);
   return [
+    // Polea móvil: la horquilla que la une al cuerpo.
+    ...(p.soporte ? [`  \\draw[${col}, ${grosorPt(p.grosor * 1.4)}] ${P(p.centro)} -- ${P(p.soporte)};`] : []),
     `  \\filldraw[${RELLENO_CUERPO}, ${grosorPt(0.025)}] ${P(p.centro)} circle (${num(p.radio * escala)});`,
     `  \\draw[${col}, ${grosorPt(p.grosor * 0.6)}] ${P(p.centro)} circle (${num(p.radio * 0.72 * escala)});`,
     `  \\fill[${col}] ${P(p.centro)} circle (${num(Math.max(p.radio * 0.1, 0.02) * escala)});`,

@@ -91,6 +91,13 @@ export function prepararLote(cambio: LotePayload, previos: readonly Elemento[]):
       if (mov && !actualizados.has(e.id)) e = seguirSuperficie(e, mov.antes, mov.ahora);
     }
     if (e.tipo === 'vector' && e.cuerpo && borrar.has(e.cuerpo)) e = { ...e, cuerpo: null };
+    // Polea móvil cuyo cuerpo se borra: queda fija donde estaba.
+    if (e.tipo === 'polea' && e.montaje && borrar.has(e.montaje.el)) {
+      const r = resueltoPrevio(e.id);
+      const { montaje: _, ...resto } = e;
+      void _;
+      e = { ...resto, centro: r?.tipo === 'polea' ? { ...r.centro } : e.centro };
+    }
     if (e !== original) actualizados.set(e.id, e);
   }
 

@@ -452,6 +452,14 @@ function dibujarSuperficie(ctx: CanvasRenderingContext2D, s: Superficie, op: Opc
 
 function dibujarPolea(ctx: CanvasRenderingContext2D, p: Polea, op: OpcionesDibujo): void {
   const texto = ctx.fillStyle as string;
+  if (p.soporte) {
+    // Polea móvil: la horquilla que la une al cuerpo (debajo de la polea).
+    ctx.lineWidth = Math.max(p.grosor * 1.4, 1 / op.escala);
+    ctx.beginPath();
+    ctx.moveTo(p.centro.x, p.centro.y);
+    ctx.lineTo(p.soporte.x, p.soporte.y);
+    ctx.stroke();
+  }
   ctx.beginPath();
   ctx.arc(p.centro.x, p.centro.y, p.radio, 0, Math.PI * 2);
   rellenoCuerpo(ctx, op, texto);

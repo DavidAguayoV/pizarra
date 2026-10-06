@@ -1,5 +1,5 @@
 import type { Punto } from '../core/camara';
-import type { Cuerda, Elemento, Paso, Resorte, Union } from '../core/elementos';
+import type { Cuerda, Elemento, Paso, Polea, Resorte, Union } from '../core/elementos';
 import { posPuerto } from './puertos';
 import type { PasoGeo } from './ruta';
 import { geometriaRuta } from './ruta';
@@ -27,7 +27,14 @@ export function pasosGeo(ruta: readonly Paso[], porId: ReadonlyMap<string, Eleme
       continue;
     }
     const el = porId.get(p.el);
-    if (el?.tipo === 'polea') out.push({ k: 'circulo', c: el.centro, r: el.radio, s: p.sentido });
+    if (el?.tipo === 'polea') {
+      const cuerpo = el.montaje ? porId.get(el.montaje.el) : undefined;
+      const movil = cuerpo && (cuerpo.tipo === 'bloque' || cuerpo.tipo === 'esfera') ? { id: cuerpo.id, desp: { x: el.centro.x - cuerpo.centro.x, y: el.centro.y - cuerpo.centro.y } } : undefined;
+      out.push({ k: 'circulo', c: el.centro, r: el.radio, s: p.sentido, ...(movil ? { cuerpo: movil } : {}) });
+    } else if (el?.tipo === 'superficie' && p.extremo) {
+      // Borde de una mesa: la cuerda dobla en el extremo de la superficie (un punto, sin roce).
+      out.push({ k: 'circulo', c: p.extremo === 'a' ? el.a : el.b, r: 0, s: p.sentido });
+    }
   }
   return out;
 }
@@ -51,15 +58,28 @@ function resolverResorte(r: Resorte, porId: ReadonlyMap<string, Elemento>): Reso
   return a === r.a && b === r.b ? r : { ...r, a, b };
 }
 
+/** Polea móvil: su centro sale del puerto del cuerpo en que está montada, y se marca el punto de su soporte. */
+export function resolverPolea(p: Polea, porId: ReadonlyMap<string, Elemento>): Polea {
+  if (!p.montaje) return p;
+  const c = porId.get(p.montaje.el);
+  const centro = c ? posPuerto(c, p.montaje.puerto) : null;
+  if (!c || !centro) return p;
+  const soporte = posPuerto(c, c.tipo === 'bloque' ? 'cara-sup' : c.tipo === 'esfera' ? 'borde:90' : 'centro') ?? centro;
+  return { ...p, centro, soporte };
+}
+
 const memo = new WeakMap<readonly Elemento[], Elemento[]>();
 
 export function resolverEscena(elementos: readonly Elemento[]): Elemento[] {
   const previo = memo.get(elementos);
   if (previo) return previo;
   const porId = new Map(elementos.map((e) => [e.id, e]));
+  // Primero las poleas móviles (las cuerdas que pasan por ellas usan su centro ya resuelto).
+  for (const e of elementos) if (e.tipo === 'polea' && e.montaje) porId.set(e.id, resolverPolea(e, porId));
   const out = elementos.map((e) => {
     if (e.tipo === 'cuerda') return resolverCuerda(e, porId);
     if (e.tipo === 'resorte') return resolverResorte(e, porId);
+    if (e.tipo === 'polea' && e.montaje) return porId.get(e.id)!;
     return e;
   });
   memo.set(elementos, out);
@@ -68,6 +88,11 @@ export function resolverEscena(elementos: readonly Elemento[]): Elemento[] {
 
 /** Quita lo derivado antes de guardar un elemento en una op. */
 export function sinDerivados<T extends Elemento>(e: T): T {
+  if (e.tipo === 'polea' && e.soporte) {
+    const { soporte: _, ...resto } = e;
+    void _;
+    return resto as T;
+  }
   if (e.tipo !== 'cuerda' || !e.camino) return e;
   const { camino: _, ...resto } = e;
   void _;

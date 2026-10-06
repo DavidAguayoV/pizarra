@@ -59,9 +59,14 @@ export interface CuerdaDef {
    * Poleas por las que pasa (fijas), o null si es recta. El largo es el del camino tangente a las poleas
    * (`grafo/ruta.ts`), así que el tramo que llega a un cuerpo tira en la dirección de la tangente.
    */
-  ruta: PasoGeo[] | null;
+  ruta: PasoModelo[] | null;
   largo: number;
+  /** Pasa por alguna polea móvil (montada sobre un cuerpo): su centro se mueve con ese cuerpo. */
+  moviles?: boolean;
 }
+
+/** Paso de la ruta en el modelo: `i` es el índice del cuerpo que lleva la polea, si es móvil. */
+export type PasoModelo = PasoGeo & { i?: number };
 
 export interface FuerzaDef {
   /** Id del vector que la representa. */
@@ -145,10 +150,12 @@ export function construirModelo(elementos: readonly Elemento[], g = G_POR_DEFECT
       continue;
     }
     const ext: [Extremo, Extremo] = [e0, e1];
-    const ruta = c.pasos.length > 0 ? c.pasos : null;
+    const ruta: PasoModelo[] | null =
+      c.pasos.length > 0 ? c.pasos.map((x) => (x.k === 'circulo' && x.cuerpo && indice.has(x.cuerpo.id) ? { ...x, i: indice.get(x.cuerpo.id)! } : x)) : null;
+    const moviles = ruta?.some((x) => x.i !== undefined) ?? false;
     const q0 = posExtremo(e0, posInicial);
     const q1 = posExtremo(e1, posInicial);
-    cuerdas.push({ ids: [c.el.id], ext, ruta, largo: ruta ? geometriaRuta(q0, ruta, q1).largo : dist(q0, q1) });
+    cuerdas.push({ ids: [c.el.id], ext, ruta, largo: ruta ? geometriaRuta(q0, ruta, q1).largo : dist(q0, q1), ...(moviles ? { moviles } : {}) });
   }
 
   // Fuerzas aplicadas: vectores `aplicada` unidos a un cuerpo (constantes, con la dirección dibujada).
