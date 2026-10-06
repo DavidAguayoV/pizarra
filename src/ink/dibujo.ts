@@ -1,4 +1,4 @@
-import type { Camara, Vista } from '../core/camara';
+import type { Camara, Punto, Vista } from '../core/camara';
 import { pantallaAMundo } from '../core/camara';
 import { colorDeElemento } from '../core/colores';
 import type { Bloque, Caja2D, Ejes, Elemento, Esfera, Imagen, Polea, Resorte, Superficie, Trazo, Vector } from '../core/elementos';
@@ -447,7 +447,21 @@ function dibujarEsfera(ctx: CanvasRenderingContext2D, e: Esfera, op: OpcionesDib
   ctx.beginPath();
   ctx.arc(e.centro.x, e.centro.y, e.radio, 0, Math.PI * 2);
   rellenoCuerpo(ctx, op, texto);
+  if (e.gira) radioGiro(ctx, e.centro, e.radio, e.giro ?? 0, op);
   if (e.etiqueta.trim() !== '') etiqueta(ctx, anclarCaja(e.etiqueta, e.centro));
+}
+
+/** Un radio marcado (de 0,45 r a r) que deja ver cuánto gira un cuerpo redondo; parte hacia arriba. */
+function radioGiro(ctx: CanvasRenderingContext2D, c: Punto, r: number, giro: number, op: OpcionesDibujo): void {
+  const u = { x: -Math.sin(giro), y: Math.cos(giro) };
+  ctx.save();
+  ctx.lineWidth = Math.max(r * 0.09, 1.5 / op.escala);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(c.x + u.x * r * 0.45, c.y + u.y * r * 0.45);
+  ctx.lineTo(c.x + u.x * r * 0.95, c.y + u.y * r * 0.95);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function dibujarSuperficie(ctx: CanvasRenderingContext2D, s: Superficie, op: OpcionesDibujo): void {
@@ -507,6 +521,7 @@ function dibujarPolea(ctx: CanvasRenderingContext2D, p: Polea, op: OpcionesDibuj
   ctx.beginPath();
   ctx.arc(p.centro.x, p.centro.y, Math.max(p.radio * 0.1, 0.02), 0, Math.PI * 2);
   ctx.fill();
+  if (p.masa && p.masa > 0) radioGiro(ctx, p.centro, p.radio * 0.72, p.giro ?? 0, op);
 }
 
 function dibujarResorte(ctx: CanvasRenderingContext2D, r: Resorte, op: OpcionesDibujo): void {

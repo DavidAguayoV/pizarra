@@ -274,7 +274,7 @@ function filasCuerda(m: Modelo, c: CuerdaDef, pose: Pose, vel: Vel | null): Arra
     const a = posExt(m, c.ext[0], ps);
     const b = posExt(m, c.ext[1], ps);
     const g = geometriaRuta(a, c.moviles ? pasosEn(m, c, ps) : c.ruta!, b);
-    const L = largosPorPieza(g, masivas.map((x) => x.j))[k]!;
+    const L = largosPorPieza(g, masivas)[k]!;
     const A = masivas[k - 1];
     const B = masivas[k];
     return L - (A ? A.r * A.s * ps.rot[A.rotor]! : 0) + (B ? B.r * B.s * ps.rot[B.rotor]! : 0) - c.largos![k]!;

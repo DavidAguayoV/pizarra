@@ -116,6 +116,23 @@ describe('poleas con masa', () => {
     expect(Math.abs(s.energiaActual().residuo)).toBeLessThan(1e-6);
   });
 
+  it('con los tramos inclinados (los cuerpos se balancean) la energía se conserva: el contacto se corre por la polea', () => {
+    const pol: Polea = crearPolea({ x: -2, y: 2 }, 0.25, { id: 'p', masa: 4 });
+    const b1: Bloque = { ...crearBloque({ x: -2.3, y: -0.3 }, 0.5, 0.4, { id: 'b1', masa: 2 }), apoyo: [] };
+    const b2: Bloque = { ...crearBloque({ x: -1.6, y: -0.8 }, 0.5, 0.4, { id: 'b2', masa: 3 }), apoyo: [] };
+    const c: Cuerda = {
+      ...crearCuerda({ x: -2.3, y: -0.1 }, { x: -1.6, y: -0.6 }, { id: 'c' }),
+      union: [
+        { el: 'b1', puerto: 'cara-sup' },
+        { el: 'b2', puerto: 'cara-sup' },
+      ],
+      ruta: [{ el: 'p', sentido: -1 }],
+    };
+    const s = correr([pol, b1, b2, c], 0.8);
+    expect(Math.abs(s.estado.a[0]!.x)).toBeGreaterThan(0.01); // se balancean
+    expect(Math.abs(s.energiaActual().residuo)).toBeLessThan(1e-8);
+  });
+
   it('con M = 0 es la polea ideal de siempre (una sola tensión)', () => {
     const s = correr(atwoodMasiva(0), 0.3);
     expect(s.modelo.rotores).toHaveLength(0);

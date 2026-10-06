@@ -3,7 +3,7 @@ import type { Bloque, Elemento, Esfera } from '../core/elementos';
 import type { ExtremoG } from '../grafo/lector';
 import { leerGrafo } from '../grafo/lector';
 import type { PasoGeo } from '../grafo/ruta';
-import { geometriaRuta, largosPorPieza } from '../grafo/ruta';
+import { anguloMedio, geometriaRuta, largosPorPieza } from '../grafo/ruta';
 import { G_POR_DEFECTO } from '../physics/dcl';
 import { normalSuperficie } from '../physics/objetos';
 import { modulo } from '../physics/vectores';
@@ -84,7 +84,7 @@ export interface CuerdaDef {
    * Poleas con masa por las que pasa (en orden): `j` es su índice en la ruta, `rotor` el de `Modelo.rotores` y `s` el
    * sentido en que la envuelve. Parten la cuerda en piezas con tensiones distintas.
    */
-  masivas?: Array<{ j: number; rotor: number; r: number; s: 1 | -1 }>;
+  masivas?: Array<{ j: number; rotor: number; r: number; s: 1 | -1; ref: number }>;
   /** Largo inicial de cada pieza (si hay poleas con masa). */
   largos?: number[];
 }
@@ -210,16 +210,17 @@ export function construirModelo(elementos: readonly Elemento[], g = G_POR_DEFECT
         indiceRotor.set(pol.id, k);
         rotores.push({ id: pol.id, I: 0.5 * pol.masa * pol.radio ** 2, r: pol.radio });
       }
-      masivas.push({ j, rotor: k, r: pol.radio, s: p.sentido });
+      masivas.push({ j, rotor: k, r: pol.radio, s: p.sentido, ref: 0 });
     });
     const geo = ruta ? geometriaRuta(q0, ruta, q1) : null;
+    if (geo) for (const x of masivas) x.ref = anguloMedio(geo, x.j);
     cuerdas.push({
       ids: [c.el.id],
       ext,
       ruta,
       largo: geo ? geo.largo : dist(q0, q1),
       ...(moviles ? { moviles } : {}),
-      ...(masivas.length > 0 && geo ? { masivas, largos: largosPorPieza(geo, masivas.map((x) => x.j)) } : {}),
+      ...(masivas.length > 0 && geo ? { masivas, largos: largosPorPieza(geo, masivas) } : {}),
     });
   }
 

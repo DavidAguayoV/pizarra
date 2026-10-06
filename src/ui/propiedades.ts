@@ -331,6 +331,23 @@ export class PanelPropiedades {
     return fila;
   }
 
+  /** Interruptor «Gira» de un cuerpo (sin él, se mueve como partícula con orientación fija). */
+  private filaGira(c0: Bloque | Esfera, ayuda: string): HTMLElement {
+    const div = document.createElement('div');
+    const sw = interruptor('Gira (cuerpo rígido)', c0.gira === true, (v) => {
+      const c = { ...this.vigente(c0) };
+      if (v) c.gira = true;
+      else delete c.gira;
+      this.host.editar({ actualizar: [c] });
+    });
+    sw.title = ayuda;
+    const nota = document.createElement('p');
+    nota.className = 'nota';
+    nota.textContent = c0.gira ? ayuda : 'Sin «Gira» se mueve como partícula: sin rotar.';
+    div.append(sw, nota);
+    return div;
+  }
+
   private panelBloque(b0: Bloque): void {
     const e = this.elemento;
     const cambiar = (f: (b: Bloque) => Bloque) => this.host.editar({ actualizar: [f(this.vigente(b0))] });
@@ -346,6 +363,7 @@ export class PanelPropiedades {
     );
     e.append(fila);
     e.append(campo('Ángulo (°)', numerico(aGrados(b0.angulo), '1', (x) => cambiar((b) => ({ ...b, angulo: Math.round(((x * Math.PI) / 180) * 1e4) / 1e4 })), 'Ángulo del bloque')));
+    e.append(this.filaGira(b0, 'Cuerpo rígido: gira si una cuerda o un resorte tira fuera de su centro; apoyado no se vuelca.'));
     e.append(this.filaVelocidad(b0));
     this.seccionDcl(b0);
     e.append(boton('Borrar bloque', 'Suprimir', () => this.host.editar({ borrar: [b0.id] })));
@@ -361,6 +379,7 @@ export class PanelPropiedades {
       campo('Masa (kg)', numerico(s0.masa, '0.1', (x) => x > 0 && cambiar((s) => ({ ...s, masa: x })), 'Masa de la esfera')),
       campo('Radio (m)', numerico(s0.radio, '0.05', (x) => x >= 0.1 && cambiar((s) => ({ ...s, radio: x })), 'Radio de la esfera')),
     );
+    e.append(this.filaGira(s0, 'Esfera sólida (I = 2/5 m r²): rueda sin deslizar si el roce estático alcanza; si no, desliza girando.'));
     e.append(this.filaVelocidad(s0));
     this.seccionDcl(s0);
     e.append(boton('Borrar esfera', 'Suprimir', () => this.host.editar({ borrar: [s0.id] })));
@@ -399,11 +418,26 @@ export class PanelPropiedades {
 
   private panelPolea(p0: Polea): void {
     const e = this.elemento;
-    this.titulo('Polea ideal');
-    e.append(campo('Radio (m)', numerico(p0.radio, '0.05', (x) => x >= 0.1 && this.host.editar({ actualizar: [{ ...this.vigente(p0), radio: x }] }), 'Radio de la polea')));
+    const conMasa = (p0.masa ?? 0) > 0;
+    this.titulo(conMasa ? 'Polea con masa' : 'Polea ideal');
+    const fila = document.createElement('div');
+    fila.className = 'fila-campos';
+    fila.append(
+      campo('Radio (m)', numerico(p0.radio, '0.05', (x) => x >= 0.1 && this.host.editar({ actualizar: [{ ...this.vigente(p0), radio: x }] }), 'Radio de la polea')),
+      campo('Masa (kg)', numerico(p0.masa ?? 0, '0.1', (x) => {
+        if (!(x >= 0)) return;
+        const p = { ...this.vigente(p0) };
+        if (x > 0) p.masa = x;
+        else delete p.masa;
+        this.host.editar({ actualizar: [p] });
+      }, 'Masa de la polea')),
+    );
+    e.append(fila);
     const nota = document.createElement('p');
     nota.className = 'nota';
-    nota.textContent = 'Sin masa ni roce: solo cambia la dirección de la cuerda. Dibuja una cuerda desde cada cuerpo hasta la polea: se unen en una sola que la envuelve.';
+    nota.textContent = conMasa
+      ? 'Disco (I = ½ M r²) que gira con la cuerda, sin deslizar: la tensión es distinta a cada lado. Masa 0 = polea ideal.'
+      : 'Sin masa ni roce: solo cambia la dirección de la cuerda. Dibuja una cuerda desde cada cuerpo hasta la polea: se unen en una sola que la envuelve.';
     e.append(nota, boton('Borrar polea', 'Suprimir', () => this.host.editar({ borrar: [p0.id] })));
   }
 

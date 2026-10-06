@@ -77,7 +77,11 @@ export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], 
   const trayectorias: Elemento[] = [];
 
   m.cuerpos.forEach((c, i) => {
-    cuerpos.push({ ...c.elemento, centro: { ...e.p[i]! } });
+    // Un cuerpo que gira: el bloque con su ángulo; la esfera con el radio marcado.
+    const giro = c.I > 0 ? e.th[i]! : null;
+    const el = c.elemento;
+    if (el.tipo === 'bloque') cuerpos.push({ ...el, centro: { ...e.p[i]! }, ...(giro !== null ? { angulo: giro } : {}) });
+    else cuerpos.push({ ...el, centro: { ...e.p[i]! }, ...(giro !== null ? { giro } : {}) });
     ocultos.add(c.id);
     if (op.vectores) {
       // Las flechas nacen en el borde del cuerpo (no tapan su etiqueta) y, si v y a apuntan casi para el mismo
@@ -108,6 +112,8 @@ export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], 
 
   // Cuerdas y resortes: se resuelven de nuevo con los cuerpos en su posición actual (la geometría de lo unido se
   // deriva del grafo), así que siguen a los cuerpos, pasan por sus poleas y conservan su estilo.
+  // Las poleas con masa giran con la cuerda.
+  const giros = new Map(m.rotores.map((r, k) => [r.id, e.rot[k]!]));
   const animados = new Map(cuerpos.map((c) => [c.id, c]));
   const escenaAnimada = completarV1(escena).map((x) => animados.get(x.id) ?? x);
   const enModelo = new Set([...m.resortes.map((r) => r.id), ...m.cuerdas.flatMap((c) => c.ids)]);
@@ -118,6 +124,9 @@ export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], 
     const movil = x.tipo === 'polea' && x.montaje !== undefined && animados.has(x.montaje.el);
     if (((x.tipo === 'cuerda' || x.tipo === 'resorte') && enModelo.has(x.id)) || movil) {
       otros.push(x);
+      ocultos.add(x.id);
+    } else if (x.tipo === 'polea' && giros.has(x.id)) {
+      otros.push({ ...x, giro: giros.get(x.id)! });
       ocultos.add(x.id);
     }
   }

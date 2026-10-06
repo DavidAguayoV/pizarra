@@ -344,7 +344,17 @@ export class PanelSimulacion {
     const partes: string[] = [];
     if (e.modo[i]!.k !== 'libre') partes.push(`N = ${numeroEs(e.N[i]!)} N`);
     if (Math.abs(e.fric[i]!) > 1e-9) partes.push(`f = ${numeroEs(Math.abs(e.fric[i]!))} N`);
-    sim.modelo.cuerdas.forEach((_, k) => partes.push(e.cuerdaActiva[k] ? `T${sim.modelo.cuerdas.length > 1 ? k + 1 : ''} = ${numeroEs(e.T[k]!)} N` : `cuerda${sim.modelo.cuerdas.length > 1 ? ` ${k + 1}` : ''} floja`));
+    const varias = sim.modelo.cuerdas.length > 1;
+    sim.modelo.cuerdas.forEach((_, k) => {
+      if (!e.cuerdaActiva[k]) {
+        partes.push(`cuerda${varias ? ` ${k + 1}` : ''} floja`);
+        return;
+      }
+      const piezas = e.Tp[k] ?? [e.T[k]!];
+      // Con poleas con masa, cada pieza tiene su tensión: T₁, T₂… (y T₁,₁, T₁,₂… si hay varias cuerdas).
+      if (piezas.length > 1) piezas.forEach((t, j) => partes.push(`T${varias ? `${k + 1},` : ''}${j + 1} = ${numeroEs(t)} N`));
+      else partes.push(`T${varias ? k + 1 : ''} = ${numeroEs(e.T[k]!)} N`);
+    });
     this.fuerzas.textContent = partes.join(' · ');
 
     // Eventos nuevos

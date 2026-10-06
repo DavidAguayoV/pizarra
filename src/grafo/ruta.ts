@@ -31,7 +31,7 @@ export interface GeometriaRuta {
    * Por cada paso: dónde llega y sale la cuerda, y los puntos hacia los que tiran los dos tramos (el contacto anterior y
    * el siguiente). `grad` = ∂(largo)/∂(centro): lo que se alarga la cuerda si la polea se mueve (e_entra − e_sale).
    */
-  nodos: Array<{ llega: Punto; sale: Punto; desde: Punto; hasta: Punto; grad: Punto }>;
+  nodos: Array<{ llega: Punto; sale: Punto; desde: Punto; hasta: Punto; grad: Punto; c: Punto | null; s: 1 | -1 }>;
   /** Largo de cada tramo recto (uno más que los pasos) y del arco de contacto de cada paso (0 si no hay arco). */
   rectas: number[];
   arcos: number[];
@@ -123,25 +123,50 @@ export function geometriaRuta(a: Punto, pasos: readonly PasoGeo[], b: Punto): Ge
     const l = Math.hypot(a.x - de.x, a.y - de.y) || 1e-12;
     return { x: (a.x - de.x) / l, y: (a.y - de.y) / l };
   };
-  const nodos = pasos.map((_, i) => {
+  const nodos = pasos.map((p, i) => {
     const entra = rectas[i]!;
     const sale = rectas[i + 1]!;
     const eIn = unit(entra.a, entra.b);
     const eOut = unit(sale.a, sale.b);
-    return { llega: entra.b, sale: sale.a, desde: entra.a, hasta: sale.b, grad: { x: eIn.x - eOut.x, y: eIn.y - eOut.y } };
+    const c = p.k === 'circulo' ? p.c : null;
+    const s: 1 | -1 = p.k === 'circulo' ? p.s : 1;
+    return { llega: entra.b, sale: sale.a, desde: entra.a, hasta: sale.b, grad: { x: eIn.x - eOut.x, y: eIn.y - eOut.y }, c, s };
   });
   const largos = rectas.map((t) => Math.hypot(t.b.x - t.a.x, t.b.y - t.a.y));
   return { tramos: conArcos, largo, haciaA, haciaB, valida, nodos, rectas: largos, arcos };
 }
 
+/** Ángulo llevado a (−π, π]. */
+const aPi = (x: number): number => x - DOS_PI * Math.round(x / DOS_PI);
+
+/** Ángulo (desde el centro) del punto medio del arco de contacto de un paso: la referencia de una polea con masa. */
+export function anguloMedio(g: GeometriaRuta, j: number): number {
+  const n = g.nodos[j]!;
+  if (!n.c) return 0;
+  const r = Math.hypot(n.llega.x - n.c.x, n.llega.y - n.c.y);
+  const a = Math.atan2(n.llega.y - n.c.y, n.llega.x - n.c.x);
+  return r > 1e-12 ? a + (n.s * g.arcos[j]!) / (2 * r) : a;
+}
+
 /**
  * Largo de cada **pieza** de una cuerda que pasa por poleas con masa (que la dividen: a cada lado la tensión es
- * distinta). `masivas` son los índices (en `pasos`) de esas poleas, en orden. Cada pieza suma sus tramos rectos y los
- * arcos de las poleas sin masa que tenga adentro; los arcos de las poleas con masa no cuentan (allí la cuerda no
- * desliza: lo que entra por un lado sale por el otro).
+ * distinta). `masivas` son esas poleas, en orden: su índice `j` en `pasos` y un ángulo de referencia `ref` (fijo en la
+ * polea quieta; el punto medio del arco de contacto inicial). Cada pieza suma sus tramos rectos, los arcos de las poleas
+ * sin masa que tenga adentro y, en cada polea con masa de sus extremos, el arco desde el punto de contacto hasta la
+ * referencia: así, si el tramo cambia de dirección y el contacto se corre por la polea, el largo de la pieza lo cuenta
+ * (la cuerda no desliza sobre ella; lo que gira la polea se agrega en la restricción del motor).
  */
-export function largosPorPieza(g: GeometriaRuta, masivas: readonly number[]): number[] {
-  const cortes = [-1, ...masivas, g.arcos.length];
+export function largosPorPieza(g: GeometriaRuta, masivas: ReadonlyArray<{ j: number; ref: number }>): number[] {
+  const cortes = [-1, ...masivas.map((x) => x.j), g.arcos.length];
+  const arcoA = (j: number, ref: number, rol: 'llega' | 'sale'): number => {
+    const n = g.nodos[j]!;
+    if (!n.c) return 0;
+    const q = n[rol];
+    const r = Math.hypot(q.x - n.c.x, q.y - n.c.y);
+    const ang = Math.atan2(q.y - n.c.y, q.x - n.c.x);
+    // Barrido (en el sentido de la envoltura) del contacto a la referencia, o de la referencia al contacto.
+    return r * n.s * aPi(rol === 'llega' ? ref - ang : ang - ref);
+  };
   const out: number[] = [];
   for (let k = 0; k + 1 < cortes.length; k++) {
     const desde = cortes[k]! + 1; // primera recta de la pieza
@@ -149,6 +174,10 @@ export function largosPorPieza(g: GeometriaRuta, masivas: readonly number[]): nu
     let l = 0;
     for (let r = desde; r <= hasta; r++) l += g.rectas[r]!;
     for (let j = desde; j < hasta; j++) l += g.arcos[j]!;
+    const A = masivas[k - 1];
+    const B = masivas[k];
+    if (A) l += arcoA(A.j, A.ref, 'sale');
+    if (B) l += arcoA(B.j, B.ref, 'llega');
     out.push(l);
   }
   return out;
