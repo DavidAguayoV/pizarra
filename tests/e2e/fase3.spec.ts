@@ -60,3 +60,54 @@ test('«Gira» y la masa de la polea: Atwood con T₁ ≠ T₂', async ({ page }
   await expect(page.locator('section.panel-sim')).toContainText('T1 = 22,4 N');
   await expect(page.locator('section.panel-sim')).toContainText('T2 = 25,2 N');
 });
+
+// Capturas de la fase: CAPTURAS=1 npx playwright test fase3
+for (const [esquema, nombre] of [['light', 'claro'], ['dark', 'oscuro']] as const) {
+  test(`captura: esfera que rueda, polea con masa y bloques apilados (${nombre})`, async ({ page }) => {
+    test.skip(!process.env['CAPTURAS'], 'solo con CAPTURAS=1');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.emulateMedia({ colorScheme: esquema });
+    await page.goto('./?transporte=local');
+    await page.locator('canvas.lienzo').waitFor();
+    // Atwood con polea con masa
+    await herramienta(page, 'Polea').click();
+    await clic(page, -4, 2);
+    await herramienta(page, 'Bloque').click();
+    await clic(page, -4.3, -0.3);
+    await clic(page, -3.6, -0.8);
+    await herramienta(page, 'Conectar').click();
+    await clic(page, -4.3, -0.3);
+    await clic(page, -4, 2);
+    await clic(page, -3.6, -0.8);
+    // Bloques apilados
+    await herramienta(page, 'Superficie').click();
+    await clic(page, -1, -2);
+    await herramienta(page, 'Bloque').click();
+    await clic(page, -1, -1.75);
+    await clic(page, -1, -1.3);
+    // Plano con roce y una esfera que gira
+    await herramienta(page, 'Con roce').click();
+    await herramienta(page, 'Plano inclinado').click();
+    const [x0, y0] = await pos(page, 1.2, -2.2);
+    const [x1, y1] = await pos(page, 4.7, -0.2);
+    await page.mouse.move(x0, y0);
+    await page.mouse.down();
+    await page.mouse.move(x1, y1, { steps: 8 });
+    await page.mouse.up();
+    await herramienta(page, 'Esfera').click();
+    await clic(page, 3.7, -0.5);
+    await herramienta(page, 'Seleccionar').click();
+    await clic(page, 3.7, -0.5);
+    await page.getByText('Gira (cuerpo rígido)').click();
+    await clic(page, -4, 2);
+    await page.getByLabel('Masa de la polea').fill('4');
+    await page.getByLabel('Masa de la polea').press('Enter');
+    await clic(page, 0, 3); // suelta la selección
+    await herramienta(page, 'Simular').click();
+    const panel = page.locator('section.panel-sim');
+    await panel.getByRole('button', { name: /Reproducir/ }).click();
+    await page.waitForTimeout(700);
+    await panel.getByRole('button', { name: /Pausar/ }).click().catch(() => undefined);
+    await page.screenshot({ path: `docs/capturas/nivel2-fase3-${nombre}.png` });
+  });
+}
