@@ -102,7 +102,7 @@ for (const [esquema, nombre] of [['light', 'claro'], ['dark', 'oscuro']] as cons
     await clic(page, -4, 2);
     await page.getByLabel('Masa de la polea').fill('4');
     await page.getByLabel('Masa de la polea').press('Enter');
-    await clic(page, 0, 3); // suelta la selección
+    await page.keyboard.press('Escape'); // suelta la selección
     await herramienta(page, 'Simular').click();
     const panel = page.locator('section.panel-sim');
     await panel.getByRole('button', { name: /Reproducir/ }).click();

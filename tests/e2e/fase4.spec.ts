@@ -52,7 +52,7 @@ test('montaje deshecho de una vez; varios seleccionados se alinean; Ctrl+D dupli
   await expect(page.locator('section.propiedades')).toContainText('2 elementos seleccionados');
   await page.getByRole('button', { name: 'Abajo', exact: true }).click();
   // Los dos bloques quedan con la base a la misma altura: el de la izquierda bajó 0,5 m
-  await clic(page, 0.5, 3); // suelta la selección
+  await page.keyboard.press('Escape'); // suelta la selección (un clic arriba podría caer en la barra)
   await clic(page, -0.25, -0.8);
   await expect(page.locator('section.propiedades')).toContainText('Bloque');
 
