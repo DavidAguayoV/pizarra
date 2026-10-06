@@ -1,5 +1,22 @@
 # Cambios
 
+## Nivel 2, Fase 2b — Celular: conectar toque a toque y paneles que no tapan (2026-10-05)
+
+Responde a la prueba de David en su teléfono: «conectar cosas con el teléfono es muy difícil y el menú tapa casi toda la pantalla».
+
+### Agregado
+- **Conectar toque a toque**: con Cuerda o Resorte, tocar el primer cuerpo, después cada polea por la que pasa la cuerda y al final el
+  otro extremo (sin arrastrar). Una guía arriba dice qué tocar y tiene *Cancelar*. Al terminar, cada extremo se une a la **cara que
+  mira hacia su tramo** (la de arriba si la cuerda sube), así que no hace falta atinarle al borde.
+- Con el dedo, el imán y el margen de las poleas son más grandes (40 px y 26 px).
+- El panel de simulación parte **compacto** en el celular (reproducir, reiniciar, velocidad y tensiones; *Detalles* abre lo demás) y la
+  escena se **encuadra sola** en el espacio libre de arriba.
+- El panel de propiedades parte **plegado** en el celular (solo el título y *Editar*), y al simular se suelta la selección.
+
+### Corregido
+- Un toque suelto con la herramienta Cuerda creaba una cuerda horizontal de 2 m fija en el aire (y un aviso de problema).
+- Durante la simulación quedaban a la vista las marcas de unión de la escena quieta.
+
 ## Nivel 2, Fase 2 — Menú por modos, imanes y cuerda por poleas en un gesto (2026-10-05)
 
 Decisión: [ADR 0009](docs/decisiones/0009-modos-e-imanes.md). Responde a lo que David pidió al probar la Fase 1.

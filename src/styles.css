@@ -861,3 +861,93 @@ button.con-icono .ico,
   padding: 8px 0 0;
   border: none;
 }
+
+/* --- Celular: paneles compactos y conexión toque a toque (Nivel 2) -------------------------------------
+ * El panel de simulación parte compacto en el celular: reproducir, tiempo y tensiones. «Detalles» abre lo demás.
+ */
+.panel-sim.compacto {
+  grid-template-columns: 1fr;
+  max-height: 34%;
+}
+.panel-sim.compacto .sim-der,
+.panel-sim.compacto .sim-opciones,
+.panel-sim.compacto .sim-eventos,
+.panel-sim.compacto .sim-exportar,
+.panel-sim.compacto .sim-extra,
+.panel-sim.compacto .sim-info {
+  display: none;
+}
+.panel-sim.compacto .sim-controles,
+.panel-sim.compacto .sim-cab {
+  margin: 2px 0;
+}
+.panel-sim .sim-detalles[aria-expanded='true'] {
+  outline: 3px solid var(--foco);
+  outline-offset: 1px;
+}
+
+.guia-toques {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 16px);
+  padding: 6px 8px 6px 14px;
+  background: var(--superficie);
+  color: var(--texto);
+  border: 2px solid var(--foco);
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+.guia-toques button {
+  min-height: 38px;
+  padding: 0 12px;
+  flex: none;
+}
+
+@media (max-width: 700px) {
+  .panel-sim {
+    left: 4px;
+    right: 4px;
+    bottom: 4px;
+    padding: 6px 8px;
+  }
+  .panel-sim .sim-cab h2 {
+    display: none;
+  }
+  .propiedades {
+    max-height: 40%;
+  }
+}
+
+/* Panel de propiedades: en el celular parte plegado (solo el título y «Editar»). */
+.cab-prop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cab-prop h2 {
+  margin: 0;
+}
+.propiedades .cab-prop .plegar {
+  display: none;
+}
+@media (max-width: 700px) {
+  .propiedades .cab-prop .plegar {
+    display: inline-block;
+  }
+  .propiedades.plegado > :not(.cab-prop) {
+    display: none;
+  }
+  .propiedades .cab-prop {
+    margin-bottom: 6px;
+  }
+  .propiedades.plegado .cab-prop {
+    margin-bottom: 0;
+  }
+}

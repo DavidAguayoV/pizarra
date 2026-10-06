@@ -26,6 +26,8 @@ export interface AnfitrionSim {
   transmitir(red: readonly Elemento[] | null, ocultos: ReadonlySet<string>): void;
   agregarElementos(els: Elemento[]): void;
   avisar(texto: string): void;
+  /** El panel cambió de tamaño (compacto / con detalles). */
+  alCambiarTamano?(): void;
 }
 
 const VELOCIDADES = [0.1, 0.25, 0.5, 1, 2, 4] as const;
@@ -91,7 +93,18 @@ export class PanelSimulacion {
     h.textContent = 'Simulación';
     this.tiempo.className = 'sim-tiempo';
     this.tiempo.setAttribute('role', 'status');
-    cab.append(h, this.tiempo, boton('Cerrar', 'Cierra la simulación', () => this.cerrar()));
+    // En el celular el panel parte compacto (reproducir, tiempo y tensiones); «Detalles» muestra todo lo demás.
+    const bDetalles = boton('Detalles', 'Muestra u oculta gráficos, tabla, opciones y exportación', () => {
+      const compacto = !el.classList.contains('compacto');
+      el.classList.toggle('compacto', compacto);
+      bDetalles.setAttribute('aria-expanded', String(!compacto));
+      this.host.alCambiarTamano?.();
+    });
+    bDetalles.classList.add('sim-detalles');
+    const compactoInicial = window.matchMedia('(max-width: 700px)').matches;
+    el.classList.toggle('compacto', compactoInicial);
+    bDetalles.setAttribute('aria-expanded', String(!compactoInicial));
+    cab.append(h, this.tiempo, bDetalles, boton('Cerrar', 'Cierra la simulación', () => this.cerrar()));
 
     this.bPlay = boton('▶ Reproducir', 'Reproduce o pausa la simulación', () => this.alternar());
     const controles = document.createElement('div');
@@ -116,13 +129,10 @@ export class PanelSimulacion {
     const etG = document.createElement('label');
     etG.className = 'sim-g';
     etG.append('g (m/s²) ', gIn);
-    controles.append(
-      this.bPlay,
-      boton('Paso', 'Avanza 0,05 s', () => this.paso()),
-      boton('Reiniciar', 'Vuelve al instante inicial', () => this.reiniciar()),
-      vel,
-      etG,
-    );
+    const bPaso = boton('Paso', 'Avanza 0,05 s', () => this.paso());
+    bPaso.classList.add('sim-extra');
+    etG.classList.add('sim-extra');
+    controles.append(this.bPlay, bPaso, boton('Reiniciar', 'Vuelve al instante inicial', () => this.reiniciar()), vel, etG);
 
     const opciones = document.createElement('div');
     opciones.className = 'sim-opciones';

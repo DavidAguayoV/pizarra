@@ -2,11 +2,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Bloque, Cuerda, Elemento } from '../src/core/elementos';
 import { arreglar } from '../src/grafo/arreglos';
-import { alinearColgantes, conectarNuevo, iman, montar, pasoAlSalir, regionDePaso } from '../src/grafo/conectar';
+import { alinearColgantes, conectarNuevo, iman, montar, pasoAlSalir, puertoHacia, regionDePaso, toque } from '../src/grafo/conectar';
 import { prepararLote } from '../src/grafo/integridad';
 import { posPuerto } from '../src/grafo/puertos';
 import { validar } from '../src/grafo/validar';
-import { crearBloque, crearCuerda, crearPolea, crearSuperficie } from '../src/physics/objetos';
+import { crearBloque, crearCuerda, crearPolea, crearResorte, crearSuperficie } from '../src/physics/objetos';
 import { construirModelo } from '../src/sim/modelo';
 import { Simulacion } from '../src/sim/motor';
 
@@ -146,5 +146,46 @@ describe('otras piezas y arreglos', () => {
     const t = s.estado.t;
     s.paso();
     expect(s.estado.t).toBe(t);
+  });
+});
+
+describe('conexión toque a toque (para el dedo)', () => {
+  const pol = crearPolea({ x: 0, y: 1.4 }, 0.3, { id: 'p' });
+  const b1 = crearBloque({ x: -0.3, y: -0.6 }, 0.4, 0.4, { id: 'b1', apoyo: [] });
+  const b2 = crearBloque({ x: 0.3, y: -0.6 }, 0.4, 0.4, { id: 'b2', apoyo: [] });
+  const escena = [pol, b1, b2];
+  const crear = (a: { x: number; y: number }, b: { x: number; y: number }, extra: object) => crearCuerda(a, b, extra);
+  it('bloque, polea, bloque: una cuerda que envuelve la polea por arriba, unida a la cara de arriba de cada bloque', () => {
+    let r = toque(null, 'cuerda', { x: -0.25, y: -0.7 }, escena, 0.4, 0.26, crear);
+    expect(r.k).toBe('pendiente');
+    if (r.k !== 'pendiente') return;
+    r = toque(r.c, 'cuerda', { x: 0.1, y: 1.3 }, escena, 0.4, 0.26, crear);
+    if (r.k !== 'pendiente') throw new Error('debía seguir pendiente');
+    expect(r.c.pasos.map((x) => x.el)).toEqual(['p']);
+    const fin = toque(r.c, 'cuerda', { x: 0.35, y: -0.65 }, escena, 0.4, 0.26, crear);
+    if (fin.k !== 'lista' || fin.elemento.tipo !== 'cuerda') throw new Error('debía terminar');
+    expect(fin.elemento.union).toEqual([
+      { el: 'b1', puerto: 'cara-sup' },
+      { el: 'b2', puerto: 'cara-sup' },
+    ]);
+    expect(fin.elemento.ruta).toEqual([{ el: 'p', sentido: -1 }]);
+  });
+  it('tocar dos veces el mismo cuerpo no termina nada; un resorte termina en el segundo toque', () => {
+    const r = toque(null, 'cuerda', { x: -0.3, y: -0.6 }, escena, 0.4, 0.26, crear);
+    if (r.k !== 'pendiente') throw new Error();
+    expect(toque(r.c, 'cuerda', { x: -0.28, y: -0.62 }, escena, 0.4, 0.26, crear).k).toBe('pendiente');
+    const pared = crearSuperficie({ x: -2, y: -1 }, { x: -2, y: 1 }, { id: 'pared' });
+    const res = toque(null, 'resorte', { x: -2.02, y: -0.6 }, [pared, b1], 0.4, 0.26, (a, b, e) => crearResorte(a, b, e));
+    if (res.k !== 'pendiente') throw new Error();
+    const fin = toque(res.c, 'resorte', { x: -0.3, y: -0.6 }, [pared, b1], 0.4, 0.26, (a, b, e) => crearResorte(a, b, e));
+    if (fin.k !== 'lista') throw new Error();
+    expect(fin.elemento.union![1]).toEqual({ el: 'b1', puerto: 'cara-izq' });
+    expect(fin.elemento.union![0]).toMatchObject({ el: 'pared' });
+  });
+  it('puertoHacia elige la cara que mira hacia el tramo (también con el bloque girado)', () => {
+    expect(puertoHacia(b1, { x: -0.3, y: 3 }).puerto).toBe('cara-sup');
+    expect(puertoHacia(b1, { x: 3, y: -0.6 }).puerto).toBe('cara-der');
+    const girado = crearBloque({ x: 0, y: 0 }, 0.4, 0.4, { angulo: Math.PI / 2 });
+    expect(puertoHacia(girado, { x: 0, y: 3 }).puerto).toBe('cara-der');
   });
 });

@@ -73,12 +73,19 @@ test('un bloque soltado cerca del plano se apoya solo, alineado con él', async 
   expect(await num(page, 'Ángulo del bloque')).toBeCloseTo(26.57, 0);
 });
 
-test('los demás objetos se colocan con un clic', async ({ page }) => {
+test('esfera y polea se colocan con un clic; cuerda y resorte, arrastrando (un clic solo no los crea)', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  for (const [nombre, x] of [['Esfera', -3.5], ['Polea', -2.2], ['Cuerda', -0.8], ['Resorte', 0.8]] as const) {
+  for (const [nombre, x] of [['Esfera', -3.5], ['Polea', -2.2]] as const) {
     await herramienta(page, nombre).click();
     await clic(page, x, 1.5);
   }
+  await herramienta(page, 'Cuerda').click();
+  await clic(page, -0.8, 1.5); // empieza la conexión toque a toque: todavía no hay cuerda
+  await expect(estado(page)).toContainText('2 elementos');
+  await page.keyboard.press('Escape');
+  await arrastrar(page, [-1.3, 1.5], [-0.3, 1.5]);
+  await herramienta(page, 'Resorte').click();
+  await arrastrar(page, [0.3, 1.5], [1.3, 1.5]);
   await expect(estado(page)).toContainText('4 elementos');
 });
 

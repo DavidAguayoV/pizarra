@@ -360,3 +360,95 @@ export function marcasDeConexion(escena: readonly Elemento[], p: Punto, radio: n
   if (reg && (!m || m.el !== reg.el || reg.r > 0)) out.push({ p: reg.c, tipo: 'paso', r: reg.r });
   return out;
 }
+
+// --- Conexión toque a toque (para el dedo) --------------------------------------------------------------------------
+
+/** Radio del imán y margen del paso cuando se usa el dedo (un dedo cubre unos 40 px). */
+export const IMAN_TACTIL_PX = 40;
+export const PASO_TACTIL_PX = 26;
+
+/** El puerto de un cuerpo que mira hacia `objetivo`: la cara de arriba si la cuerda sube, etc. */
+export function puertoHacia(c: CuerpoC, objetivo: Punto): { puerto: string; p: Punto } {
+  const dx = objetivo.x - c.centro.x;
+  const dy = objetivo.y - c.centro.y;
+  if (c.tipo === 'esfera') {
+    const g = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+    const puerto = `borde:${g}`;
+    return { puerto, p: posPuerto(c, puerto)! };
+  }
+  const co = Math.cos(c.angulo);
+  const si = Math.sin(c.angulo);
+  const caras: Array<[string, number, number]> = [
+    ['cara-sup', -si, co],
+    ['cara-inf', si, -co],
+    ['cara-izq', -co, -si],
+    ['cara-der', co, si],
+  ];
+  let mejor = caras[0]!;
+  let max = -Infinity;
+  for (const k of caras) {
+    const d = k[1] * dx + k[2] * dy;
+    if (d > max) {
+      max = d;
+      mejor = k;
+    }
+  }
+  return { puerto: mejor[0], p: posPuerto(c, mejor[0])! };
+}
+
+/** Conexión empezada con un toque: el primer extremo y las poleas (o bordes) tocadas después, en orden. */
+export interface ConexionPendiente {
+  tipo: 'cuerda' | 'resorte';
+  inicio: { p: Punto; union: Union; el: string | null };
+  pasos: RegionPaso[];
+}
+
+export type ResultadoToque =
+  | { k: 'pendiente'; c: ConexionPendiente }
+  | { k: 'lista'; elemento: Cuerda | Extract<Elemento, { tipo: 'resorte' }> };
+
+/**
+ * Un toque de la conexión toque a toque. El primero fija un extremo (al imán que haya, o fijo en el espacio); con la
+ * cuerda, cada toque sobre una polea (o el extremo de una superficie) la agrega a la ruta; el toque siguiente en otra
+ * cosa la termina. El sentido de cada vuelta sale de la geometría (de dónde viene y adónde va), y en los cuerpos la
+ * cuerda se une a la cara que mira hacia su tramo.
+ */
+export function toque(
+  pendiente: ConexionPendiente | null,
+  tipo: 'cuerda' | 'resorte',
+  p: Punto,
+  escena: readonly Elemento[],
+  radio: number,
+  margen: number,
+  crear: (a: Punto, b: Punto, extra: { union: [Union, Union]; ruta?: Paso[] }) => Cuerda | Extract<Elemento, { tipo: 'resorte' }>,
+): ResultadoToque {
+  const m = iman(p, escena, radio);
+  if (!pendiente) return { k: 'pendiente', c: { tipo, inicio: m ? { p: m.p, union: m.union, el: m.el } : { p, union: { fijo: true }, el: null }, pasos: [] } };
+  if (tipo === 'cuerda') {
+    const reg = regionDePaso(p, escena, margen);
+    const ultimo = pendiente.pasos.at(-1);
+    const esPolea = reg && reg.r > 0 && (!m || m.el === reg.el);
+    const esBorde = reg && reg.r === 0 && Math.hypot(p.x - reg.c.x, p.y - reg.c.y) <= margen;
+    if (reg && (esPolea || esBorde) && reg.el !== pendiente.inicio.el && !(ultimo && ultimo.el === reg.el && ultimo.extremo === reg.extremo)) {
+      return { k: 'pendiente', c: { ...pendiente, pasos: [...pendiente.pasos, reg] } };
+    }
+  }
+  const fin = m ? { p: m.p, union: m.union as Union, el: m.el as string | null } : { p, union: { fijo: true } as Union, el: null };
+  // Tocar otra vez el mismo cuerpo sin haber pasado por nada no termina nada.
+  if (fin.el !== null && fin.el === pendiente.inicio.el && pendiente.pasos.length === 0) return { k: 'pendiente', c: pendiente };
+  const porId = new Map(escena.map((e) => [e.id, e]));
+  // Cada extremo unido a un cuerpo se une a la cara que mira hacia su tramo.
+  const cadena: Punto[] = [pendiente.inicio.p, ...pendiente.pasos.map((r) => r.c), fin.p];
+  const ajustar = (x: { p: Punto; union: Union; el: string | null }, hacia: Punto) => {
+    const c = x.el ? porId.get(x.el) : undefined;
+    if (!c || !esCuerpo(c)) return x;
+    const q = puertoHacia(c, hacia);
+    return { p: q.p, union: { el: c.id, puerto: q.puerto } as Union, el: c.id };
+  };
+  const a = ajustar(pendiente.inicio, cadena[1]!);
+  const b = ajustar(fin, cadena[cadena.length - 2]!);
+  cadena[0] = a.p;
+  cadena[cadena.length - 1] = b.p;
+  const ruta = pendiente.pasos.map((r, i) => pasoAlSalir(r, cadena[i]!, cadena[i + 2]!));
+  return { k: 'lista', elemento: crear(a.p, b.p, { union: [a.union, b.union], ...(ruta.length > 0 ? { ruta } : {}) }) };
+}

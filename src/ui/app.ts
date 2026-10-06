@@ -2,6 +2,7 @@ import type { Punto } from '../core/camara';
 import { camaraInicial } from '../core/camara';
 import { OPCIONES_COLOR, OPCIONES_RESALTADOR, colorDeTinta } from '../core/colores';
 import type { ColorTinta, Elemento } from '../core/elementos';
+import { cajaDe, unirCajas } from '../core/elementos';
 import { escenaInicial, OP_AGREGAR, OP_LOTE, reductoresEscena } from '../core/escena';
 import type { Escena } from '../core/escena';
 import { Store } from '../core/store';
@@ -24,7 +25,9 @@ import {
   tamTextoDeGrosor,
 } from '../ink/herramientas';
 import type { LotePayload } from '../core/escena';
-import { apoyar, conectarNuevo, IMAN_PX, iman, marcasDeConexion, marcasDeUnion, PASO_PX, regionDePaso } from '../grafo/conectar';
+import type { ConexionPendiente, Marca } from '../grafo/conectar';
+import { apoyar, conectarNuevo, IMAN_PX, IMAN_TACTIL_PX, iman, marcasDeConexion, marcasDeUnion, PASO_PX, PASO_TACTIL_PX, regionDePaso, toque } from '../grafo/conectar';
+import { crearCuerda, crearResorte } from '../physics/objetos';
 import { loteVacio, prepararLote } from '../grafo/integridad';
 import { dependientes, resolverElemento, resolverEscena, sinDerivados } from '../grafo/resolver';
 import type { TipoObjeto } from '../physics/objetos';
@@ -232,7 +235,12 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   etiquetaEscala.append('Escala ', entradaEscala, ' px/m');
   const bSim = botonIcono('▶', 'Simular', 'Simula el movimiento de la escena: gráficos, energía y comparación analítica', () => {
     if (simPanel.abierto) simPanel.cerrar();
-    else simPanel.abrir();
+    else {
+      // Al simular se suelta la selección: su panel de propiedades no debe tapar lo que se mueve.
+      if (seleccionIds.length > 0) seleccionar([]);
+      simPanel.abrir();
+      requestAnimationFrame(() => encuadrarLibre());
+    }
     actualizarBarra();
   });
   const bAbrir = boton('Abrir', 'Abrir un proyecto (.json)', () => entradaArchivo.click());
@@ -319,8 +327,12 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   const escena = (): Elemento[] => resolverEscena(store.estado.elementos);
   /** Toda edición pasa por la integridad del grafo: las consecuencias viajan en la misma op. */
   /** Radio del imán y margen del paso por poleas, en metros (fijos en pantalla). */
-  const radioIman = (): number => IMAN_PX / L.camara.escala;
-  const margenPaso = (): number => PASO_PX / L.camara.escala;
+  // Con el dedo, el imán y el margen de las poleas son más grandes (un dedo cubre unos 40 px).
+  let tactil = false;
+  const radioIman = (): number => (tactil ? IMAN_TACTIL_PX : IMAN_PX) / L.camara.escala;
+  const margenPaso = (): number => (tactil ? PASO_TACTIL_PX : PASO_PX) / L.camara.escala;
+  /** Conexión toque a toque en curso (primer extremo y poleas tocadas). */
+  let pendiente: ConexionPendiente | null = null;
   /** Dónde está el puntero mientras se conecta (marcas de puertos e imanes). */
   let puntero: Punto | null = null;
   let arrastrando = false;
@@ -342,10 +354,16 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     // Marcas de las uniones y, mientras se conecta, de los puertos e imanes (solo en la pantalla de quien edita,
     // nunca en las exportaciones ni en el celular del estudiante).
     marcas: () => {
+      // Mientras se simula, los cuerpos se mueven: las marcas de la escena quieta confundirían.
+      if (simPanel.abierto) return [];
       const conectando = herramienta === 'objeto' && (tipoObjeto === 'cuerda' || tipoObjeto === 'resorte');
       const base = (herramienta === 'seleccionar' || herramienta === 'objeto') && !arrastrando ? marcasDeUnion(escena()) : [];
-      if (puntero && (conectando || herramienta === 'seleccionar')) return [...base, ...marcasDeConexion(escena(), puntero, radioIman(), margenPaso())];
-      return base;
+      // Conexión toque a toque: el primer extremo y las poleas ya tocadas quedan marcados.
+      const toques: Marca[] = pendiente
+        ? [{ p: pendiente.inicio.p, tipo: 'iman' }, ...pendiente.pasos.map((r): Marca => ({ p: r.c, tipo: 'paso', r: r.r }))]
+        : [];
+      if (puntero && (conectando || herramienta === 'seleccionar')) return [...base, ...toques, ...marcasDeConexion(escena(), puntero, radioIman(), margenPaso())];
+      return [...base, ...toques];
     },
   });
   const ponerCamara = L.ponerCamara.bind(L);
@@ -384,9 +402,34 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     fijarVivo: (locales, ocultos) => L.fijarVivo(locales, ocultos),
     transmitir: (red, ocultos) => transmision?.difusor.vivo(red, ocultos),
     agregarElementos: (els) => emitirLote({ agregar: els }),
+    alCambiarTamano: () => requestAnimationFrame(() => encuadrarLibre()),
     avisar: (t) => avisar(t),
   });
   zona.append(simPanel.elemento);
+
+  /**
+   * Si el panel de simulación tapa parte de la escena, la encuadra en el espacio libre de arriba (sin acercar más de lo
+   * que estaba). Así lo que se mueve se ve, también en el celular.
+   */
+  function encuadrarLibre(): void {
+    if (!simPanel.abierto) return;
+    const caja = unirCajas(escena().map(cajaDe));
+    if (!caja) return;
+    const rl = lienzo.getBoundingClientRect();
+    const rp = simPanel.elemento.getBoundingClientRect();
+    const libre = Math.max(80, rp.top - rl.top);
+    const c = L.camara;
+    const arriba = L.alto / 2 - (caja.y1 - c.cy) * c.escala;
+    const abajo = L.alto / 2 - (caja.y0 - c.cy) * c.escala;
+    const izq = L.ancho / 2 + (caja.x0 - c.cx) * c.escala;
+    const der = L.ancho / 2 + (caja.x1 - c.cx) * c.escala;
+    if (arriba >= 0 && abajo <= libre && izq >= 0 && der <= L.ancho) return; // ya se ve entera
+    const w = Math.max(caja.x1 - caja.x0, 0.5);
+    const h = Math.max(caja.y1 - caja.y0, 0.5);
+    const escala = Math.min(c.escala, (L.ancho * 0.9) / w, (libre * 0.85) / h);
+    const yc = (caja.y0 + caja.y1) / 2;
+    ponerCamara({ cx: (caja.x0 + caja.x1) / 2, cy: yc - (L.alto / 2 - libre / 2) / escala, escala });
+  }
 
   function seleccionar(ids: readonly string[]): void {
     seleccionIds = [...ids];
@@ -447,6 +490,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     elegirHerramienta(d.herramienta);
   }
   function elegirHerramienta(h: Herramienta): void {
+    cancelarToques();
     herramienta = h;
     modo = modoDe(h, tipoObjeto, modo);
     if (h !== 'seleccionar' && seleccionIds.length > 0) seleccionar([]);
@@ -505,7 +549,55 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       puntero = p;
       L.pedirCuadro();
     },
+    tipoPuntero: (t) => (tactil = t === 'touch'),
+    cancelarToques: () => cancelarToques(),
+    toqueConexion: (p) => {
+      const tipo = tipoObjeto === 'resorte' ? 'resorte' : 'cuerda';
+      const r = toque(pendiente, tipo, p, escena(), radioIman(), margenPaso(), (a, b, extra) =>
+        tipo === 'cuerda' ? crearCuerda(a, b, extra) : crearResorte(a, b, extra),
+      );
+      if (r.k === 'pendiente') {
+        pendiente = r.c;
+        guia.mostrar(
+          tipo === 'resorte'
+            ? 'Resorte: toca el otro extremo.'
+            : r.c.pasos.length === 0
+              ? 'Cuerda: toca la polea por donde pasa, o el otro extremo.'
+              : 'Cuerda: toca otra polea, o el otro extremo.',
+        );
+      } else {
+        pendiente = null;
+        guia.ocultar();
+        confirmarElemento(r.elemento);
+      }
+      L.pedirCuadro();
+    },
   });
+
+  /** Guía de la conexión toque a toque: qué tocar ahora, y cómo cancelar. */
+  const guia = (() => {
+    const el = document.createElement('div');
+    el.className = 'guia-toques';
+    el.setAttribute('role', 'status');
+    el.hidden = true;
+    const texto = document.createElement('span');
+    const bCancelar = boton('Cancelar', 'Cancela la conexión empezada', () => cancelarToques());
+    el.append(texto, bCancelar);
+    zona.append(el);
+    return {
+      mostrar: (t: string) => {
+        texto.textContent = t;
+        el.hidden = false;
+      },
+      ocultar: () => (el.hidden = true),
+    };
+  })();
+  function cancelarToques(): void {
+    if (!pendiente) return;
+    pendiente = null;
+    guia.ocultar();
+    L.pedirCuadro();
+  }
 
   // --- Texto ----------------------------------------------------------------------
   let editor: HTMLTextAreaElement | null = null;
@@ -694,6 +786,8 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     if ((k === 'delete' || k === 'backspace') && seleccionIds.length > 0) {
       e.preventDefault();
       emitirLote({ borrar: [...seleccionIds] });
+    } else if (k === 'escape' && pendiente) {
+      cancelarToques();
     } else if (k === 'escape' && seleccionIds.length > 0) {
       seleccionar([]);
     } else if (mod && k === 'z') {

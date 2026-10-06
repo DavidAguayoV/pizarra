@@ -130,6 +130,7 @@ export class PanelPropiedades {
       return;
     }
     this.huella = huella;
+    if (ids !== this.idsHuella) this.plegado = window.matchMedia('(max-width: 700px)').matches;
     this.idsHuella = ids;
     this.pintar(sel);
   }
@@ -159,11 +160,35 @@ export class PanelPropiedades {
     el.hidden = false;
   }
 
+  /**
+   * Título del panel. En el celular el panel parte **plegado** (solo esta barra, para no tapar la escena) y el botón
+   * *Editar* lo despliega; en el escritorio el botón no se ve.
+   */
   private titulo(t: string): void {
+    const cab = document.createElement('div');
+    cab.className = 'cab-prop';
     const h = document.createElement('h2');
     h.textContent = t;
-    this.elemento.append(h);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'plegar';
+    const pintarBoton = (): void => {
+      b.textContent = this.plegado ? 'Editar' : 'Ocultar';
+      b.setAttribute('aria-expanded', String(!this.plegado));
+    };
+    b.addEventListener('click', () => {
+      this.plegado = !this.plegado;
+      this.elemento.classList.toggle('plegado', this.plegado);
+      pintarBoton();
+    });
+    pintarBoton();
+    cab.append(h, b);
+    this.elemento.classList.toggle('plegado', this.plegado);
+    this.elemento.append(cab);
   }
+
+  /** Panel plegado (solo en el celular): se vuelve a plegar cada vez que cambia lo seleccionado. */
+  private plegado = false;
 
   /** El vector tal como está ahora en la escena (los campos del panel pueden tener copias viejas). */
   private vectorActual(v: Vector): Vector {

@@ -55,6 +55,15 @@ export interface Anfitrion {
   regionPaso(p: Punto): RegionPaso | null;
   /** Dónde está el puntero mientras se conecta (para resaltar puertos e imanes); null al terminar. */
   apuntar(p: Punto | null): void;
+  /**
+   * Un toque (sin arrastrar) con la herramienta Cuerda o Resorte: conexión **toque a toque** (primer extremo, poleas
+   * por las que pasa, último extremo). Más fácil que el gesto continuo con el dedo.
+   */
+  toqueConexion(p: Punto): void;
+  /** Se empezó a arrastrar con Cuerda o Resorte: se abandona la conexión toque a toque que hubiera. */
+  cancelarToques(): void;
+  /** El tipo del último puntero que tocó el lienzo (el imán es más grande para el dedo). */
+  tipoPuntero(t: string): void;
 }
 
 /** Distancia (px de pantalla) a la que se agarra un asa o se acierta a un elemento. */
@@ -186,6 +195,7 @@ export class Entrada {
     }
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
+    this.host.tipoPuntero(e.pointerType);
     let herramienta = this.host.herramienta();
     if (e.pointerType === 'pen' && (e.buttons & 32) !== 0) herramienta = 'borrador';
     const w = this.mundo(p);
@@ -376,7 +386,9 @@ export class Entrada {
       case 'objeto': {
         let b = this.mundo(a.ultimaPantalla);
         if (shift) b = ajustarAngulo(a.inicio, b);
-        a.vivo = (a.conexion && this.vivoConexion(a, b)) || this.crearObjeto(this.host.tipoObjeto(), a.inicio, b, a.idVivo);
+        // Cuerda y resorte: solo con arrastre (un toque suelto no crea nada: es la conexión toque a toque).
+        a.vivo = a.conexion ? this.vivoConexion(a, b) : this.crearObjeto(this.host.tipoObjeto(), a.inicio, b, a.idVivo);
+        if (a.conexion && a.vivo) this.host.cancelarToques();
         break;
       }
       case 'ejes': {
@@ -406,6 +418,11 @@ export class Entrada {
 
   private terminar(a: Activo): void {
     if (a.conexion) this.host.apuntar(null);
+    if (a.conexion && !a.vivo) {
+      this.host.toqueConexion(a.inicio);
+      this.host.previsualizar(null, VACIO);
+      return;
+    }
     // Primero se confirma y después se retira la vista previa: así quien mira por la red
     // recibe el elemento definitivo antes de que desaparezca el trazo en construcción.
     if (a.herramienta === 'borrador') {

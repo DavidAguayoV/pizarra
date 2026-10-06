@@ -23,6 +23,8 @@ Otras teclas: **1 2 3** grosor fino / medio / grueso · **Ctrl+Z**, **Ctrl+Y** d
 
 - **Armar un Atwood en 8 toques:** *Armar* → *Polea* → toca dónde va → *Bloque* → toca dos veces (se numeran solos: m₁ = 2 kg,
   m₂ = 3 kg) → *Conectar* → **un solo gesto**: desde m₁, sube por un lado de la polea, pasa por encima y baja hasta m₂. *Simular*.
+- **En el celular, conectar toque a toque:** con *Cuerda*, toca el primer bloque, después la polea y al final el otro bloque (sin
+  arrastrar); arriba aparece una guía con *Cancelar*. La cuerda se une sola a la cara que corresponde.
 - **Piezas de tamaño fijo:** bloque, esfera y polea aparecen con un toque y se mueven arrastrándolas; su tamaño se cambia en su panel.
   Una polea soltada **sobre un bloque** queda montada en él (**polea móvil**).
 - **Imanes:** al conectar, los puertos de los objetos cercanos se marcan y el extremo se pega al más próximo (anillo grande). Al

@@ -126,6 +126,9 @@ export async function montarEspectador(raiz: HTMLElement, codigo: string, transp
     iman: () => null,
     regionPaso: () => null,
     apuntar: () => {},
+    toqueConexion: () => {},
+    cancelarToques: () => {},
+    tipoPuntero: () => {},
   });
 
   const receptor = await transport.unirse(codigo);
