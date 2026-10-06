@@ -9,6 +9,7 @@ import { Store } from '../../src/core/store';
 import { posPuerto } from '../../src/grafo/puertos';
 import { resolverEscena } from '../../src/grafo/resolver';
 import { crearBloque, crearCuerda, crearPolea } from '../../src/physics/objetos';
+import { herramienta } from './ayudas';
 
 /**
  * Fase 1 del Nivel 2: el grafo con la interfaz real. Un Atwood dibujado (no cargado por código) queda con una
@@ -16,7 +17,6 @@ import { crearBloque, crearCuerda, crearPolea } from '../../src/physics/objetos'
  * un proyecto v1 se abre, se migra y se guarda como v2.
  */
 
-const herramienta = (page: Page, nombre: string) => page.getByRole('button', { name: nombre, exact: true });
 const estado = (page: Page) => page.getByRole('status').filter({ hasText: 'elemento' });
 const panelSim = (page: Page) => page.locator('section.panel-sim');
 
@@ -51,15 +51,17 @@ async function proyecto(page: Page): Promise<{ json: { schemaVersion: number; op
   return { json, escena: resolverEscena(store.estado.elementos) };
 }
 
-/** Atwood dibujado con la paleta Cuerpos: polea, dos bloques de 0,4 m y dos cuerdas hasta la polea. */
+/**
+ * Atwood dibujado con la barra por modos: polea y dos bloques (piezas de tamaño fijo: un toque cada una; se
+ * numeran solos, m₁ = 2 kg y m₂ = 3 kg) y dos cuerdas hasta la polea, que se funden en una.
+ */
 async function dibujarAtwood(page: Page): Promise<void> {
-  await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Polea', exact: true }).click();
+  await herramienta(page, 'Polea').click();
   await clic(page, 0, 1.5);
-  await page.getByRole('button', { name: 'Bloque', exact: true }).click();
-  await arrastrar(page, [-0.5, -0.3], [-0.1, -0.7]);
-  await arrastrar(page, [0.1, -0.8], [0.5, -1.2]);
-  await page.getByRole('button', { name: 'Cuerda', exact: true }).click();
+  await herramienta(page, 'Bloque').click();
+  await clic(page, -0.3, -0.5);
+  await clic(page, 0.3, -1.0);
+  await herramienta(page, 'Cuerda').click();
   await arrastrar(page, [-0.3, -0.32], [-0.3, 1.5]);
   await arrastrar(page, [0.3, 1.5], [0.3, -0.82]);
 }
@@ -79,19 +81,13 @@ test('Atwood dibujado: una sola cuerda que envuelve la polea, y la tensión de l
   expect(cuerda.ruta).toHaveLength(1);
   expect(cuerda.union!.every((u) => u !== null && 'el' in u)).toBe(true);
 
-  // m₁ = 3 kg (el de la izquierda)
-  await herramienta(page, 'Seleccionar').click();
-  await clic(page, -0.3, -0.5);
-  await page.getByLabel('Masa del bloque').fill('3');
-  await page.getByLabel('Masa del bloque').press('Enter');
-
   await herramienta(page, 'Simular').click();
   await page.getByLabel('Velocidad de reproducción', { exact: true }).selectOption('4');
   await panelSim(page).getByRole('button', { name: /Reproducir/ }).click();
   await expect.poll(async () => leer((await panelSim(page).locator('.sim-tiempo').textContent()) ?? '', 't'), { timeout: 15000 }).toBeGreaterThanOrEqual(0.3);
   await panelSim(page).getByRole('button', { name: /Pausar/ }).click();
   const f = (await panelSim(page).locator('p[aria-label="Normal, roce y tensiones"]').textContent()) ?? '';
-  expect(leer(f, 'T')).toBeCloseTo((2 * 3 * 2 * 9.8) / 5, 1); // 23,52 N
+  expect(leer(f, 'T')).toBeCloseTo((2 * 2 * 3 * 9.8) / 5, 1); // 23,52 N con m₁ = 2 kg y m₂ = 3 kg (numerados solos)
   // Sin problemas en la escena.
   expect(((await panelSim(page).getByLabel('Problemas de la escena').textContent()) ?? '').trim()).toBe('');
 });

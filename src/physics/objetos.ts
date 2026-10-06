@@ -23,6 +23,11 @@ export const NOMBRE_OBJETO: Readonly<Record<TipoObjeto, string>> = {
 
 export const GROSOR_OBJETO = 0.03;
 export const MASA_POR_DEFECTO = 2;
+/** Tamaños de las piezas que se colocan con un clic (Nivel 2: piezas de tamaño fijo, editables en su panel). */
+export const ANCHO_BLOQUE = 0.5;
+export const ALTO_BLOQUE = 0.4;
+export const RADIO_ESFERA = 0.25;
+export const RADIO_POLEA = 0.25;
 const redondear = (n: number): number => Math.round(n * 1e4) / 1e4;
 const pt = (p: Punto): Punto => ({ x: redondear(p.x), y: redondear(p.y) });
 

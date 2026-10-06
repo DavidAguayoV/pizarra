@@ -50,8 +50,8 @@ export function asasDe(e: Elemento): Asa[] {
       ];
     }
     case 'esfera':
-    case 'polea':
       return [{ nombre: 'radio', p: { x: e.centro.x + e.radio, y: e.centro.y } }];
+    // La polea es una pieza de tamaño fijo: se mueve entera; el radio se cambia en su panel (Nivel 2).
     default:
       return [];
   }

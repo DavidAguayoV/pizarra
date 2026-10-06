@@ -17,7 +17,6 @@ import type { Herramienta } from '../ink/herramientas';
 import {
   crearImagen,
   crearTexto,
-  DEFS_HERRAMIENTAS,
   grosorDePosicion,
   POSICIONES_ATAJO,
   RANGO_RESALTADOR,
@@ -38,6 +37,8 @@ import { Lienzo } from './lienzo';
 import { PanelPropiedades } from './propiedades';
 import { PanelSimulacion } from './simulacion';
 import { PALETAS } from './tokens';
+import type { DefBoton, Modo } from './modos';
+import { BOTONES_MODO, botonActivo, botonDeAtajo, INICIAL_MODO, modoDe, MODOS } from './modos';
 
 const CURSORES: Record<Herramienta, string> = {
   objeto: 'crosshair',
@@ -61,6 +62,28 @@ function boton(texto: string, titulo: string, onClick: () => void): HTMLButtonEl
   b.textContent = texto;
   b.title = titulo;
   b.addEventListener('click', onClick);
+  return b;
+}
+
+function icono(t: string): HTMLSpanElement {
+  const s = document.createElement('span');
+  s.className = 'ico';
+  s.setAttribute('aria-hidden', 'true');
+  s.textContent = t;
+  return s;
+}
+function textoBoton(t: string): HTMLSpanElement {
+  const s = document.createElement('span');
+  s.className = 'txt';
+  s.textContent = t;
+  return s;
+}
+/** Botón con icono y texto; en el celular puede quedar solo el icono, y su nombre accesible es siempre el texto. */
+function botonIcono(ico: string, texto: string, titulo: string, onClick: () => void): HTMLButtonElement {
+  const b = boton('', titulo, onClick);
+  b.classList.add('con-icono');
+  b.setAttribute('aria-label', texto);
+  b.append(icono(ico), textoBoton(texto));
   return b;
 }
 
@@ -105,11 +128,27 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   const titulo = document.createElement('h1');
   titulo.textContent = 'Pizarra de Física';
 
-  const botonesHerr = new Map<Herramienta, HTMLButtonElement>();
-  for (const d of DEFS_HERRAMIENTAS) {
-    const b = boton(d.etiqueta, `${d.etiqueta} (${d.atajo})`, () => elegirHerramienta(d.clave));
-    b.dataset['herramienta'] = d.clave;
-    botonesHerr.set(d.clave, b);
+  // Modos (Nivel 2): cada uno muestra solo sus herramientas (ui/modos.ts).
+  let modo: Modo = 'dibujar';
+  const ultimaDeModo = new Map<Modo, DefBoton>(MODOS.map((m) => [m.clave, INICIAL_MODO[m.clave]]));
+  const filasHerr = new Map<Modo, HTMLDivElement>();
+  const botonesHerr: Array<{ def: DefBoton; b: HTMLButtonElement }> = [];
+  for (const m of MODOS) {
+    const botones = BOTONES_MODO[m.clave].map((def) => {
+      const b = boton(def.etiqueta, def.atajo ? `${def.etiqueta} (${def.atajo})` : def.etiqueta, () => elegirBoton(m.clave, def));
+      b.dataset['herramienta'] = def.clave;
+      botonesHerr.push({ def, b });
+      return b;
+    });
+    const g = grupo(`Herramientas de ${m.etiqueta}`, ...botones);
+    g.classList.add('herramientas');
+    filasHerr.set(m.clave, g);
+  }
+  const botonesModo = new Map<Modo, HTMLButtonElement>();
+  for (const m of MODOS) {
+    const b = botonIcono(m.icono, m.etiqueta, `Modo ${m.etiqueta}`, () => elegirModo(m.clave));
+    b.classList.add('modo');
+    botonesModo.set(m.clave, b);
   }
 
   const muestras = (
@@ -153,8 +192,8 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   const grupoGrosor = grupo('Grosor', deslizador, vistaGrosor, valorGrosor);
   grupoGrosor.classList.add('grosor');
 
-  const bDeshacer = boton('Deshacer', 'Deshacer (Ctrl+Z)', () => store.deshacer());
-  const bRehacer = boton('Rehacer', 'Rehacer (Ctrl+Y)', () => store.rehacer());
+  const bDeshacer = botonIcono('↶', 'Deshacer', 'Deshacer (Ctrl+Z)', () => store.deshacer());
+  const bRehacer = botonIcono('↷', 'Rehacer', 'Rehacer (Ctrl+Y)', () => store.rehacer());
   const bVista = boton('Centrar', 'Volver a la vista inicial (0)', () => L.ponerCamara(camaraInicial()));
   const bTema = boton('', 'Alternar tema claro / oscuro', () => {
     alternarTema();
@@ -190,7 +229,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   const etiquetaEscala = document.createElement('label');
   etiquetaEscala.className = 'etiqueta-escala';
   etiquetaEscala.append('Escala ', entradaEscala, ' px/m');
-  const bSim = boton('Simular', 'Simula el movimiento de la escena: gráficos, energía y comparación analítica', () => {
+  const bSim = botonIcono('▶', 'Simular', 'Simula el movimiento de la escena: gráficos, energía y comparación analítica', () => {
     if (simPanel.abierto) simPanel.cerrar();
     else simPanel.abrir();
     actualizarBarra();
@@ -227,19 +266,38 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   aviso.className = 'aviso';
   aviso.setAttribute('role', 'alert');
 
+  bSim.classList.add('modo');
+  // Menú "Más": lo que se usa poco. En el celular también recibe Rehacer, Exportar y Compartir.
+  const mas = document.createElement('details');
+  mas.className = 'menu menu-mas';
+  const resumenMas = document.createElement('summary');
+  resumenMas.setAttribute('aria-label', 'Más opciones');
+  resumenMas.append(icono('⋯'), textoBoton('Más'));
+  const cajaMas = document.createElement('div');
+  cajaMas.className = 'menu-caja';
+  cajaMas.append(bAbrir, bVista, bTema, etiquetaEscala);
+  mas.append(resumenMas, cajaMas);
+
+  const modos = grupo('Modos', ...botonesModo.values(), bSim);
+  modos.classList.add('modos');
+  const acciones = grupo('Acciones', bDeshacer, bRehacer, menu.elemento, compartir.boton, mas);
+  acciones.classList.add('acciones');
   const fila1 = document.createElement('div');
-  fila1.className = 'fila';
-  fila1.append(
-    titulo,
-    grupo('Herramientas', ...botonesHerr.values()),
-    grupoTinta,
-    grupoLuz,
-    grupoGrosor,
-  );
+  fila1.className = 'fila fila-modos';
+  fila1.append(titulo, modos, acciones, estado);
   const fila2 = document.createElement('div');
-  fila2.className = 'fila';
-  fila2.append(bDeshacer, bRehacer, bVista, bImagen, bAbrir, menu.elemento, bSim, compartir.boton, bTema, etiquetaEscala, estado, aviso, entradaArchivo, entradaImagen);
-  barra.append(fila1, fila2);
+  fila2.className = 'fila fila-herr';
+  fila2.append(...filasHerr.values(), bImagen, grupoTinta, grupoLuz, grupoGrosor);
+  barra.append(fila2, fila1, aviso, entradaArchivo, entradaImagen);
+
+  // En el celular, Rehacer, Exportar y Compartir pasan al menú "Más" (la barra de abajo debe caber en una fila).
+  const angosta = window.matchMedia('(max-width: 700px)');
+  function reubicar(): void {
+    if (angosta.matches) cajaMas.prepend(bRehacer, menu.elemento, compartir.boton);
+    else bDeshacer.after(bRehacer, menu.elemento, compartir.boton);
+  }
+  angosta.addEventListener('change', reubicar);
+  reubicar();
 
   const lienzo = document.createElement('canvas');
   lienzo.className = 'lienzo';
@@ -327,7 +385,10 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     bDeshacer.disabled = !store.puedeDeshacer;
     bRehacer.disabled = !store.puedeRehacer;
     bTema.textContent = temaActual() === 'oscuro' ? 'Tema claro' : 'Tema oscuro';
-    for (const [k, b] of botonesHerr) b.setAttribute('aria-pressed', String(k === herramienta));
+    for (const [m, fila] of filasHerr) fila.hidden = m !== modo;
+    for (const [m, b] of botonesModo) b.setAttribute('aria-pressed', String(m === modo));
+    for (const { def, b } of botonesHerr) b.setAttribute('aria-pressed', String(botonActivo(def, herramienta, tipoObjeto)));
+    bImagen.hidden = modo !== 'dibujar';
     bSim.setAttribute('aria-pressed', String(simPanel.abierto));
     for (const [k, b] of botonesColor) {
       b.style.setProperty('--muestra', colorDeTinta(paleta, k));
@@ -338,9 +399,9 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       b.setAttribute('aria-pressed', String(k === colorLuz));
     }
     const sinPincel = ['seleccionar', 'mano', 'borrador', 'vector', 'ejes', 'objeto'].includes(herramienta);
-    grupoTinta.hidden = esLuz() || sinPincel;
-    grupoLuz.hidden = !esLuz();
-    grupoGrosor.hidden = sinPincel;
+    grupoTinta.hidden = esLuz() || sinPincel || modo !== 'dibujar';
+    grupoLuz.hidden = !esLuz() || modo !== 'dibujar';
+    grupoGrosor.hidden = sinPincel || modo !== 'dibujar';
     if (document.activeElement !== entradaEscala) entradaEscala.value = String(Math.round(L.camara.escala));
     deslizador.value = String(esLuz() ? posLuz : posTinta);
     const g = grosorActual();
@@ -355,8 +416,18 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     estado.textContent = `${n} elemento${n === 1 ? '' : 's'} · ${store.ops.length} ops · ${L.camara.escala.toFixed(0)} px/m`;
   }
 
+  function elegirModo(m: Modo): void {
+    elegirBoton(m, ultimaDeModo.get(m)!);
+  }
+  function elegirBoton(m: Modo, d: DefBoton): void {
+    modo = m;
+    ultimaDeModo.set(m, d);
+    if (d.objeto) tipoObjeto = d.objeto;
+    elegirHerramienta(d.herramienta);
+  }
   function elegirHerramienta(h: Herramienta): void {
     herramienta = h;
+    modo = modoDe(h, tipoObjeto, modo);
     if (h !== 'seleccionar' && seleccionIds.length > 0) seleccionar([]);
     actualizarBarra();
     panel.actualizar();
@@ -602,9 +673,9 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
       e.preventDefault();
       store.rehacer();
     } else if (!mod && !e.altKey) {
-      const d = DEFS_HERRAMIENTAS.find((x) => x.atajo.toLowerCase() === k);
+      const d = botonDeAtajo(k, modo);
       if (d) {
-        elegirHerramienta(d.clave);
+        elegirBoton(d.modo, d.def);
       } else if (k >= '1' && k <= '3') {
         const pos = POSICIONES_ATAJO[Number(k) - 1]!;
         if (esLuz()) posLuz = pos;

@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Elemento } from '../../src/core/elementos';
 import { crearBloque, crearCuerda, crearPolea, crearSuperficie } from '../../src/physics/objetos';
+import { herramienta } from './ayudas';
 
-const herramienta = (page: Page, nombre: string) => page.getByRole('button', { name: nombre, exact: true });
 const panelSim = (page: Page) => page.locator('section.panel-sim');
 const estado = (page: Page) => page.getByRole('status').filter({ hasText: 'elemento' });
 const campo = (page: Page, etiqueta: string) => page.getByLabel(etiqueta, { exact: true });
@@ -73,7 +73,7 @@ test.beforeEach(async ({ page }) => {
 
 test('caída libre: el cuerpo cae como y = y₀ − ½ g t² y Reiniciar lo devuelve a su lugar', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Esfera', exact: true }).click();
+  await herramienta(page, 'Esfera').click();
   await clic(page, -1, 1.5);
   await abrirSim(page);
   await expect(panelSim(page).locator('.sim-info')).toContainText('y = 1,5 m');
@@ -89,9 +89,9 @@ test('caída libre: el cuerpo cae como y = y₀ − ½ g t² y Reiniciar lo devu
 
 test('plano inclinado con roce: desliza y la simulación coincide con la solución analítica', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Plano inclinado', exact: true }).click();
+  await herramienta(page, 'Plano inclinado').click();
   await arrastrar(page, [-3, -1.5], [2, 1]);
-  await page.getByRole('button', { name: 'Bloque', exact: true }).click();
+  await herramienta(page, 'Bloque').click();
   await clic(page, -0.5, 0);
   await herramienta(page, 'Seleccionar').click();
   await clic(page, 1.2, 0.6);
@@ -110,7 +110,7 @@ test('plano inclinado con roce: desliza y la simulación coincide con la soluci�
 
 test('el balance de energía se muestra y es ~0 (E − E₀ − W)', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Esfera', exact: true }).click();
+  await herramienta(page, 'Esfera').click();
   await clic(page, 0, 1);
   await abrirSim(page);
   await reproducirHasta(page, 0.4);
@@ -121,14 +121,15 @@ test('el balance de energía se muestra y es ~0 (E − E₀ − W)', async ({ pa
 
 test('masa-resorte: oscilación armónica, eventos del largo natural y período analítico', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Superficie', exact: true }).click();
+  await herramienta(page, 'Superficie').click();
   await clic(page, 0, -0.5); // 3 m horizontales centradas en el clic
-  await page.getByRole('button', { name: 'Bloque', exact: true }).click();
+  await herramienta(page, 'Bloque').click();
   await clic(page, 0.2, -0.1);
-  await page.getByRole('button', { name: 'Resorte', exact: true }).click();
-  await arrastrar(page, [-1.45, -0.2], [-0.25, -0.2]);
+  await herramienta(page, 'Resorte').click();
+  // El bloque (0,5 × 0,4 m) queda apoyado con su cara izquierda en x = −0,05 y su centro en y = −0,3.
+  await arrastrar(page, [-1.45, -0.3], [-0.07, -0.3]);
   await herramienta(page, 'Seleccionar').click();
-  await clic(page, -0.85, -0.2);
+  await clic(page, -0.85, -0.3);
   await expect(page.locator('section.propiedades').getByRole('heading', { name: 'Resorte' })).toBeVisible();
   await campo(page, 'Largo natural del resorte').fill('0.8');
   await campo(page, 'Largo natural del resorte').press('Enter');
@@ -173,9 +174,9 @@ test('bloque en la mesa unido por una polea a una masa colgante, con roce', asyn
 
 test('la velocidad inicial se edita en el panel del cuerpo y define la trayectoria', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Superficie', exact: true }).click();
+  await herramienta(page, 'Superficie').click();
   await arrastrar(page, [-4.5, -1], [4.5, -1]);
-  await page.getByRole('button', { name: 'Esfera', exact: true }).click();
+  await herramienta(page, 'Esfera').click();
   await clic(page, -3, 0);
   await herramienta(page, 'Seleccionar').click();
   await clic(page, -3, 0);
@@ -193,7 +194,7 @@ test('la velocidad inicial se edita en el panel del cuerpo y define la trayector
 
 test('exporta CSV y el gráfico a pgfplots', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Esfera', exact: true }).click();
+  await herramienta(page, 'Esfera').click();
   await clic(page, 0, 1);
   await abrirSim(page);
   await reproducirHasta(page, 0.3);
@@ -210,7 +211,7 @@ test('exporta CSV y el gráfico a pgfplots', async ({ page }) => {
 
 test('al editar la escena la simulación vuelve a t = 0 y al cerrarla se restaura la pizarra', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Esfera', exact: true }).click();
+  await herramienta(page, 'Esfera').click();
   await clic(page, 0, 1);
   await abrirSim(page);
   await panelSim(page).getByRole('button', { name: 'Paso' }).click();
@@ -228,7 +229,7 @@ test('el estudiante ve la simulación moverse en su celular', async ({ page, con
   const codigo = (await page.locator('.codigo-sala').textContent())!;
   await page.getByRole('button', { name: 'Cerrar' }).click();
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Esfera', exact: true }).click();
+  await herramienta(page, 'Esfera').click();
   await clic(page, 0, 1.5);
   const est = await context.newPage();
   await est.setViewportSize({ width: 390, height: 780 });
@@ -261,9 +262,9 @@ for (const [esquema, nombre] of [['light', 'claro'], ['dark', 'oscuro']] as cons
     await page.goto('./?transporte=local');
     await page.locator('canvas.lienzo').waitFor();
     await herramienta(page, 'Cuerpos').click();
-    await page.getByRole('button', { name: 'Plano inclinado', exact: true }).click();
+    await herramienta(page, 'Plano inclinado').click();
     await arrastrar(page, [-4, -0.5], [1, 2]);
-    await page.getByRole('button', { name: 'Bloque', exact: true }).click();
+    await herramienta(page, 'Bloque').click();
     await clic(page, -1.2, 1.3); // un poco por encima del plano (y(−1,2) ≈ 0,9 m), para que se apoye arriba
     await herramienta(page, 'Seleccionar').click();
     await clic(page, 0.2, 1.6);

@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { herramienta } from './ayudas';
 
-const herramienta = (page: Page, nombre: string) => page.getByRole('button', { name: nombre, exact: true });
 const estado = (page: Page) => page.getByRole('status').filter({ hasText: 'elemento' });
 
 /** Coordenadas de pantalla de un punto del mundo (metros): el centro del lienzo es el (0, 0). */

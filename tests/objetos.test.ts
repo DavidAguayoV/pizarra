@@ -79,7 +79,7 @@ describe('asas de los objetos', () => {
   it('cada objeto expone las asas que le corresponden', () => {
     expect(asasDe(por('b1')).map((a) => a.nombre)).toEqual(['rotar', 'tam']);
     expect(asasDe(por('q1')).map((a) => a.nombre)).toEqual(['radio']);
-    expect(asasDe(por('p1')).map((a) => a.nombre)).toEqual(['radio']);
+    expect(asasDe(por('p1'))).toEqual([]); // la polea es de tamaño fijo: el radio se cambia en el panel
     expect(asasDe(por('s1')).map((a) => a.nombre)).toEqual(['a', 'b']);
     expect(asasDe(por('rs1')).map((a) => a.nombre)).toEqual(['a', 'b']);
     expect(asasDe(por('c1')).map((a) => a.nombre)).toEqual(['a', 'b']);

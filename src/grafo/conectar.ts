@@ -1,7 +1,7 @@
 import type { Punto } from '../core/camara';
 import type { Bloque, Cuerda, Elemento, Esfera, Polea, Union } from '../core/elementos';
 import { distanciaAlCuerpo, TOLERANCIA_CONTACTO } from '../physics/dcl';
-import { apoyarEn, superficieCercana } from '../physics/objetos';
+import { apoyarEn, MASA_POR_DEFECTO, superficieCercana } from '../physics/objetos';
 import { posPuerto, puertoMasCercano } from './puertos';
 import { resolverEscena } from './resolver';
 import { sentidoNatural } from './ruta';
@@ -86,10 +86,26 @@ function mitadEnPolea(pol: Polea, escena: readonly Elemento[], excluir: string):
   return null;
 }
 
+/**
+ * Un cuerpo nuevo con la etiqueta y la masa por defecto se numera: m₁ = 2 kg, m₂ = 3 kg, m₃ = 4 kg… Así dos bloques
+ * recién puestos ya forman un Atwood que se mueve (con masas iguales no pasaría nada).
+ */
+export function numerar<T extends CuerpoC>(c: T, escena: readonly Elemento[]): T {
+  if (c.etiqueta !== 'm' || c.masa !== MASA_POR_DEFECTO) return c;
+  let n = 0;
+  for (const e of escena) {
+    if (!esCuerpo(e)) continue;
+    const m = /^m_\{?(\d+)\}?$/.exec(e.etiqueta.trim());
+    n = Math.max(n, m ? Number(m[1]) : 0, e.etiqueta.trim() === 'm' ? 1 : 0);
+  }
+  n += 1;
+  return { ...c, etiqueta: n < 10 ? `m_${n}` : `m_{${n}}`, masa: MASA_POR_DEFECTO + n - 1 };
+}
+
 /** Uniones de un elemento recién dibujado. Puede fundirlo con otra cuerda (y entonces no se agrega). */
 export function conectarNuevo(e: Elemento, escena: readonly Elemento[]): Cambio {
   const resuelta = resolverEscena(escena);
-  if (esCuerpo(e)) return { agregar: [apoyar(e, escena)] };
+  if (esCuerpo(e)) return { agregar: [apoyar(numerar(e, escena), escena)] };
   if (e.tipo === 'vector') {
     if (e.fantasma || (e.rol !== 'aplicada' && e.rol !== 'tension')) return { agregar: [e] };
     const c = escena.find((x): x is CuerpoC => esCuerpo(x) && distanciaAlCuerpo(x, e.a) <= TOL_VECTOR);

@@ -19,7 +19,7 @@ import type { RolVector } from '../physics/vectores';
 import type { ModoRoce } from '../physics/dcl';
 import { construirDcl, G_POR_DEFECTO, resolverDcl } from '../physics/dcl';
 import type { TipoObjeto } from '../physics/objetos';
-import { anguloSuperficie, elongacion, largoSegmento, NOMBRE_OBJETO, TIPOS_OBJETO } from '../physics/objetos';
+import { anguloSuperficie, elongacion, largoSegmento } from '../physics/objetos';
 
 /** Lo que el panel necesita de la aplicación. */
 export interface AnfitrionPropiedades {
@@ -152,7 +152,6 @@ export class PanelPropiedades {
     else if (unico?.tipo === 'resorte') this.panelResorte(unico);
     else if (vectores.length >= 2 && vectores.length === sel.length) this.panelSuma(vectores);
     else if (this.host.herramienta() === 'vector') this.panelCrear();
-    else if (this.host.herramienta() === 'objeto') this.panelCrearObjeto();
     else {
       el.hidden = true;
       return;
@@ -278,27 +277,6 @@ export class PanelPropiedades {
   /** Elemento vigente de la escena (los campos pueden tener copias viejas). */
   private vigente<T extends Elemento>(e: T): T {
     return (this.host.elementos().find((x) => x.id === e.id) as T | undefined) ?? e;
-  }
-
-  private panelCrearObjeto(): void {
-    const e = this.elemento;
-    this.titulo('Cuerpos y superficies');
-    const sel = document.createElement('div');
-    sel.className = 'roles';
-    sel.setAttribute('role', 'group');
-    sel.setAttribute('aria-label', 'Tipo de objeto nuevo');
-    for (const t of TIPOS_OBJETO) {
-      const b = boton(NOMBRE_OBJETO[t], NOMBRE_OBJETO[t], () => this.host.ponerTipoObjeto(t));
-      b.className = 'rol-vector';
-      b.style.setProperty('--rol', 'var(--pz-fam-neutro)');
-      b.setAttribute('aria-pressed', String(t === this.host.tipoObjeto()));
-      sel.append(b);
-    }
-    const nota = document.createElement('p');
-    nota.className = 'nota';
-    nota.textContent =
-      'Un clic lo coloca con tamaño estándar; arrastrar lo dimensiona (cuerda, resorte y superficie: de un extremo al otro; con Mayús, de 15° en 15°). Los cuerpos se apoyan solos en la superficie que tengan cerca. Para el diagrama de cuerpo libre, selecciona el cuerpo.';
-    e.append(sel, nota);
   }
 
   /** Velocidad inicial para la simulación: rapidez y dirección. */

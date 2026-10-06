@@ -60,7 +60,8 @@ body {
   background: var(--superficie);
   border-bottom: 1px solid var(--borde);
   position: relative;
-  z-index: 2;
+  /* Por encima de los paneles del lienzo: los menús que se despliegan no deben quedar tapados. */
+  z-index: 4;
 }
 
 .fila {
@@ -77,6 +78,7 @@ body {
 }
 
 .barra h1 {
+  white-space: nowrap;
   margin: 0 4px 0 0;
   font-size: 1.1rem;
 }
@@ -636,5 +638,163 @@ button.en-vivo {
   .panel-sim {
     max-height: 64%;
     grid-template-columns: 1fr;
+  }
+}
+
+/* --- Barra por modos (Nivel 2) --------------------------------------------------------------------
+ * Fila de modos (Dibujar, Armar, Conectar, Simular) + acciones; debajo, solo las herramientas del modo.
+ * En el celular la barra va abajo, al alcance del pulgar: una fila de modos y una tira de herramientas
+ * que se desplaza de lado. El lienzo conserva al menos tres cuartos de la pantalla.
+ */
+.barra .fila-herr {
+  order: 2;
+}
+.barra .fila-modos {
+  order: 1;
+  flex-wrap: nowrap;
+}
+.barra .aviso {
+  order: 3;
+}
+
+.modos {
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 2px;
+  border: 2px solid var(--acento);
+  border-radius: 10px;
+}
+
+.modos button.modo {
+  background: transparent;
+  color: var(--texto);
+  border-color: transparent;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-weight: 600;
+}
+
+.modos button.modo[aria-pressed='true'] {
+  background: var(--acento);
+  color: var(--acento-texto);
+  outline: none;
+}
+
+.acciones {
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+button.con-icono .ico,
+.menu-mas summary .ico {
+  margin-right: 6px;
+  font-size: 1.05em;
+}
+
+.menu-mas .menu-caja {
+  left: auto;
+  right: 0;
+}
+
+.herramientas {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 700px) {
+  .barra {
+    order: 2;
+    border-bottom: none;
+    border-top: 1px solid var(--borde);
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
+    gap: 4px;
+  }
+  .zona-lienzo {
+    order: 1;
+  }
+  /* El título y el estado siguen ahí para los lectores de pantalla, pero no ocupan lugar. */
+  .barra h1,
+  .barra .estado {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  /* Abajo: la tira de herramientas arriba de los modos. */
+  .barra .fila-herr {
+    order: 1;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    gap: 6px;
+  }
+  .barra .fila-modos {
+    order: 2;
+    gap: 4px;
+  }
+  .herramientas,
+  .barra .fila-herr .grupo {
+    flex-wrap: nowrap;
+  }
+  .herramientas button,
+  .barra .fila-herr > button {
+    flex: none;
+    white-space: nowrap;
+  }
+  .modos {
+    flex: 1;
+    min-width: 0;
+  }
+  .modos button.modo {
+    flex: 1;
+    min-width: 0;
+    padding: 2px 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    line-height: 1.1;
+  }
+  .modos button.modo .ico {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+  .acciones {
+    margin-left: 0;
+    gap: 4px;
+  }
+  .acciones > button.con-icono,
+  .menu-mas > summary {
+    width: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+  .acciones > button.con-icono .txt,
+  .menu-mas > summary .txt {
+    display: none;
+  }
+  .acciones > button.con-icono .ico,
+  .menu-mas > summary .ico {
+    margin: 0;
+  }
+  /* Los menús se abren hacia arriba (la barra está abajo). */
+  .barra .menu-caja {
+    top: auto;
+    bottom: calc(100% + 6px);
+    max-height: 70vh;
+    overflow: auto;
+  }
+  .barra .aviso {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    z-index: 6;
+    padding: 6px 10px;
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: 8px;
   }
 }

@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { herramienta } from './ayudas';
 
-const herramienta = (page: Page, nombre: string) => page.getByRole('button', { name: nombre, exact: true });
 const estado = (page: Page) => page.getByRole('status').filter({ hasText: 'elemento' });
 const panel = (page: Page) => page.locator('section.propiedades');
 const campo = (page: Page, etiqueta: string) => page.getByLabel(etiqueta, { exact: true });
@@ -40,9 +40,9 @@ const num = async (page: Page, etiqueta: string): Promise<number> => Number((awa
 /** Plano inclinado (cuña) de (-3,-1.5) a (2,1): unos 26,6°, y un bloque soltado cerca que se apoya solo. */
 async function escenaPlano(page: Page): Promise<void> {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Plano inclinado', exact: true }).click();
+  await herramienta(page, 'Plano inclinado').click();
   await arrastrar(page, [-3, -1.5], [2, 1]);
-  await page.getByRole('button', { name: 'Bloque', exact: true }).click();
+  await herramienta(page, 'Bloque').click();
   await clic(page, -0.5, 0);
 }
 
@@ -76,7 +76,7 @@ test('un bloque soltado cerca del plano se apoya solo, alineado con él', async 
 test('los demás objetos se colocan con un clic', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
   for (const [nombre, x] of [['Esfera', -3.5], ['Polea', -2.2], ['Cuerda', -0.8], ['Resorte', 0.8]] as const) {
-    await page.getByRole('button', { name: nombre, exact: true }).click();
+    await herramienta(page, nombre).click();
     await clic(page, x, 1.5);
   }
   await expect(estado(page)).toContainText('4 elementos');
@@ -121,7 +121,7 @@ test('Generar diagrama de cuerpo libre dibuja cuerpo, ejes, fuerzas y ΣF = m a,
 
 test('un bloque en el aire cae libremente: solo el peso y a = −g', async ({ page }) => {
   await herramienta(page, 'Cuerpos').click();
-  await page.getByRole('button', { name: 'Bloque', exact: true }).click();
+  await herramienta(page, 'Bloque').click();
   await clic(page, -1, 1);
   await herramienta(page, 'Seleccionar').click();
   await clic(page, -1, 1);

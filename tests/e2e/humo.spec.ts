@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
+import { herramienta } from './ayudas';
 
 const PNG_1X1 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const estado = (page: Page): Locator => page.getByRole('status');
-const herramienta = (page: Page, nombre: string) => page.getByRole('button', { name: nombre, exact: true });
 
 async function arrastrar(page: Page, desde: [number, number], hasta: [number, number], pasos = 12): Promise<void> {
   await page.mouse.move(...desde);
@@ -98,6 +98,7 @@ test('la rueda hace zoom y Centrar vuelve a la vista inicial', async ({ page }) 
   await page.mouse.move(500, 400);
   await page.mouse.wheel(0, -400);
   await expect(estado(page)).not.toContainText('100 px/m');
+  await page.getByLabel('Más opciones').click(); // Centrar está en el menú Más
   await page.getByRole('button', { name: 'Centrar' }).click();
   await expect(estado(page)).toContainText('100 px/m');
 });

@@ -6,7 +6,7 @@ import type { LotePayload } from '../core/escena';
 import type { NombreAsa } from '../physics/edicion';
 import { ajustarAngulo, asasDe, moverAsa } from '../physics/edicion';
 import type { TipoObjeto } from '../physics/objetos';
-import { crearBloque, crearCuerda, crearEsfera, crearPolea, crearResorte, crearSuperficie } from '../physics/objetos';
+import { ALTO_BLOQUE, ANCHO_BLOQUE, crearBloque, crearCuerda, crearEsfera, crearPolea, crearResorte, crearSuperficie, RADIO_ESFERA, RADIO_POLEA } from '../physics/objetos';
 import type { RolVector } from '../physics/vectores';
 import { crearEjes, crearVector } from '../physics/vectores';
 import type { Herramienta, TipoForma } from './herramientas';
@@ -457,22 +457,23 @@ export class Entrada {
     return { x: v.ancho / 2 + (w.x - c.cx) * c.escala, y: v.alto / 2 - (w.y - c.cy) * c.escala };
   }
 
-  /** Objeto físico según la herramienta: un clic lo coloca con tamaño estándar; arrastrar lo dimensiona. */
+  /**
+   * Objeto físico según la herramienta. Bloque, esfera y polea son **piezas de tamaño fijo**: aparecen donde está
+   * el puntero y arrastrar las lleva (el tamaño se cambia en su panel). Superficie, plano, cuerda y resorte se
+   * dibujan de un extremo al otro.
+   */
   private crearObjeto(tipo: TipoObjeto, a: Punto, b: Punto, id: string): Elemento {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const dist = Math.hypot(dx, dy);
     const arrastro = dist > 0.12;
-    const r = (n: number) => Math.round(n * 1e4) / 1e4;
     switch (tipo) {
       case 'bloque':
-        return arrastro
-          ? crearBloque({ x: r((a.x + b.x) / 2), y: r((a.y + b.y) / 2) }, r(Math.max(0.25, Math.abs(dx))), r(Math.max(0.25, Math.abs(dy))), { id })
-          : crearBloque(a, 0.9, 0.6, { id });
+        return crearBloque(b, ANCHO_BLOQUE, ALTO_BLOQUE, { id });
       case 'esfera':
-        return crearEsfera(arrastro ? { x: a.x, y: a.y } : a, arrastro ? r(Math.max(0.15, dist)) : 0.35, { id });
+        return crearEsfera(b, RADIO_ESFERA, { id });
       case 'polea':
-        return crearPolea(a, arrastro ? r(Math.max(0.15, dist)) : 0.3, { id });
+        return crearPolea(b, RADIO_POLEA, { id });
       case 'superficie':
         return arrastro ? crearSuperficie(a, b, { id }) : crearSuperficie({ x: a.x - 1.5, y: a.y }, { x: a.x + 1.5, y: a.y }, { id });
       case 'plano':
