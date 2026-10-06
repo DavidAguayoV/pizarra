@@ -130,12 +130,12 @@ test('suma punta con cola de dos vectores seleccionados', async ({ page }) => {
   await herramienta(page, 'Vector').click();
   await page.getByRole('button', { name: 'Fuerza aplicada', exact: true }).click();
   await arrastrarMundo(page, [-2, -1], [1, -1]); // 3 m = 30 N, horizontal
-  await arrastrarMundo(page, [-2, 0.2], [-2, 2.7]); // 2,5 m = 25 N, vertical
+  await arrastrarMundo(page, [-2, -0.4], [-2, 2.1]); // 2,5 m = 25 N, vertical (lejos del borde de arriba: la barra puede ocupar dos filas)
   await expect(estado(page)).toContainText('2 elementos');
 
   await herramienta(page, 'Seleccionar').click();
   await clicMundo(page, -0.5, -1);
-  await clicMundo(page, -2, 1.5, 'Shift');
+  await clicMundo(page, -2, 1, 'Shift');
   await expect(panel(page).getByRole('heading', { name: '2 vectores seleccionados' })).toBeVisible();
   await expect(panel(page).getByRole('status')).toContainText(/39,[01] N a 39,[78]°/);
 
