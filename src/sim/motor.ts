@@ -47,7 +47,9 @@ export type TipoEvento =
   /** Un cuerpo rebota (e > 0). */
   | 'rebote'
   /** Dos cuerpos en contacto se separan. */
-  | 'separa';
+  | 'separa'
+  /** Un cuerpo apoyado pasa de una superficie a otra (el pie de un plano, dos tramos de piso seguidos). */
+  | 'cambia-superficie';
 
 export interface EventoSim {
   t: number;
@@ -94,6 +96,11 @@ export interface Estado {
   T: number[];
   /** Tensión de cada pieza de cada cuerda (una sola si no pasa por poleas con masa). */
   Tp: number[][];
+  /**
+   * Segunda superficie que toca un cuerpo apoyado (una esquina: el piso y una pared). Sin roce: solo su normal `Nx`.
+   */
+  extra: Array<{ s: number; lado: 1 | -1 } | null>;
+  Nx: number[];
   /** Contactos entre cuerpos, con su normal y su roce (con signo, a lo largo de su tangente). */
   contactos: Contacto[];
   Nc: number[];
@@ -452,11 +459,12 @@ interface Din {
   Tp: number[][];
   Nc: number[];
   fc: number[];
+  Nx: number[];
   potRoce: number;
   potAp: number;
 }
 
-type Meta = Pick<Estado, 'modo' | 'cuerdaActiva' | 'N' | 'contactos' | 'Nc'>;
+type Meta = Pick<Estado, 'modo' | 'cuerdaActiva' | 'N' | 'contactos' | 'Nc' | 'extra'>;
 
 /** Filas de las restricciones activas, con el índice de cada una por cuerpo, cuerda y contacto. */
 interface Restricciones {
@@ -466,6 +474,8 @@ interface Restricciones {
   cuerda: number[][];
   cn: number[];
   ct: number[];
+  /** Fila de la segunda superficie de cada cuerpo (−1 si no tiene). */
+  extra: number[];
 }
 
 /** Datos que no cambian: inversas de masas e inercias y apoyo de cada cuerpo (que no gira) sobre cada superficie. */
@@ -492,8 +502,29 @@ function geometria(m: Modelo): Geo {
 /** Distancia del centro del cuerpo a su apoyo en la dirección n (si el bloque gira, con su ángulo actual). */
 function apoyoActual(m: Modelo, geo: Geo, i: number, k: number, th: readonly number[]): number {
   const c = m.cuerpos[i]!;
-  if (c.I === 0 || c.elemento.tipo !== 'bloque') return geo.apoyo[i]![k]!;
+  // Un bloque que no gira conserva el ángulo dibujado (th = th0: el mismo apoyo de siempre) hasta que llega a otra
+  // superficie y se alinea con ella.
+  if (c.elemento.tipo !== 'bloque' || (c.I === 0 && th[i] === c.th0)) return geo.apoyo[i]![k]!;
   return apoyoEn({ ...c.elemento, angulo: th[i]! }, m.superficies[k]!.n);
+}
+
+/** Ángulo de un bloque llevado a la cara más cercana paralela a la superficie k. */
+function anguloAlineado(m: Modelo, k: number, th: number): number {
+  const s = m.superficies[k]!;
+  const base = Math.atan2(s.t.y, s.t.x);
+  const cuarto = Math.PI / 2;
+  return base + Math.round((th - base) / cuarto) * cuarto;
+}
+
+/**
+ * Distancia de apoyo con la que un cuerpo **llega** a la superficie k: un bloque que no gira se apoya alineado con ella
+ * (como partícula, su orientación solo se ve), uno que gira con su ángulo real y una esfera, con su radio.
+ */
+function apoyoAlLlegar(m: Modelo, geo: Geo, i: number, k: number, th: readonly number[]): number {
+  const c = m.cuerpos[i]!;
+  if (c.elemento.tipo !== 'bloque') return geo.apoyo[i]![k]!;
+  if (c.I > 0) return apoyoActual(m, geo, i, k, th);
+  return apoyoEn({ ...c.elemento, angulo: anguloAlineado(m, k, th[i]!) }, m.superficies[k]!.n);
 }
 
 /** Brazo del centro de una esfera que gira al punto de contacto con su superficie (null si no es el caso). */
@@ -532,6 +563,15 @@ function restricciones(m: Modelo, pose: Pose, vel: Vel | null, meta: Meta, sinAd
       filas.push({ e: [{ k: dX(i), g: s.t.x }, { k: dY(i), g: s.t.y }, ...(rc ? [{ k: dT(i), g: cruz(rc, s.t) }] : [])], gamma: 0 });
     }
   }
+  // Segunda superficie (esquina): solo la normal.
+  const filaExtra = new Array<number>(n).fill(-1);
+  for (let i = 0; i < n; i++) {
+    const x = meta.extra[i];
+    if (!x || meta.modo[i]!.k === 'libre') continue;
+    const s = m.superficies[x.s]!;
+    filaExtra[i] = filas.length;
+    filas.push({ e: [{ k: dX(i), g: s.n.x * x.lado }, { k: dY(i), g: s.n.y * x.lado }], gamma: 0 });
+  }
   const cn: number[] = [];
   const ct: number[] = [];
   for (const c of meta.contactos) {
@@ -550,7 +590,7 @@ function restricciones(m: Modelo, pose: Pose, vel: Vel | null, meta: Meta, sinAd
       filas.push({ e: compactar(fila.e), gamma: fila.gamma });
     }
   });
-  return { filas, contacto: filaContacto, tang: filaTang, cuerda: filaCuerda, cn, ct };
+  return { filas, contacto: filaContacto, tang: filaTang, cuerda: filaCuerda, cn, ct, extra: filaExtra };
 }
 
 /** A = J M⁻¹ Jᵀ de un conjunto de filas. */
@@ -668,6 +708,7 @@ function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Meta): Din {
   const alfa = m.cuerpos.map((_, i) => q2[dT(i)] ?? 0);
   const arot = m.rotores.map((_, k) => q2[3 * n + k] ?? 0);
   const N = m.cuerpos.map((_, i) => (filaContacto[i]! >= 0 ? lambda[filaContacto[i]!]! : 0));
+  const Nx = m.cuerpos.map((_, i) => (R.extra[i]! >= 0 ? lambda[R.extra[i]!]! : 0));
   const fric = m.cuerpos.map((_, i) => (meta.modo[i]!.k === 'adherido' ? lambda[filaTang[i]!]! : fricFuerza[i]!));
   const Tp = filaCuerda.map((rs) => rs.map((r) => -lambda[r]!));
   const T = m.cuerdas.map((_, k) => Tp[k]![0] ?? 0);
@@ -683,7 +724,7 @@ function dinamica(m: Modelo, geo: Geo, pose: Pose, vel: Vel, meta: Meta): Din {
     if (md.k === 'desliza') potRoce += fricFuerza[i]! * vTangente(m, i, md, vel.v[i]!, vel.w[i]!);
     potAp += dot(Fap[i]!, vel.v[i]!);
   }
-  return { a, alfa, arot, N, fric, T, Tp, Nc, fc, potRoce, potAp };
+  return { a, alfa, arot, N, fric, T, Tp, Nc, fc, Nx, potRoce, potAp };
 }
 
 // --- Energías -------------------------------------------------------------------------------------------------------
@@ -892,6 +933,8 @@ export class Simulacion {
       fric: new Array<number>(n).fill(0),
       T: new Array<number>(m.cuerdas.length).fill(0),
       Tp: m.cuerdas.map(() => [0]),
+      extra: m.cuerpos.map(() => null),
+      Nx: new Array<number>(n).fill(0),
       contactos: [],
       Nc: [],
       fc: [],
@@ -1043,7 +1086,7 @@ export class Simulacion {
     const h = hh;
     const n = m.cuerpos.length;
     const nr = m.rotores.length;
-    const meta: Meta = { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc };
+    const meta: Meta = { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc, extra: e.extra };
     const prev: Prev = {
       pose: { p: e.p.map((q) => ({ ...q })), th: e.th.slice(), rot: e.rot.slice() },
       vel: { v: e.v.map((q) => ({ ...q })), w: e.w.slice(), wrot: e.wrot.slice() },
@@ -1138,6 +1181,15 @@ export class Simulacion {
           }
         }
       });
+      e.extra.forEach((x, i) => {
+        if (!x || e.modo[i]!.k === 'libre') return;
+        const s = m.superficies[x.s]!;
+        const nOut = { x: s.n.x * x.lado, y: s.n.y * x.lado };
+        const gap = dot({ x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y }, nOut) - apoyoActual(m, this.geo, i, x.s, e.th);
+        e.p[i] = { x: e.p[i]!.x - nOut.x * gap, y: e.p[i]!.y - nOut.y * gap };
+        const vn = dot(e.v[i]!, nOut);
+        e.v[i] = { x: e.v[i]!.x - vn * nOut.x, y: e.v[i]!.y - vn * nOut.y };
+      });
       for (const c of e.contactos) {
         const g = geoContacto(m, c, this.pose);
         this.proyectarFila(entradasPar(m, c.i, c.j, g.n, g.ri, g.rj), g.gap);
@@ -1173,7 +1225,7 @@ export class Simulacion {
   private impulso(nueva: Fila, objetivo: number): void {
     const m = this.modelo;
     const e = this.estado;
-    const R = restricciones(m, this.pose, null, { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc }, true);
+    const R = restricciones(m, this.pose, null, { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc, extra: e.extra }, true);
     const filas = [...R.filas, { e: compactar(nueva.e), gamma: 0 }];
     const A = matrizA(filas, this.geo.invM);
     const b = filas.map((f, r) => (r === filas.length - 1 ? objetivo : 0) - this.dotQ(f.e));
@@ -1262,7 +1314,7 @@ export class Simulacion {
 
   private din(): Din {
     const e = this.estado;
-    return dinamica(this.modelo, this.geo, this.pose, this.vel, { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc });
+    return dinamica(this.modelo, this.geo, this.pose, this.vel, { modo: e.modo, cuerdaActiva: e.cuerdaActiva, N: e.N, contactos: e.contactos, Nc: e.Nc, extra: e.extra });
   }
 
   private cinetica(): number {
@@ -1309,26 +1361,30 @@ export class Simulacion {
     const e = this.estado;
     const n = m.cuerpos.length;
 
-    // 1) Cuerpos libres que llegan a una superficie: el impacto se aplica en su instante exacto
+    // 1) Cuerpos que llegan a una superficie: los libres (impacto) y los apoyados que llegan a otra (el pie de un plano:
+    //    pasan a la nueva). Se aplica en su instante exacto.
     let primero: { i: number; s: number; lado: 1 | -1; frac: number } | null = null;
     for (let i = 0; i < n; i++) {
-      if (e.modo[i]!.k !== 'libre') continue;
+      const md = e.modo[i]!;
       m.superficies.forEach((s, k) => {
-        const hPrev = apoyoActual(m, this.geo, i, k, prev.pose.th);
-        const hNew = apoyoActual(m, this.geo, i, k, e.th);
+        if (md.k !== 'libre' && (k === md.s || e.extra[i]?.s === k)) return;
+        const hPrev = apoyoAlLlegar(m, this.geo, i, k, prev.pose.th);
+        const hNew = apoyoAlLlegar(m, this.geo, i, k, e.th);
         const dPrev = dot({ x: prev.pose.p[i]!.x - s.a.x, y: prev.pose.p[i]!.y - s.a.y }, s.n);
         const lado: 1 | -1 = dPrev >= 0 ? 1 : -1;
         const gapPrev = lado * dPrev - hPrev;
         const relNew = { x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y };
         const gapNew = lado * dot(relNew, s.n) - hNew;
         const u = dot(relNew, s.t);
+        // Un cuerpo apoyado solo pasa a otra superficie si va hacia ella.
+        if (md.k !== 'libre' && lado * dot(e.v[i]!, s.n) >= 0) return;
         if (gapPrev >= -1e-9 && gapNew < 0 && u >= 0 && u <= s.largo) {
           const gap = (x: number): number => {
             const q = hermite(prev.pose.p[i]!, prev.vel.v[i]!, e.p[i]!, e.v[i]!, h, x);
             const t = hermite1(prev.pose.th[i]!, prev.vel.w[i]!, e.th[i]!, e.w[i]!, h, x);
             const ths = e.th.slice();
             ths[i] = t;
-            return lado * dot({ x: q.x - s.a.x, y: q.y - s.a.y }, s.n) - apoyoActual(m, this.geo, i, k, ths);
+            return lado * dot({ x: q.x - s.a.x, y: q.y - s.a.y }, s.n) - apoyoAlLlegar(m, this.geo, i, k, ths);
           };
           const frac = gap(0) <= 0 ? 0 : bisectar(gap);
           if (!primero || frac < primero.frac) primero = { i, s: k, lado, frac };
@@ -1350,10 +1406,12 @@ export class Simulacion {
       const sup = m.superficies[s]!;
       const c = m.cuerpos[i]!;
       const kAntes = this.cinetica();
-      // Con e > 0 rebota (si el rebote alcanza): la velocidad normal se invierte y se reduce en e.
+      const cambio = e.modo[i]!.k !== 'libre';
+      // Con e > 0 rebota (si el rebote alcanza): la velocidad normal se invierte y se reduce en e. (Un cuerpo que pasa de
+      // una superficie a otra no rebota: sigue apoyado.)
       const nRebote = { x: sup.n.x * lado, y: sup.n.y * lado };
       const vnR = dot(e.v[i]!, nRebote);
-      if (this.e > 0 && -vnR * this.e > V_REBOTE) {
+      if (!cambio && this.e > 0 && -vnR * this.e > V_REBOTE) {
         e.v[i] = { x: e.v[i]!.x - (1 + this.e) * vnR * nRebote.x, y: e.v[i]!.y - (1 + this.e) * vnR * nRebote.y };
         e.W.impactos = prev.W.impactos + this.cinetica() - kAntes;
         this.evento(e.t, 'rebote', i, `${this.nombre(i)} rebota en la superficie`);
@@ -1361,10 +1419,9 @@ export class Simulacion {
         return true;
       }
       // Un bloque que gira cae sobre una cara: queda alineado con la superficie y deja de girar (choque inelástico).
-      if (c.I > 0 && c.elemento.tipo === 'bloque') {
-        const base = Math.atan2(sup.t.y, sup.t.x);
-        const cuarto = Math.PI / 2;
-        e.th[i] = base + Math.round((e.th[i]! - base) / cuarto) * cuarto;
+      // Uno que no gira (partícula) también queda alineado: su orientación solo se ve.
+      if (c.elemento.tipo === 'bloque') {
+        e.th[i] = anguloAlineado(m, s, e.th[i]!);
         e.w[i] = 0;
       }
       const nOut = { x: sup.n.x * lado, y: sup.n.y * lado };
@@ -1373,8 +1430,14 @@ export class Simulacion {
       const vn = dot(e.v[i]!, nOut);
       if (vn < 0) e.v[i] = { x: e.v[i]!.x - vn * nOut.x, y: e.v[i]!.y - vn * nOut.y };
       e.W.impactos = prev.W.impactos + this.cinetica() - kAntes;
+      if (cambio && this.quedaEnEsquina(i, s, lado)) {
+        this.terminarPaso(h * (1 - frac), profundidad);
+        return true;
+      }
       e.modo[i] = { k: 'desliza', s, lado, dir: 0 };
-      this.evento(e.t, 'impacto', i, `${this.nombre(i)} llega a la superficie y queda apoyado`);
+      e.extra[i] = null;
+      if (cambio) this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} pasa a la otra superficie`);
+      else this.evento(e.t, 'impacto', i, `${this.nombre(i)} llega a la superficie y queda apoyado`);
       // Solo puede quedar adherido si llega sin velocidad (del punto de contacto) a lo largo de la superficie.
       if (Math.abs(vTangente(m, i, e.modo[i] as Extract<Modo, { s: number }>, e.v[i]!, e.w[i]!)) < EPS_V) this.reconciliar(new Set([i]), true);
       this.terminarPaso(h * (1 - frac), profundidad);
@@ -1429,14 +1492,44 @@ export class Simulacion {
       const md = e.modo[i]!;
       if (md.k === 'libre') continue;
       const s = m.superficies[md.s]!;
+      // La segunda superficie (esquina) se suelta si su normal se haría negativa o si el cuerpo sale de ella.
+      const x2 = e.extra[i];
+      if (x2) {
+        const s2 = m.superficies[x2.s]!;
+        const u2 = dot({ x: e.p[i]!.x - s2.a.x, y: e.p[i]!.y - s2.a.y }, s2.t);
+        if (d.Nx[i]! < -EPS_F || u2 < 0 || u2 > s2.largo) {
+          e.extra[i] = null;
+          d = this.din();
+        }
+      }
       if (d.N[i]! < -EPS_F) {
-        e.modo[i] = { k: 'libre' };
-        this.evento(e.t, 'despegue', i, `${this.nombre(i)} se despega de la superficie`);
+        const x = e.extra[i];
+        e.extra[i] = null;
+        if (x) {
+          // Deja la primera pero sigue apoyado en la segunda (la pared de la esquina, por ejemplo).
+          e.modo[i] = { k: 'desliza', s: x.s, lado: x.lado, dir: 0 };
+          this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} pasa a la otra superficie`);
+        } else {
+          e.modo[i] = { k: 'libre' };
+          this.evento(e.t, 'despegue', i, `${this.nombre(i)} se despega de la superficie`);
+        }
         d = this.din();
         continue;
       }
       const u = dot({ x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y }, s.t);
       if (u < 0 || u > s.largo) {
+        const x = e.extra[i];
+        e.extra[i] = null;
+        if (x) {
+          e.modo[i] = { k: 'desliza', s: x.s, lado: x.lado, dir: 0 };
+          this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} pasa a la otra superficie`);
+          d = this.din();
+          continue;
+        }
+        if (this.seguirEnOtra(i, md.s)) {
+          d = this.din();
+          continue;
+        }
         e.modo[i] = { k: 'libre' };
         this.evento(e.t, 'sale-extremo', i, `${this.nombre(i)} sale por el extremo de la superficie`);
         d = this.din();
@@ -1528,6 +1621,79 @@ export class Simulacion {
 
   /** Dinámica del estado final del paso, ya calculada al revisar los cambios de régimen. */
   private dinFinal: Din | null = null;
+
+  /**
+   * Un cuerpo apoyado que llegó a la superficie k (ya sin la velocidad que la atravesaría): ¿queda en la esquina, tocando
+   * las dos, o pasa a la nueva? Si se aleja de la que tenía (el pie de un plano, una rampa), pasa; si las fuerzas lo
+   * apretan contra las dos (un bloque empujado contra la pared), quedan las dos. Devuelve true si quedó en la esquina.
+   */
+  private quedaEnEsquina(i: number, k: number, lado: 1 | -1): boolean {
+    const m = this.modelo;
+    const e = this.estado;
+    const md = e.modo[i]!;
+    if (md.k === 'libre') return false;
+    const s0 = m.superficies[md.s]!;
+    if (dot(e.v[i]!, { x: s0.n.x * md.lado, y: s0.n.y * md.lado }) > EPS_V) return false;
+    e.extra[i] = { s: k, lado };
+    const d = this.din();
+    if (d.N[i]! < -EPS_F) {
+      e.extra[i] = null;
+      return false; // la nueva lo sostiene sola: pasa a ella
+    }
+    if (d.Nx[i]! < -EPS_F) {
+      e.extra[i] = null; // solo la rozó: sigue en la que tenía
+      return true;
+    }
+    this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} queda apoyado en las dos superficies (esquina)`);
+    return true;
+  }
+
+  /**
+   * Un cuerpo que sale por el extremo de la superficie `desde` y ya toca otra (dos tramos de piso seguidos, la cima de una
+   * rampa que da a una meseta): se acomoda sobre ella. Si va hacia ella, sigue apoyado (pierde solo la velocidad que la
+   * atravesaría); si se aleja (un borde convexo), queda en el aire justo sobre ella. Devuelve true si siguió apoyado.
+   */
+  private seguirEnOtra(i: number, desde: number): boolean {
+    const m = this.modelo;
+    const e = this.estado;
+    let mejor: { k: number; lado: 1 | -1; gap: number } | null = null;
+    m.superficies.forEach((s, k) => {
+      if (k === desde) return;
+      const rel = { x: e.p[i]!.x - s.a.x, y: e.p[i]!.y - s.a.y };
+      const u = dot(rel, s.t);
+      if (u < 0 || u > s.largo) return;
+      const d = dot(rel, s.n);
+      const lado: 1 | -1 = d >= 0 ? 1 : -1;
+      const h = apoyoAlLlegar(m, this.geo, i, k, e.th);
+      const gap = lado * d - h;
+      // Toca si está a menos de 1 mm, o metido menos que su propio apoyo (el bloque inclinado en la arista).
+      if (gap > 1e-3 || gap < -h) return;
+      if (!mejor || Math.abs(gap) < Math.abs(mejor.gap)) mejor = { k, lado, gap };
+    });
+    if (!mejor) return false;
+    const { k, lado } = mejor as { k: number; lado: 1 | -1; gap: number };
+    const sup = m.superficies[k]!;
+    const c = m.cuerpos[i]!;
+    const kAntes = this.cinetica();
+    if (c.elemento.tipo === 'bloque') {
+      e.th[i] = anguloAlineado(m, k, e.th[i]!);
+      e.w[i] = 0;
+    }
+    const nOut = { x: sup.n.x * lado, y: sup.n.y * lado };
+    const gap = lado * dot({ x: e.p[i]!.x - sup.a.x, y: e.p[i]!.y - sup.a.y }, sup.n) - apoyoActual(m, this.geo, i, k, e.th);
+    e.p[i] = { x: e.p[i]!.x - nOut.x * gap, y: e.p[i]!.y - nOut.y * gap };
+    const vn = dot(e.v[i]!, nOut);
+    if (vn > EPS_V) {
+      e.modo[i] = { k: 'libre' };
+      this.evento(e.t, 'sale-extremo', i, `${this.nombre(i)} sale por el extremo de la superficie`);
+      return false;
+    }
+    if (vn < 0) e.v[i] = { x: e.v[i]!.x - vn * nOut.x, y: e.v[i]!.y - vn * nOut.y };
+    e.W.impactos += this.cinetica() - kAntes;
+    e.modo[i] = { k: 'desliza', s: k, lado, dir: 0 };
+    this.evento(e.t, 'cambia-superficie', i, `${this.nombre(i)} pasa a la otra superficie`);
+    return true;
+  }
 
   private quitarContacto(q: number): void {
     const e = this.estado;
@@ -1683,6 +1849,7 @@ export class Simulacion {
     e.Tp = d.Tp.map((x) => (x.length > 0 ? x : [0]));
     e.Nc = d.Nc;
     e.fc = d.fc;
+    e.Nx = d.Nx;
   }
 
   private registrar(): void {

@@ -80,7 +80,7 @@ export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], 
     // Un cuerpo que gira: el bloque con su ángulo; la esfera con el radio marcado.
     const giro = c.I > 0 ? e.th[i]! : null;
     const el = c.elemento;
-    if (el.tipo === 'bloque') cuerpos.push({ ...el, centro: { ...e.p[i]! }, ...(giro !== null ? { angulo: giro } : {}) });
+    if (el.tipo === 'bloque') cuerpos.push({ ...el, centro: { ...e.p[i]! }, ...(e.th[i] !== c.th0 ? { angulo: e.th[i]! } : {}) });
     else cuerpos.push({ ...el, centro: { ...e.p[i]! }, ...(giro !== null ? { giro } : {}) });
     ocultos.add(c.id);
     if (op.vectores) {

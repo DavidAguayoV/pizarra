@@ -371,7 +371,7 @@ export class PanelSimulacion {
 
     // Normal, roce y tensiones en este instante
     const partes: string[] = [];
-    if (e.modo[i]!.k !== 'libre') partes.push(`N = ${numeroEs(e.N[i]!)} N`);
+    if (e.modo[i]!.k !== 'libre') partes.push(e.extra[i] ? `N₁ = ${numeroEs(e.N[i]!)} N · N₂ = ${numeroEs(e.Nx[i]!)} N` : `N = ${numeroEs(e.N[i]!)} N`);
     if (Math.abs(e.fric[i]!) > 1e-9) partes.push(`f = ${numeroEs(Math.abs(e.fric[i]!))} N`);
     // Fuerzas con los cuerpos que lo tocan
     const nombreDe = (k: number): string => {
