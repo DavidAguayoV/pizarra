@@ -160,7 +160,7 @@ describe('series, tabla y CSV', () => {
     s.avanzar(250, 300_000);
     expect(s.historial.length).toBeLessThanOrEqual(20000);
     expect(s.historial.at(-1)!.t).toBeGreaterThan(200);
-  });
+  }, 30_000); // 250 s simulados: ~3 s en un PC y más en la CI
 });
 
 describe('gráfico a TikZ (pgfplots)', () => {
