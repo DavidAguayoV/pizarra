@@ -1,5 +1,26 @@
 # Cambios
 
+## Nivel 2, Fase 3 — Cuerpos que giran, poleas con masa y choques (2026-10-06)
+
+Decisión: [ADR 0010](docs/decisiones/0010-motor-coordenadas-generalizadas.md).
+
+### Agregado
+- **Gira (cuerpo rígido)** en el panel de un bloque o una esfera. Una esfera que gira **rueda sin deslizar** (a = 5/7 g sen θ) si el roce
+  estático alcanza, y si no desliza girando. Un bloque que gira se balancea colgado de una esquina y, si cae inclinado, queda sobre una
+  cara. La rotación se ve: el bloque gira y la esfera tiene un radio marcado.
+- **Masa de la polea** (disco): la tensión es distinta a cada lado y el panel de la simulación muestra T₁ y T₂. La polea gira con la cuerda.
+- **Contacto entre cuerpos**: un bloque o una esfera soltados sobre un bloque quedan **apilados** (el DCL muestra N₁₂ y N₂₁); dos cuerpos
+  que se tocan se empujan, con roce entre ellos (μ «con cuerpos» en su panel). El de arriba cae por el borde cuando su centro sale de la cara.
+- **Choques** en el instante exacto, con **coeficiente de restitución e** en el panel de simulación (0: quedan juntos; 1: elástico). También
+  rebotan contra las superficies si e > 0.
+- El panel de la simulación muestra la normal y el roce con cada cuerpo que toca al seleccionado.
+
+### Cambiado
+- Motor en **coordenadas generalizadas** con el sistema reducido: 20 cuerpos van entre 2 y 7 veces más rápido que el tiempo real (antes no
+  llegaban). Los proyectos guardados se simulan igual (equivalencia < 1e-7), salvo *bloques apilados*, donde ahora el de arriba se apoya.
+- Comparado con Planck.js (solo como referencia), este motor conserva la energía de un péndulo mil millones de veces mejor y da tensiones
+  y normales exactas.
+
 ## Superficies con roce a la vista (2026-10-05)
 
 - Interruptor **«Con roce»** en *Armar*: las superficies y planos que se dibujen nacen con μs = 0,4 y μk = 0,3 (editables).

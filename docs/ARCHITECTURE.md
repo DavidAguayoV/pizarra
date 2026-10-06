@@ -63,11 +63,12 @@ servicio en [FIREBASE.md](FIREBASE.md); decisión en el [ADR 0004](decisiones/00
 
 ## Simulación (Etapa 5)
 
-Un motor de partículas con restricciones (RK4 de paso fijo + multiplicadores de Lagrange) que corre sobre la escena. Detalle del modelo, los eventos, la validación y los límites en
+Un motor de cuerpos (partículas o rígidos que giran) con restricciones (RK4 de paso fijo + multiplicadores de Lagrange, en coordenadas generalizadas: [ADR 0010](decisiones/0010-motor-coordenadas-generalizadas.md)) que corre sobre la escena. Detalle del modelo, los eventos, la validación y los límites en
 [SIMULACION.md](SIMULACION.md); decisiones en el [ADR 0007](decisiones/0007-motor-de-simulacion.md).
 
 - `sim/modelo.ts`: **lógica pura**. Construye el modelo dinámico (cuerpos, superficies, resortes, cuerdas con o sin poleas, fuerzas aplicadas) leyendo el grafo (`grafo/lector.ts`).
-- `sim/motor.ts`: `Simulacion` (RK4, restricciones, roce estático y cinético, eventos, energías, historial). Sin DOM: se prueba en Node.
+- `sim/motor.ts`: `Simulacion` (RK4, sistema reducido, rodadura, poleas con masa, roce estático y cinético, choques con restitución, eventos, energías, historial). Sin DOM: se prueba en Node.
+- `sim/contactos.ts`: geometría del contacto entre dos cuerpos (caras, ejes separadores, esquinas).
 - `sim/analitico.ts`: soluciones exactas (aceleración constante y oscilador armónico) y la diferencia con la simulación.
 - `sim/series.ts`: series para gráficos, tabla, CSV (Excel en español) y **pgfplots**.
 - `sim/animacion.ts`: los elementos que se dibujan mientras corre (copias en la posición actual, vectores v y a, trayectoria). Son elementos corrientes: el lienzo y la transmisión en vivo los tratan como cualquier otro.

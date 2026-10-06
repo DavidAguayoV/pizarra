@@ -10,7 +10,7 @@ Convención: **g = 9,80 m/s²** por defecto (editable en el panel); SI en todo; 
 | Bloque | masa (kg), ancho, alto, ángulo, etiqueta (`m_1`) |
 | Esfera | masa, radio, etiqueta |
 | Superficie | μ estático, μ cinético, relleno (achurado, cuña o ninguno); el lado sólido queda a la derecha de a → b |
-| Polea | radio; ideal (sin masa ni roce) |
+| Polea | radio; ideal (sin masa ni roce) o con masa (disco, Fase 3: solo en la simulación, T₁ ≠ T₂) |
 | Cuerda | ideal: sin masa e inextensible; un segmento recto |
 | Resorte | k (N/m), largo natural (m); fuerza `k (largo − largo natural)` |
 
@@ -74,7 +74,10 @@ eso las comparaciones usan tolerancia de 10⁻³.
   quedan con el símbolo `T`, sin valor. **La simulación sí las calcula** (Atwood, bloque en la mesa con masa colgante, péndulo):
   ver [SIMULACION.md](SIMULACION.md).
 * **Más de una superficie de contacto** (bloque contra pared y piso): se dibujan las normales sin calcular su valor.
-* Roce con velocidad inicial distinta de cero, rodadura, fuerzas de arrastre.
+* **Cuerpos apilados** (el de arriba tiene al de abajo en su `apoyo`): el de abajo empuja al de arriba con `N₁₂` hacia arriba y
+  el de arriba al de abajo con `N₂₁` hacia abajo (tercera ley); su valor depende del movimiento de los dos y queda como incógnita.
+  La simulación lo calcula («N con m₂» en su panel).
+* Roce con velocidad inicial distinta de cero, rodadura (la simulación sí la tiene: *Gira*), fuerzas de arrastre.
 
 ## Planteamiento ΣF = m a
 

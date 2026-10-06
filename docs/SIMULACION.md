@@ -16,7 +16,8 @@ Cualquier cambio en la escena detiene la simulación y la devuelve a t = 0. Los 
 
 ## El modelo
 
-Cada bloque o esfera es una **partícula** (con orientación fija: no gira). Actúan sobre ella:
+Cada bloque o esfera es una **partícula** con orientación fija, salvo que se marque **Gira**: entonces es un cuerpo rígido con
+su ángulo (momento de inercia `m (a² + b²)/12` en un bloque, `2/5 m r²` en una esfera sólida). Actúan sobre ella:
 
 | Qué | Cómo se obtiene de la escena |
 |---|---|
@@ -28,25 +29,31 @@ Cada bloque o esfera es una **partícula** (con orientación fija: no gira). Act
 | Polea móvil | una polea **montada** sobre un cuerpo: su centro se mueve con él; el cuerpo siente la tensión de los dos tramos (gradiente del largo respecto del centro, `e_entra − e_sale`) |
 | Borde de mesa | la cuerda dobla en el extremo de una superficie (un punto, sin roce) |
 | Superficie | contacto unilateral (`N ≥ 0`) con roce estático y cinético de Coulomb; el cuerpo parte apoyado en la superficie de su `apoyo` |
+| Polea con masa (Fase 3) | disco de masa M (`½ M r²`), fija: la cuerda no desliza sobre ella y cada lado tiene su tensión (T₁ ≠ T₂) |
+| Otro cuerpo (Fase 3) | contacto entre cuerpos: normal `N ≥ 0` y roce con el **mayor** μ del par (μ «con cuerpos» de cada uno); el que se suelta sobre un bloque parte apoyado en él |
+| Choque (Fase 3) | impulso con coeficiente de restitución `e` (panel de simulación; 0 = quedan juntos) |
 
 Todas las relaciones se **leen del grafo** de la escena (`grafo/lector.ts`, [ADR 0008](decisiones/0008-modelo-de-grafo.md)): un
 extremo **suelto** no ejerce fuerza, y lo que no se puede usar aparece en el panel como **problema de la escena**
 (`grafo/validar.ts`) con el elemento al que se refiere. La cuerda parte **siempre tensa**: su largo es el geométrico en t = 0.
 
-Simplificaciones deliberadas (hasta la Fase 3): las poleas son ideales y fijas (sin masa ni roce; su radio **sí** entra en la geometría desde el Nivel 2), los cuerpos **no chocan entre sí** y los impactos contra una superficie son **perfectamente inelásticos**.
+Simplificaciones deliberadas: una polea **móvil** con masa se trata como ideal (se avisa); un bloque que gira no se vuelca mientras
+está apoyado; los choques son sin roce (instantáneos). Ver [ADR 0010](decisiones/0010-motor-coordenadas-generalizadas.md).
 
-## El motor: RK4 con restricciones de Lagrange
+## El motor: RK4 con restricciones de Lagrange, en coordenadas generalizadas
 
-Paso **fijo** de 1 ms, integrador **Runge–Kutta de 4.º orden** propio (transparente y verificable; ver [ADR 0007](decisiones/0007-motor-de-simulacion.md)).
-En cada evaluación se resuelve el sistema lineal
+Paso **fijo** de 1 ms, integrador **Runge–Kutta de 4.º orden** propio (transparente y verificable; ver [ADR 0007](decisiones/0007-motor-de-simulacion.md)
+y [ADR 0010](decisiones/0010-motor-coordenadas-generalizadas.md)). Las coordenadas son (x, y, θ) por cuerpo y el ángulo de cada polea con masa.
+En cada evaluación se resuelve el **sistema reducido**
 
 ```
-M a = F + Jᵀ λ        J a = γ
+(J M⁻¹ Jᵀ) λ = γ − J M⁻¹ Q        q̈ = M⁻¹ (Q + Jᵀ λ)
 ```
 
-donde las filas de J son las restricciones **activas**: contacto con una superficie (λ = N ≥ 0), adherencia (λ = fuerza de roce estático, con |f| ≤ μs N)
-y cuerdas (λ = −T, T ≥ 0). El roce cinético (μk N, contrario al deslizamiento) se itera con N hasta converger. Después de cada paso se corrige la
-deriva numérica proyectando posiciones y velocidades sobre las restricciones.
+donde las filas de J son las restricciones **activas**: contacto con una superficie o con otro cuerpo (λ = N ≥ 0), adherencia (λ = fuerza de roce
+estático, con |f| ≤ μs N; en una esfera que gira, es la **rodadura sin deslizar**), cuerdas (λ = −T, T ≥ 0; una fila por pieza si pasan por poleas
+con masa) y el bloqueo del giro de un bloque apoyado. El roce cinético (μk N, contrario al deslizamiento del punto de contacto) se itera con N hasta
+converger. Después de cada paso se corrige la deriva numérica proyectando posiciones y velocidades sobre las restricciones.
 
 Esto da **tensiones reales** (Atwood, bloque en la mesa unido a una masa colgante, péndulo) sin hipótesis especiales para cada montaje.
 
@@ -65,11 +72,14 @@ que es exacta para aceleración constante) y la integración continúa desde ah�
 | Cambia de sentido | se detiene y vuelve (solo se registra si hay roce) |
 | Cuerda se afloja / se tensa | la tensión se haría negativa / la cuerda vuelve a su largo (el tirón disipa energía, que se registra) |
 | Resorte en su largo natural | la elongación cambia de signo |
-| Llega a la polea | un cuerpo alcanza la polea por la que pasa su cuerda: la simulación se **detiene** (todavía no hay choques) |
+| Llega a la polea | un cuerpo alcanza la polea por la que pasa su cuerda: la simulación se **detiene** |
+| Choque | dos cuerpos se tocan: impulso en el instante exacto (con `e`); si no rebotan, quedan en contacto («m₂ cae sobre m₁») |
+| Rebote | con `e > 0`, contra otro cuerpo o contra una superficie |
+| Se separan / cae por el borde | la normal entre dos cuerpos se haría negativa / el centro del de arriba sale de la cara del de abajo |
 
 ### Energía
 
-`K = ½ m v²`, `U_g = m g y`, `U_e = ½ k x²`, `E_mec = K + U_g + U_e`. Se acumulan por separado el trabajo del **roce**, de las **fuerzas aplicadas** y de los **impactos / tirones**;
+`K = ½ m v² + ½ I ω²` (más `½ I ω²` de cada polea con masa), `U_g = m g y`, `U_e = ½ k x²`, `E_mec = K + U_g + U_e`. Se acumulan por separado el trabajo del **roce**, de las **fuerzas aplicadas** y de los **impactos / tirones**;
 el panel muestra el balance `E − E₀ − W_no conservativo`, que debe ser ~0.
 
 ## Equivalencia con los proyectos de la versión 1
@@ -81,7 +91,8 @@ código de la Etapa 5: coinciden con error < 1e-7. Las únicas diferencias son *
 * un cuerpo apoyado que parte **alejándose** de la superficie (un proyectil lanzado desde el suelo) quedaba pegado a ella y deslizaba;
   ahora vuela;
 * un cuerpo que **aterriza deslizando** sobre un piso sin roce quedaba clavado en el punto de impacto (se le aplicaba el roce estático
-  aunque se moviera a lo largo de la superficie); ahora sigue deslizando.
+  aunque se moviera a lo largo de la superficie); ahora sigue deslizando;
+* (Fase 3) en *bloques apilados* el bloque de arriba **atravesaba** al de abajo: los cuerpos no se tocaban. Ahora se apoya en él.
 
 ## Validación (contra soluciones analíticas)
 
@@ -103,6 +114,11 @@ código de la Etapa 5: coinciden con error < 1e-7. Las únicas diferencias son *
 | Polea móvil (Fase 2) | `a₂ = (2m₁ − m₂) g /(4m₁ + m₂)`, `a₁ = 2 a₂`, `T = m₁ (g − a₁)`; equilibrio con `m₂ = 2 m₁`; E_mec conservada | < 1e-5 |
 | Mesa con roce + borde, sin polea (Fase 2) | `a = (m₂ − μk m₁) g /(m₁ + m₂)`, `T = m₂ (g − a)` | < 1e-5 |
 | Plano 30° + polea en la arista + colgante (envoltura) | `a = (m₂ g − m₁ g sen θ − μk m₁ g cos θ)/(m₁ + m₂)`, `T = m₂ (g − a)` | < 5e-4 (coordenadas a 0,1 mm) |
+| Esfera que rueda en un plano (Fase 3) | `a = 5/7 g sen θ`, `v = ω r`, `f = 2/7 m g sen θ`, E_mec conservada; si `μs < 2/7 tan θ` desliza girando: `a = g (sen θ − μk cos θ)`, `α = 5 μk g cos θ /(2r)` | < 1e-6 |
+| Atwood con polea de masa M (Fase 3) | `a = (m₂ − m₁) g /(m₁ + m₂ + M/2)`, `T₁ = m₁ (g + a)`, `T₂ = m₂ (g − a)`; E_mec conservada aunque los tramos se balanceen | < 1e-6 |
+| Bloque colgado de una esquina (Fase 3) | péndulo físico: E_mec conservada, la cuerda sigue en la esquina girada | < 1e-6 |
+| Bloque sobre bloque, tirando del de abajo (Fase 3) | juntos `a = F /(m₁ + m₂)`, `f = m₂ a`; si no alcanza μs, `a₂ = μk g`, `a₁ = (F − μk m₂ g)/m₁` | < 1e-5 |
+| Choques (Fase 3) | frontal elástico de masas iguales: intercambian velocidades; plástico: `v/2` y `ΔK` registrada; oblicuo elástico de esferas iguales: salen a 90°; pelota con `e = 0,8`: sube a `e² h` | < 1e-4 |
 
 ### Solución analítica en pantalla
 
@@ -115,8 +131,10 @@ Con cuerdas, varios resortes o roce en un resorte no hay solución analítica se
 
 ## Rendimiento y límites
 
-* Costo medido: **97 µs por paso** con dos cuerpos, una cuerda con polea y roce (1 s simulado ≈ 97 ms). A 4× el motor usa ~40 % de un núcleo.
+* Costo medido (Fase 3, Node): 0,04–0,05 ms por paso con 2 cuerpos (20× el tiempo real), 0,15–0,44 ms con 20 (2–7×) y 0,6–1,9 ms con 50
+  (0,5–1,7×). Detalle en el [ADR 0010](decisiones/0010-motor-coordenadas-generalizadas.md).
 * El historial se limita a 20 000 muestras (si se pasa, se conserva una de cada dos y se duplica el período de muestreo). La simulación se detiene a los 10 minutos simulados.
 * Un paso de 1 ms es suficiente para oscilaciones de decenas de rad/s; con resortes muy rígidos (`k` enorme) habría que bajarlo.
-* Los cuerpos **no giran** ni chocan entre sí; los impactos son inelásticos; las poleas no tienen masa ni radio efectivo; el roce cinético supone que el cuerpo parte del reposo cuando "se suelta" de la adherencia.
+* Una polea móvil con masa se trata como ideal; un bloque que gira no se vuelca apoyado; los choques no tienen roce; una pila de muchos
+  bloques (decenas) baja del tiempo real porque el sistema es denso.
 * **Transmisión:** los estudiantes reciben los cuerpos, resortes, cuerdas y vectores (no la trayectoria) unas 20 veces por segundo. Es del orden de 60 KB/s por estudiante mientras corre (ver [PROTOCOLO_COMPARTIR.md](PROTOCOLO_COMPARTIR.md)): una clase con 60 estudiantes y 10 minutos de simulación gasta del orden de 2 GB de los 10 GB mensuales del plan gratuito de Firebase. Pausa o cierra la simulación cuando no se esté usando.
