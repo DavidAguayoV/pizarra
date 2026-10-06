@@ -1,5 +1,21 @@
 # Cambios
 
+## Nivel 2, Fase 4 — Montajes, disponer y medir (2026-10-06)
+
+Decisión: [ADR 0011](docs/decisiones/0011-montajes-y-disponer.md).
+
+### Agregado
+- **Montajes** en *Armar*: Atwood, plano inclinado, plano + polea + colgante, mesa + polea + colgante, masa-resorte horizontal y
+  vertical, péndulo, bloques apilados (con una fuerza) y proyectil. Vienen conectados (uniones, rutas por las poleas, apoyos), se
+  simulan a la primera sin avisos y se agregan en una sola operación. En el celular el menú se abre como una hoja sobre la barra.
+- **Varios seleccionados** (Mayús + clic): alinear por bordes o centros, distribuir con igual separación, girar ±15°, duplicar y borrar.
+- **Teclado:** flechas para empujar (10 cm; 1 cm con Mayús), «,» y «.» para girar 15°, Ctrl+D para duplicar, G para la rejilla.
+- **Duplicar** conserva las conexiones entre lo copiado (una Atwood copiada entera es otra Atwood) y deja la copia a la derecha,
+  sin superponerse.
+- **Rejilla magnética** (menú ⋯ Más o G): lo que se suelta o se dibuja cae en múltiplos de 10 cm.
+- **Medir** (D): distancia en metros y ángulo respecto de la horizontal entre dos puntos, pegándose a caras, esquinas y centros.
+  Es solo una vista previa (no se agrega a la escena; el siguiente gesto la quita).
+
 ## Nivel 2, Fase 3 — Cuerpos que giran, poleas con masa y choques (2026-10-06)
 
 Decisión: [ADR 0010](docs/decisiones/0010-motor-coordenadas-generalizadas.md).

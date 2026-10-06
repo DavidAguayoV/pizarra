@@ -1,4 +1,6 @@
 import type { Bloque, Ejes, Elemento, Esfera, Cuerda, Polea, Resorte, Superficie, Vector } from '../core/elementos';
+import type { Alineacion, Distribucion } from '../grafo/disponer';
+import { alinear, desplazamientoCopia, distribuir, duplicar, rotar } from '../grafo/disponer';
 import { cajaDe, unirCajas } from '../core/elementos';
 import type { LotePayload } from '../core/escena';
 import { temaActual } from '../core/tema';
@@ -153,6 +155,7 @@ export class PanelPropiedades {
     else if (unico?.tipo === 'cuerda') this.panelCuerda(unico);
     else if (unico?.tipo === 'resorte') this.panelResorte(unico);
     else if (vectores.length >= 2 && vectores.length === sel.length) this.panelSuma(vectores);
+    else if (sel.length >= 2) this.panelVarios(sel);
     else if (this.host.herramienta() === 'vector') this.panelCrear();
     else {
       el.hidden = true;
@@ -383,6 +386,7 @@ export class PanelPropiedades {
     e.append(campo('Ángulo (°)', numerico(aGrados(b0.angulo), '1', (x) => cambiar((b) => ({ ...b, angulo: Math.round(((x * Math.PI) / 180) * 1e4) / 1e4 })), 'Ángulo del bloque')));
     e.append(this.filaGira(b0, 'Cuerpo rígido: gira si una cuerda o un resorte tira fuera de su centro; apoyado no se vuelca.'));
     e.append(this.filaRoceCuerpos(b0));
+    e.append(this.filaAcciones());
     e.append(this.filaVelocidad(b0));
     this.seccionDcl(b0);
     e.append(boton('Borrar bloque', 'Suprimir', () => this.host.editar({ borrar: [b0.id] })));
@@ -400,6 +404,7 @@ export class PanelPropiedades {
     );
     e.append(this.filaGira(s0, 'Esfera sólida (I = 2/5 m r²): rueda sin deslizar si el roce estático alcanza; si no, desliza girando.'));
     e.append(this.filaRoceCuerpos(s0));
+    e.append(this.filaAcciones());
     e.append(this.filaVelocidad(s0));
     this.seccionDcl(s0);
     e.append(boton('Borrar esfera', 'Suprimir', () => this.host.editar({ borrar: [s0.id] })));
@@ -610,6 +615,63 @@ export class PanelPropiedades {
         this.host.avisar('Diagrama de cuerpo libre dibujado a la derecha de la escena.');
       }),
     );
+  }
+
+  /** Varios elementos: alinear, distribuir, girar, duplicar y borrar (Fase 4). */
+  private panelVarios(sel: readonly Elemento[]): void {
+    const e = this.elemento;
+    this.titulo(`${sel.length} elementos seleccionados`);
+    const grupoBotones = (titulo: string, botones: HTMLButtonElement[]): HTMLElement => {
+      const f = document.createElement('fieldset');
+      f.className = 'botonera';
+      const l = document.createElement('legend');
+      l.textContent = titulo;
+      f.append(l, ...botones);
+      return f;
+    };
+    const aplicar = (cambiados: Elemento[]): void => {
+      if (cambiados.length > 0) this.host.editar({ actualizar: cambiados });
+    };
+    const al = (t: string, ayuda: string, m: Alineacion) => boton(t, ayuda, () => aplicar(alinear(this.host.seleccion(), m)));
+    e.append(
+      grupoBotones('Alinear', [
+        al('Izquierda', 'Alinea los bordes izquierdos', 'izq'),
+        al('Centro', 'Alinea los centros (en vertical)', 'centro-h'),
+        al('Derecha', 'Alinea los bordes derechos', 'der'),
+        al('Arriba', 'Alinea los bordes de arriba', 'arriba'),
+        al('Medio', 'Alinea los centros (en horizontal)', 'centro-v'),
+        al('Abajo', 'Alinea los bordes de abajo', 'abajo'),
+      ]),
+    );
+    const dist = (t: string, m: Distribucion) => {
+      const b = boton(t, 'Misma separación entre los centros (los de los extremos no se mueven)', () => aplicar(distribuir(this.host.seleccion(), m)));
+      b.disabled = sel.length < 3;
+      return b;
+    };
+    e.append(grupoBotones('Distribuir', [dist('Horizontal', 'horizontal'), dist('Vertical', 'vertical')]));
+    e.append(this.filaAcciones());
+    e.append(boton('Borrar selección', 'Suprimir', () => this.host.editar({ borrar: sel.map((x) => x.id) })));
+  }
+
+  /** Girar ±15° y duplicar lo seleccionado (también con «,» «.» y Ctrl+D). */
+  private filaAcciones(): HTMLElement {
+    const f = document.createElement('div');
+    f.className = 'botonera';
+    const girar = (t: string, ang: number) =>
+      boton(t, `Gira ${ang > 0 ? 'en sentido antihorario' : 'en sentido horario'} 15° (tecla ${ang > 0 ? '«,»' : '«.»'})`, () => {
+        const r = rotar(this.host.seleccion(), (ang * Math.PI) / 180);
+        if (r.length > 0) this.host.editar({ actualizar: r });
+      });
+    f.append(
+      girar('⟲ 15°', 15),
+      girar('⟳ 15°', -15),
+      boton('Duplicar', 'Copia lo seleccionado, conectado entre sí (Ctrl+D)', () => {
+        const copias = duplicar(this.host.seleccion(), desplazamientoCopia(this.host.seleccion()));
+        this.host.editar({ agregar: copias });
+        this.host.seleccionar(copias.map((x) => x.id));
+      }),
+    );
+    return f;
   }
 
   private panelSuma(vs: readonly Vector[]): void {

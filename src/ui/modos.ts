@@ -53,6 +53,7 @@ export const BOTONES_MODO: Readonly<Record<Modo, readonly DefBoton[]>> = {
     o('plano', 'Plano inclinado', 'I'),
     h('ejes', 'Ejes', 'X'),
     h('vector', 'Vector', 'V'),
+    h('medir', 'Medir', 'D'),
     h('borrador', 'Borrador', 'B'),
     h('mano', 'Mover vista', 'M'),
   ],

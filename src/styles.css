@@ -1043,3 +1043,23 @@ button.interruptor-roce[aria-pressed='true'] {
     white-space: nowrap;
   }
 }
+
+/* --- Disponer varios elementos (Fase 4) --------------------------------------------------------- */
+.botonera {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  border: none;
+}
+.botonera legend {
+  width: 100%;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.botonera button {
+  flex: 1 1 auto;
+  min-width: 5.5rem;
+}

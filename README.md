@@ -13,14 +13,21 @@ La barra tiene **cuatro modos**; cada uno muestra solo sus herramientas (en el c
 | Modo | Para qué | Herramientas (tecla) |
 |---|---|---|
 | **Dibujar** | Tinta y formas | Seleccionar (**S**), Lápiz (**P**), Resaltador (**H**), Borrador (**B**), Línea (**L**), Flecha (**F**), Rectángulo (**R**), Elipse (**O**), Texto (**T**), Imagen, Mover vista (**M**) |
-| **Armar** | Piezas físicas | Bloque (**K**), Esfera (**E**), Polea (**Y**), Superficie (**U**), Plano inclinado (**I**), Ejes (**X**), Vector (**V**) |
+| **Armar** | Piezas físicas | Montajes, Bloque (**K**), Esfera (**E**), Polea (**Y**), Superficie (**U**), Plano inclinado (**I**), Con roce, Ejes (**X**), Vector (**V**), Medir (**D**) |
 | **Conectar** | Cuerdas y resortes | Cuerda (**C**), Resorte (**Z**) |
 | **Simular** | Abre y cierra el panel de simulación | |
 
 Otras teclas: **1 2 3** grosor fino / medio / grueso · **Ctrl+Z**, **Ctrl+Y** deshacer y rehacer · **0** centrar la vista ·
-**Supr** borra lo seleccionado · **Esc** suelta la selección. Abrir, Centrar, Tema y Escala están en el menú **⋯ Más**
+**Supr** borra lo seleccionado · **Esc** suelta la selección · **flechas** empujan lo seleccionado 10 cm (con **Mayús**, 1 cm) ·
+**,** y **.** lo giran 15° · **Ctrl+D** lo duplica (conectado entre sí) · **G** activa la rejilla magnética (10 cm). Abrir, Centrar, Tema y Escala están en el menú **⋯ Más**
 (en el celular también Rehacer, Exportar y Compartir).
 
+- **Montajes** (*Armar*): Atwood, plano inclinado, plano con polea y colgante, mesa con polea y colgante, masa-resorte horizontal y
+  vertical, péndulo, bloques apilados y proyectil, ya conectados y listos para simular; aparecen en el centro de la vista y un
+  deshacer los quita enteros. Con *Con roce* activo, sus superficies traen roce.
+- **Disponer:** con **Mayús + clic** se seleccionan varios: el panel los **alinea** (bordes o centros), los **distribuye**, los gira
+  15° y los **duplica**. *Medir* (**D**) muestra la distancia y el ángulo entre dos puntos (se pega a caras, esquinas y centros) sin
+  agregar nada. La **rejilla magnética** (menú ⋯ Más o **G**) lleva lo que se suelta a múltiplos de 10 cm.
 - **Armar un Atwood en 8 toques:** *Armar* → *Polea* → toca dónde va → *Bloque* → toca dos veces (se numeran solos: m₁ = 2 kg,
   m₂ = 3 kg) → *Conectar* → **un solo gesto**: desde m₁, sube por un lado de la polea, pasa por encima y baja hasta m₂. *Simular*.
 - **En el celular, conectar toque a toque:** con *Cuerda*, toca el primer bloque, después la polea y al final el otro bloque (sin
@@ -40,7 +47,7 @@ Otras teclas: **1 2 3** grosor fino / medio / grueso · **Ctrl+Z**, **Ctrl+Y** d
 - **Vectores y ejes:** dibuja unos **ejes** (puedes girarlos para un plano inclinado) y luego los **vectores**: su ángulo se mide desde el eje x de esos ejes. Selecciona un vector para escribir su módulo y ángulo exactos, mostrar su valor, sus **componentes** y el **ángulo**, o cambiar su sistema de referencia. Selecciona varios para **sumarlos** punta con cola.
 - **Cómo se guardan las uniones:** [ADR 0008](docs/decisiones/0008-modelo-de-grafo.md) (grafo) y [ADR 0009](docs/decisiones/0009-modos-e-imanes.md) (modos e imanes).
 - **Diagrama de cuerpo libre:** dibuja un **plano inclinado** y un **bloque** (se apoya solo), pon el roce en la superficie y selecciona el bloque: el panel muestra las fuerzas detectadas y la aceleración. *Generar diagrama de cuerpo libre* dibuja el cuerpo aislado, los ejes, las fuerzas a escala y **ΣF = m a** por componente. g = 9,80 m/s² (editable). Límites y fórmulas verificadas: [docs/PHYSICS.md](docs/PHYSICS.md).
-- **Simulación:** *Simular* abre un panel que corre el movimiento de la escena (RK4 con roce, cuerdas, poleas y resortes): ves los cuerpos moverse con sus vectores v y a y la trayectoria, **gráficos** de posición, velocidad, aceleración y energía, tabla de valores, la **comparación con la solución analítica**, y exportas a CSV o a TikZ (pgfplots). Dale velocidad inicial a un cuerpo seleccionándolo. Lo que no se puede simular (un extremo suelto, cuerpos superpuestos…) aparece en el panel como **problema de la escena**, nunca se ignora en silencio. Detalle y validación: [docs/SIMULACION.md](docs/SIMULACION.md).
+- **Simulación:** *Simular* abre un panel que corre el movimiento de la escena (RK4 con roce, cuerdas, poleas —también con masa—, resortes, cuerpos que **giran** y ruedan, y **choques** con coeficiente de restitución *e*): ves los cuerpos moverse con sus vectores v y a y la trayectoria, **gráficos** de posición, velocidad, aceleración y energía, tabla de valores, la **comparación con la solución analítica**, y exportas a CSV o a TikZ (pgfplots). Dale velocidad inicial a un cuerpo seleccionándolo. Lo que no se puede simular (un extremo suelto, cuerpos superpuestos…) aparece en el panel como **problema de la escena**, nunca se ignora en silencio. Detalle y validación: [docs/SIMULACION.md](docs/SIMULACION.md).
 - **Etiquetas:** en el texto libre y en las etiquetas de los vectores se escribe LaTeX entre `$...$` (`$\vec{F}_g$`, `$\theta$`, `$\frac{a}{b}$`).
 - **Imágenes:** pegar con Ctrl+V, arrastrar un archivo al lienzo, o el botón *Imagen*.
 - **Exportar:** menú *Exportar* (PNG 1x/2x/4x con fondo blanco o transparente, SVG, proyecto .json, TikZ). *Abrir* recupera un proyecto .json con todo su historial; los proyectos de la versión anterior se abren y se simulan igual (se migran solos).

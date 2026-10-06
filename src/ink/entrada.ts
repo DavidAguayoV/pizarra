@@ -20,6 +20,7 @@ import {
   PRESION_NEUTRA,
   RADIO_BORRADOR_PX,
   restringir,
+  cotaMedida,
 } from './herramientas';
 import { RechazoPalma } from './rechazoPalma';
 
@@ -205,6 +206,11 @@ export class Entrada {
       this.textoPendiente = { id: e.pointerId, p: w };
       return;
     }
+    // Una medida anterior queda a la vista hasta el siguiente gesto.
+    if (this.medida) {
+      this.medida = false;
+      this.host.previsualizar(null, VACIO);
+    }
     this.activo = {
       id: e.pointerId,
       tipoPuntero: e.pointerType,
@@ -368,7 +374,20 @@ export class Entrada {
     }
   }
 
+  /** ¿Hay una medida a la vista (de la herramienta Medir)? */
+  private medida = false;
+
   private actualizarVivo(a: Activo, shift: boolean): void {
+    if (a.herramienta === 'medir') {
+      // Los extremos se pegan a puertos (caras, esquinas, centros) y a puntos de las superficies.
+      const ini = this.host.iman(a.inicio)?.p ?? a.inicio;
+      const fin = this.mundo(a.ultimaPantalla);
+      let b = this.host.iman(fin)?.p ?? fin;
+      if (shift) b = ajustarAngulo(ini, b);
+      a.vivos = cotaMedida(ini, b, a.idVivo, 16 / this.host.camara().escala);
+      this.host.previsualizar(a.vivos, a.ocultos);
+      return;
+    }
     switch (a.herramienta) {
       case 'lapiz':
       case 'resaltador':
@@ -417,6 +436,11 @@ export class Entrada {
   }
 
   private terminar(a: Activo): void {
+    if (a.herramienta === 'medir') {
+      this.medida = a.vivos.length > 0; // queda a la vista; el próximo gesto la quita
+      if (!this.medida) this.host.previsualizar(null, VACIO);
+      return;
+    }
     if (a.conexion) this.host.apuntar(null);
     if (a.conexion && !a.vivo) {
       this.host.toqueConexion(a.inicio);

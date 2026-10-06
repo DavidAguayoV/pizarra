@@ -2,7 +2,7 @@ import type { Punto } from '../core/camara';
 import type { Caja, ColorTinta, Elemento, Imagen, Linea, Texto, Trazo } from '../core/elementos';
 import { nuevoIdElemento } from '../core/elementos';
 
-export const HERRAMIENTAS = ['seleccionar', 'lapiz', 'resaltador', 'borrador', 'linea', 'flecha', 'rect', 'elipse', 'texto', 'ejes', 'vector', 'objeto', 'mano'] as const;
+export const HERRAMIENTAS = ['seleccionar', 'lapiz', 'resaltador', 'borrador', 'linea', 'flecha', 'rect', 'elipse', 'texto', 'ejes', 'vector', 'objeto', 'mano', 'medir'] as const;
 export type Herramienta = (typeof HERRAMIENTAS)[number];
 
 export interface DefHerramienta {
@@ -25,6 +25,7 @@ export const DEFS_HERRAMIENTAS: readonly DefHerramienta[] = [
   { clave: 'vector', etiqueta: 'Vector', atajo: 'V' },
   { clave: 'objeto', etiqueta: 'Cuerpos', atajo: 'C' },
   { clave: 'mano', etiqueta: 'Mover vista', atajo: 'M' },
+  { clave: 'medir', etiqueta: 'Medir', atajo: 'D' },
 ];
 
 /** Rango del deslizador de grosor (metros). Escala logarítmica: más fino donde importa. */
@@ -117,6 +118,29 @@ export function crearForma(
   const pb = { x: redondear(b.x), y: redondear(b.y) };
   const base = { id, color, grosor };
   return tipo === 'linea' || tipo === 'flecha' ? { ...base, tipo, a: pa, b: pb } : { ...base, tipo, a: pa, b: pb };
+}
+
+/**
+ * Medida entre dos puntos (herramienta Medir): una flecha de `a` a `b` y un texto con la distancia en metros y el ángulo
+ * respecto de la horizontal, a un costado del punto medio. Es una vista previa: no se agrega a la escena. `tam` es el
+ * alto del texto en metros (para que se lea igual con cualquier zoom).
+ */
+export function cotaMedida(a: Punto, b: Punto, id: string, tam: number): Elemento[] {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 1e-6) return [];
+  const num = (n: number, dec: number): string => {
+    const t = Math.abs(n).toFixed(dec).replace('.', ',').replace(/,0+$|(,\d*?)0+$/, '$1') || '0';
+    return n < 0 && t !== '0' ? `−${t}` : t;
+  };
+  const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const flecha = crearForma('flecha', a, b, 'acento', Math.max(0.01, tam * 0.08), id);
+  // El texto, del lado izquierdo de la flecha (arriba si es horizontal).
+  const n = { x: -dy / d, y: dx / d };
+  const m = { x: (a.x + b.x) / 2 + n.x * tam * 0.6, y: (a.y + b.y) / 2 + n.y * tam * 0.6 + tam };
+  const texto = crearTexto(m, `${num(d, 3)} m · ${num(ang, 1)}°`, 'acento', tam);
+  return [flecha, { ...texto, id: `${id}-txt` }];
 }
 
 export function crearTexto(pos: Punto, texto: string, color: ColorTinta, tam: number): Texto {

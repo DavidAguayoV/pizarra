@@ -29,6 +29,8 @@ import type { ConexionPendiente, Marca } from '../grafo/conectar';
 import { apoyar, conectarNuevo, IMAN_PX, IMAN_TACTIL_PX, iman, marcasDeConexion, marcasDeUnion, PASO_PX, PASO_TACTIL_PX, regionDePaso, toque } from '../grafo/conectar';
 import { crearCuerda, crearResorte, ROCE_POR_DEFECTO } from '../physics/objetos';
 import { crearMontaje, MONTAJES } from '../grafo/montajes';
+import { alRejilla, desplazamientoCopia, duplicar, rotar } from '../grafo/disponer';
+import { trasladar } from '../core/elementos';
 import { loteVacio, prepararLote } from '../grafo/integridad';
 import { dependientes, resolverElemento, resolverEscena, sinDerivados } from '../grafo/resolver';
 import type { TipoObjeto } from '../physics/objetos';
@@ -59,6 +61,7 @@ const CURSORES: Record<Herramienta, string> = {
   elipse: 'crosshair',
   texto: 'text',
   mano: 'grab',
+  medir: 'crosshair',
 };
 
 function boton(texto: string, titulo: string, onClick: () => void): HTMLButtonElement {
@@ -152,6 +155,9 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   }
   // «Con roce» (Armar): las superficies y planos que se dibujen nacen con μs = 0,4 y μk = 0,3 (se editan en su panel).
   let conRoce = false;
+  /** Rejilla magnética: paso de 10 cm. */
+  let rejilla = false;
+  const PASO_REJILLA = 0.1;
   const bRoce = boton('Con roce', 'Las superficies y planos nuevos tienen roce (μs = 0,4; μk = 0,3)', () => {
     conRoce = !conRoce;
     actualizarBarra();
@@ -313,6 +319,14 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   aviso.setAttribute('role', 'alert');
 
   bSim.classList.add('modo');
+  // Rejilla magnética (G): lo que se suelta o se dibuja cae en múltiplos de 10 cm.
+  const bRejilla = boton('Rejilla magnética', 'Lo que se suelta o se dibuja cae en múltiplos de 10 cm (tecla G)', () => alternarRejilla());
+  function alternarRejilla(): void {
+    rejilla = !rejilla;
+    bRejilla.setAttribute('aria-pressed', String(rejilla));
+    avisar(rejilla ? 'Rejilla magnética: lo que sueltes cae en múltiplos de 10 cm.' : 'Rejilla magnética desactivada.');
+  }
+  bRejilla.setAttribute('aria-pressed', 'false');
   // Menú "Más": lo que se usa poco. En el celular también recibe Rehacer, Exportar y Compartir.
   const mas = document.createElement('details');
   mas.className = 'menu menu-mas';
@@ -321,7 +335,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   resumenMas.append(icono('⋯'), textoBoton('Más'));
   const cajaMas = document.createElement('div');
   cajaMas.className = 'menu-caja';
-  cajaMas.append(bAbrir, bVista, bTema, etiquetaEscala);
+  cajaMas.append(bAbrir, bVista, bTema, bRejilla, etiquetaEscala);
   mas.append(resumenMas, cajaMas);
 
   const modos = grupo('Modos', ...botonesModo.values(), bSim);
@@ -378,7 +392,9 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     if (!loteVacio(l)) store.emitir(OP_LOTE, l);
   }
   /** Un elemento recién dibujado, con sus uniones (puede fundirse con otra cuerda en una polea). */
-  function confirmarElemento(e0: Elemento): void {
+  function confirmarElemento(e00: Elemento): void {
+    // Con la rejilla magnética, las piezas y superficies nuevas caen en múltiplos de 10 cm.
+    const e0 = rejilla && e00.tipo !== 'cuerda' && e00.tipo !== 'resorte' && e00.tipo !== 'trazo' ? alRejilla(e00, PASO_REJILLA) : e00;
     const e = e0.tipo === 'superficie' && conRoce && e0.muS === 0 && e0.muK === 0 ? { ...e0, ...ROCE_POR_DEFECTO } : e0;
     const c = conectarNuevo(sinDerivados(e), store.estado.elementos, radioIman());
     if (c.agregar?.length === 1 && !c.actualizar?.length && !c.borrar?.length) store.emitir(OP_AGREGAR, c.agregar[0]!);
@@ -577,7 +593,10 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     pedirTexto: (p) => editarTexto(p),
     rolVector: () => rolVector,
     tipoObjeto: () => tipoObjeto,
-    acomodar: (e) => (e.tipo === 'bloque' || e.tipo === 'esfera' ? apoyar(e, store.estado.elementos) : e),
+    acomodar: (e0) => {
+      const e = rejilla && e0.tipo !== 'trazo' ? alRejilla(e0, PASO_REJILLA) : e0;
+      return e.tipo === 'bloque' || e.tipo === 'esfera' ? apoyar(e, store.estado.elementos) : e;
+    },
     refActual,
     seleccion: seleccionEls,
     seleccionar,
@@ -836,6 +855,24 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     } else if (mod && k === 'y') {
       e.preventDefault();
       store.rehacer();
+    } else if (mod && k === 'd' && seleccionIds.length > 0) {
+      // Duplicar lo seleccionado (conectado entre sí) y dejar seleccionadas las copias
+      e.preventDefault();
+      const copias = duplicar(seleccionEls(), desplazamientoCopia(seleccionEls()));
+      emitirLote({ agregar: copias });
+      seleccionar(copias.map((x) => x.id));
+    } else if (!mod && !e.altKey && k.startsWith('arrow') && seleccionIds.length > 0) {
+      // Empujar lo seleccionado: 10 cm (con Mayús, 1 cm)
+      e.preventDefault();
+      const p = e.shiftKey ? 0.01 : 0.1;
+      const d = { arrowleft: [-p, 0], arrowright: [p, 0], arrowup: [0, p], arrowdown: [0, -p] }[k] as [number, number] | undefined;
+      if (d) emitirLote({ actualizar: seleccionEls().map((x) => trasladar(x, d[0], d[1])) });
+    } else if (!mod && !e.altKey && (k === ',' || k === '.') && seleccionIds.length > 0) {
+      e.preventDefault();
+      const r = rotar(seleccionEls(), ((k === ',' ? 15 : -15) * Math.PI) / 180);
+      if (r.length > 0) emitirLote({ actualizar: r });
+    } else if (!mod && !e.altKey && k === 'g') {
+      alternarRejilla();
     } else if (!mod && !e.altKey) {
       const d = botonDeAtajo(k, modo);
       if (d) {
