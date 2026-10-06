@@ -160,6 +160,11 @@ export interface Bloque extends Base {
   v0?: Punto;
   /** Superficies en las que se apoya (ids; la primera es la principal). */
   apoyo?: string[];
+  /** Cuerpo rígido que puede girar (momento de inercia m (a² + b²)/12). Sin esto, se mueve sin girar (partícula). */
+  gira?: boolean;
+  /** Roce con otros cuerpos que se apoyan en él o sobre los que se apoya (bloques apilados). */
+  muS?: number;
+  muK?: number;
 }
 
 export interface Esfera extends Base {
@@ -172,6 +177,13 @@ export interface Esfera extends Base {
   v0?: Punto;
   /** Superficies en las que se apoya (ids; la primera es la principal). */
   apoyo?: string[];
+  /** Esfera sólida que puede girar y rodar (momento de inercia 2/5 m r²). Sin esto, se mueve sin girar. */
+  gira?: boolean;
+  /** Roce con otros cuerpos (ver Bloque). */
+  muS?: number;
+  muK?: number;
+  /** Derivado (animación): ángulo girado, para dibujar un radio que muestre la rotación. */
+  giro?: number;
 }
 
 /** Superficie de apoyo (suelo, plano inclinado, pared) con sus coeficientes de roce. */
@@ -197,6 +209,13 @@ export interface Polea extends Base {
    * cara superior) y se mueve con él. Sin montaje, la polea está fija donde se dibujó.
    */
   montaje?: { el: string; puerto: string };
+  /**
+   * Masa de la polea (kg), un disco: momento de inercia ½ M r². 0 o sin definir = polea ideal (la tensión es la misma a
+   * ambos lados). Con masa, la cuerda no desliza sobre ella y cada lado tiene su tensión. Solo en poleas fijas.
+   */
+  masa?: number;
+  /** Derivado (animación): ángulo girado. */
+  giro?: number;
   /** Derivado (escena resuelta): el punto del cuerpo del que cuelga la polea móvil, para dibujar su soporte. */
   soporte?: Punto;
 }

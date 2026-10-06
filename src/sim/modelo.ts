@@ -3,7 +3,7 @@ import type { Bloque, Elemento, Esfera } from '../core/elementos';
 import type { ExtremoG } from '../grafo/lector';
 import { leerGrafo } from '../grafo/lector';
 import type { PasoGeo } from '../grafo/ruta';
-import { geometriaRuta } from '../grafo/ruta';
+import { geometriaRuta, largosPorPieza } from '../grafo/ruta';
 import { G_POR_DEFECTO } from '../physics/dcl';
 import { normalSuperficie } from '../physics/objetos';
 import { modulo } from '../physics/vectores';
@@ -31,6 +31,23 @@ export interface CuerpoDef {
   masa: number;
   p0: Punto;
   v0: Punto;
+  /** Momento de inercia respecto del centro (kg m²); 0 = no gira (se mueve como partícula, con orientación fija). */
+  I: number;
+  /** Ángulo inicial (rad): el del bloque dibujado, 0 para una esfera. */
+  th0: number;
+  /** Radio de una esfera (para la rodadura); 0 en un bloque. */
+  radio: number;
+  /** Roce con otros cuerpos. */
+  muS: number;
+  muK: number;
+}
+
+/** Polea con masa (fija): gira con la cuerda, que no desliza sobre ella. */
+export interface RotorDef {
+  id: string;
+  /** Momento de inercia (½ M r², disco). */
+  I: number;
+  r: number;
 }
 
 export interface SuperficieDef {
@@ -63,6 +80,13 @@ export interface CuerdaDef {
   largo: number;
   /** Pasa por alguna polea móvil (montada sobre un cuerpo): su centro se mueve con ese cuerpo. */
   moviles?: boolean;
+  /**
+   * Poleas con masa por las que pasa (en orden): `j` es su índice en la ruta, `rotor` el de `Modelo.rotores` y `s` el
+   * sentido en que la envuelve. Parten la cuerda en piezas con tensiones distintas.
+   */
+  masivas?: Array<{ j: number; rotor: number; r: number; s: 1 | -1 }>;
+  /** Largo inicial de cada pieza (si hay poleas con masa). */
+  largos?: number[];
 }
 
 /** Paso de la ruta en el modelo: `i` es el índice del cuerpo que lleva la polea, si es móvil. */
@@ -78,6 +102,8 @@ export interface FuerzaDef {
 export interface Modelo {
   g: number;
   cuerpos: CuerpoDef[];
+  /** Poleas con masa. */
+  rotores: RotorDef[];
   superficies: SuperficieDef[];
   resortes: ResorteDef[];
   cuerdas: CuerdaDef[];
@@ -98,7 +124,20 @@ const dist = (a: Punto, b: Punto): number => Math.hypot(a.x - b.x, a.y - b.y);
 export function construirModelo(elementos: readonly Elemento[], g = G_POR_DEFECTO): Modelo {
   const avisos: string[] = [];
   const gr = leerGrafo(elementos);
-  const cuerpos: CuerpoDef[] = gr.cuerpos.map((e) => ({ id: e.id, elemento: e, masa: e.masa, p0: { ...e.centro }, v0: e.v0 ? { ...e.v0 } : { x: 0, y: 0 } }));
+  const cuerpos: CuerpoDef[] = gr.cuerpos.map((e) => ({
+    id: e.id,
+    elemento: e,
+    masa: e.masa,
+    p0: { ...e.centro },
+    v0: e.v0 ? { ...e.v0 } : { x: 0, y: 0 },
+    I: e.gira ? (e.tipo === 'bloque' ? (e.masa * (e.ancho ** 2 + e.alto ** 2)) / 12 : (2 / 5) * e.masa * e.radio ** 2) : 0,
+    th0: e.tipo === 'bloque' ? e.angulo : 0,
+    radio: e.tipo === 'esfera' ? e.radio : 0,
+    muS: e.muS ?? 0,
+    muK: e.muK ?? 0,
+  }));
+  const rotores: RotorDef[] = [];
+  const indiceRotor = new Map<string, number>();
   if (cuerpos.length === 0) avisos.push('No hay cuerpos (bloques o esferas) para simular.');
   const indice = new Map(cuerpos.map((c, i) => [c.id, i]));
 
@@ -155,7 +194,33 @@ export function construirModelo(elementos: readonly Elemento[], g = G_POR_DEFECT
     const moviles = ruta?.some((x) => x.i !== undefined) ?? false;
     const q0 = posExtremo(e0, posInicial);
     const q1 = posExtremo(e1, posInicial);
-    cuerdas.push({ ids: [c.el.id], ext, ruta, largo: ruta ? geometriaRuta(q0, ruta, q1).largo : dist(q0, q1), ...(moviles ? { moviles } : {}) });
+    // Poleas con masa (fijas) de la ruta: cada una es un rotor y parte la cuerda en piezas.
+    const masivas: NonNullable<CuerdaDef['masivas']> = [];
+    (c.el.ruta ?? []).forEach((p, j) => {
+      if ('fijos' in p) return;
+      const pol = gr.porId.get(p.el);
+      if (pol?.tipo !== 'polea' || !(pol.masa && pol.masa > 0)) return;
+      if (pol.montaje) {
+        avisos.push('Una polea móvil con masa se trata como ideal (su masa no se considera).');
+        return;
+      }
+      let k = indiceRotor.get(pol.id);
+      if (k === undefined) {
+        k = rotores.length;
+        indiceRotor.set(pol.id, k);
+        rotores.push({ id: pol.id, I: 0.5 * pol.masa * pol.radio ** 2, r: pol.radio });
+      }
+      masivas.push({ j, rotor: k, r: pol.radio, s: p.sentido });
+    });
+    const geo = ruta ? geometriaRuta(q0, ruta, q1) : null;
+    cuerdas.push({
+      ids: [c.el.id],
+      ext,
+      ruta,
+      largo: geo ? geo.largo : dist(q0, q1),
+      ...(moviles ? { moviles } : {}),
+      ...(masivas.length > 0 && geo ? { masivas, largos: largosPorPieza(geo, masivas.map((x) => x.j)) } : {}),
+    });
   }
 
   // Fuerzas aplicadas: vectores `aplicada` unidos a un cuerpo (constantes, con la dirección dibujada).
@@ -171,5 +236,5 @@ export function construirModelo(elementos: readonly Elemento[], g = G_POR_DEFECT
   }
 
   for (const c of cuerpos) if (!(c.masa > 0)) avisos.push(`El cuerpo ${c.id} no tiene masa positiva.`);
-  return { g, cuerpos, superficies, resortes, cuerdas, fuerzas, avisos };
+  return { g, cuerpos, rotores, superficies, resortes, cuerdas, fuerzas, avisos };
 }

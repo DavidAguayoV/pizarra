@@ -32,6 +32,9 @@ export interface GeometriaRuta {
    * el siguiente). `grad` = ∂(largo)/∂(centro): lo que se alarga la cuerda si la polea se mueve (e_entra − e_sale).
    */
   nodos: Array<{ llega: Punto; sale: Punto; desde: Punto; hasta: Punto; grad: Punto }>;
+  /** Largo de cada tramo recto (uno más que los pasos) y del arco de contacto de cada paso (0 si no hay arco). */
+  rectas: number[];
+  arcos: number[];
 }
 
 interface Nodo {
@@ -102,13 +105,15 @@ export function geometriaRuta(a: Punto, pasos: readonly PasoGeo[], b: Punto): Ge
 
   // Arcos de contacto (en orden, intercalados con las rectas).
   const conArcos: Tramo[] = [tramos[0]!];
+  const arcos: number[] = pasos.map(() => 0);
   pasos.forEach((p, i) => {
     if (p.k === 'circulo' && p.r > 0) {
       const desde = Math.atan2(llegadas[i]!.y - p.c.y, llegadas[i]!.x - p.c.x);
       const hasta = Math.atan2(salidas[i]!.y - p.c.y, salidas[i]!.x - p.c.x);
       const bar = barrido(desde, hasta, p.s);
       conArcos.push({ k: 'arco', c: p.c, r: p.r, desde, barrido: bar });
-      largo += Math.abs(bar) * p.r;
+      arcos[i] = Math.abs(bar) * p.r;
+      largo += arcos[i]!;
     }
     conArcos.push(tramos[i + 1]!);
   });
@@ -125,7 +130,28 @@ export function geometriaRuta(a: Punto, pasos: readonly PasoGeo[], b: Punto): Ge
     const eOut = unit(sale.a, sale.b);
     return { llega: entra.b, sale: sale.a, desde: entra.a, hasta: sale.b, grad: { x: eIn.x - eOut.x, y: eIn.y - eOut.y } };
   });
-  return { tramos: conArcos, largo, haciaA, haciaB, valida, nodos };
+  const largos = rectas.map((t) => Math.hypot(t.b.x - t.a.x, t.b.y - t.a.y));
+  return { tramos: conArcos, largo, haciaA, haciaB, valida, nodos, rectas: largos, arcos };
+}
+
+/**
+ * Largo de cada **pieza** de una cuerda que pasa por poleas con masa (que la dividen: a cada lado la tensión es
+ * distinta). `masivas` son los índices (en `pasos`) de esas poleas, en orden. Cada pieza suma sus tramos rectos y los
+ * arcos de las poleas sin masa que tenga adentro; los arcos de las poleas con masa no cuentan (allí la cuerda no
+ * desliza: lo que entra por un lado sale por el otro).
+ */
+export function largosPorPieza(g: GeometriaRuta, masivas: readonly number[]): number[] {
+  const cortes = [-1, ...masivas, g.arcos.length];
+  const out: number[] = [];
+  for (let k = 0; k + 1 < cortes.length; k++) {
+    const desde = cortes[k]! + 1; // primera recta de la pieza
+    const hasta = cortes[k + 1]!; // última recta de la pieza (la que llega a la polea con masa, o al extremo)
+    let l = 0;
+    for (let r = desde; r <= hasta; r++) l += g.rectas[r]!;
+    for (let j = desde; j < hasta; j++) l += g.arcos[j]!;
+    out.push(l);
+  }
+  return out;
 }
 
 /**
