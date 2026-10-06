@@ -1,5 +1,23 @@
 # Cambios
 
+## Nivel 2, Fase 5 — Accesibilidad y rendimiento (2026-10-06)
+
+Decisión: [ADR 0012](docs/decisiones/0012-accesibilidad-y-presupuesto.md).
+
+### Agregado
+- **Teclado sobre la pizarra:** Tab / Mayús+Tab recorren los objetos; las flechas los empujan; «,» y «.» los giran; Enter lleva al
+  primer campo de su panel; Ctrl+A selecciona todo. Al final de la lista el foco sale de la pizarra (sin trampa). Foco visible.
+- **Lectores de pantalla:** la pizarra se describe en texto («En la pizarra: 1 polea, 2 bloques y 1 cuerda.»), cada objeto elegido con
+  el teclado se anuncia con sus datos («Bloque m₁ de 2 kg en x = −0,25 m, y = −0,3 m…») y los eventos de la simulación también.
+- **Reducir movimiento:** sin transiciones ni animaciones de la interfaz cuando el sistema lo pide.
+- Pruebas de contraste AA de los pares de la interfaz (botones, «Con roce» activo, aviso de problemas, texto de paneles y menús).
+
+### Corregido
+- **Rendimiento:** con muchos cuerpos, un cuadro atrasado obligaba al siguiente a simular más (espiral): 64 objetos con la CPU 4× más
+  lenta iban a 250 ms por cuadro. Ahora la simulación tiene un **presupuesto de 10 ms por cuadro**; si no alcanza, va más lenta que la
+  realidad (el panel lo dice) pero la pantalla sigue fluida. Medido (Chromium, 375 × 812, 64 objetos con 16 masas oscilando):
+  **16,7 ms por cuadro (60 fps)** con la CPU normal y con la CPU 4× más lenta (p95 33 ms).
+
 ## Nivel 2, Fase 4 — Montajes, disponer y medir (2026-10-06)
 
 Decisión: [ADR 0011](docs/decisiones/0011-montajes-y-disponer.md).

@@ -1063,3 +1063,32 @@ button.interruptor-roce[aria-pressed='true'] {
   flex: 1 1 auto;
   min-width: 5.5rem;
 }
+
+/* --- Accesibilidad (Fase 5) ---------------------------------------------------------------------- */
+/* Solo para lectores de pantalla: no ocupa lugar ni se ve. */
+.solo-lector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+canvas.lienzo:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: -3px;
+}
+/* Quien pide menos movimiento no ve transiciones ni animaciones de la interfaz. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -18,6 +18,17 @@ describe.each([CLARO, OSCURO])('tema $nombre', (tema) => {
     expect(contraste(tema.activo, tema.fondo)).toBeGreaterThanOrEqual(4.5);
   });
 
+  it('los pares de la interfaz (botones, interruptores, avisos) alcanzan AA', () => {
+    // Botón normal: texto del color del fondo sobre el acento (--acento = cuerpo-borde)
+    expect(contraste(tema.fondo, tema.cuerpoBorde)).toBeGreaterThanOrEqual(4.5);
+    // «Con roce» activo (fondo sobre disipación) y aviso de problemas (fondo sobre acento de familia)
+    expect(contraste(tema.fondo, tema.familias.disipacion)).toBeGreaterThanOrEqual(4.5);
+    expect(contraste(tema.fondo, tema.familias.acento)).toBeGreaterThanOrEqual(4.5);
+    // Texto y texto suave de los paneles y menús (fondo --superficie = panel)
+    expect(contraste(tema.texto, tema.panel)).toBeGreaterThanOrEqual(4.5);
+    expect(contraste(tema.textoSuave, tema.panel)).toBeGreaterThanOrEqual(4.5);
+  });
+
   it.each(ROLES_FISICOS)('el rol %s alcanza AA sobre el fondo y sobre el panel', (rol) => {
     const c = colorDeRol(tema, rol);
     expect(contraste(c, tema.fondo)).toBeGreaterThanOrEqual(4.5);

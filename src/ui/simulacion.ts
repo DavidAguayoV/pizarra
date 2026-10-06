@@ -16,6 +16,9 @@ import { dibujarGrafico } from './grafico';
 import { PALETAS } from './tokens';
 
 /** Lo que el panel necesita de la aplicación. */
+/** Tiempo real máximo (ms) que se dedica a simular en cada cuadro. */
+const PRESUPUESTO_MS = 10;
+
 export interface AnfitrionSim {
   elementos(): readonly Elemento[];
   /** Cambia cada vez que cambia la escena (para reiniciar la simulación). */
@@ -74,6 +77,8 @@ export class PanelSimulacion {
   private readonly fuerzas = document.createElement('p');
   private readonly mensajes = document.createElement('p');
   private readonly eventos = document.createElement('ol');
+  /** El último evento, para lectores de pantalla (la lista entera se repintaría y se leería completa). */
+  private readonly anuncioEvento = document.createElement('p');
   private readonly energia = document.createElement('p');
   private readonly compara = document.createElement('p');
   private readonly cuerpoSel = document.createElement('select');
@@ -185,6 +190,9 @@ export class PanelSimulacion {
     this.mensajes.setAttribute('aria-label', 'Problemas de la escena');
     this.eventos.className = 'sim-eventos';
     this.eventos.setAttribute('aria-label', 'Eventos');
+    this.anuncioEvento.className = 'solo-lector';
+    this.anuncioEvento.setAttribute('aria-live', 'polite');
+    this.anuncioEvento.setAttribute('aria-atomic', 'true');
     this.energia.className = 'nota';
     this.compara.className = 'nota';
 
@@ -228,7 +236,7 @@ export class PanelSimulacion {
     // Dos columnas: a la izquierda los controles y lo que pasa ahora; a la derecha el gráfico y los números.
     const izq = document.createElement('div');
     izq.className = 'sim-izq';
-    izq.append(cab, controles, opciones, this.info, this.fuerzas, this.mensajes, this.eventos, exportar);
+    izq.append(cab, controles, opciones, this.info, this.fuerzas, this.mensajes, this.eventos, this.anuncioEvento, exportar);
     const der = document.createElement('div');
     der.className = 'sim-der';
     der.append(pestanas, this.lienzo, this.compara, this.energia, det);
@@ -327,7 +335,8 @@ export class PanelSimulacion {
     if (!this.reproduciendo || !this.sim) return;
     const dt = Math.min(0.1, (ts - this.ultimoTs) / 1000);
     this.ultimoTs = ts;
-    this.sim.avanzar(dt * this.velocidad);
+    // Presupuesto de 10 ms por cuadro: en un equipo lento la simulación va más lenta, pero no se congela.
+    this.sim.avanzar(dt * this.velocidad, 2000, PRESUPUESTO_MS);
     if (this.sim.estado.t >= T_MAX) {
       this.pausar();
       this.host.avisar('La simulación llegó al límite de 10 minutos de tiempo simulado.');
@@ -349,7 +358,7 @@ export class PanelSimulacion {
     this.host.transmitir(anim.red, anim.ocultos);
 
     const e = sim.estado;
-    this.tiempo.textContent = `t = ${numeroEs(e.t)} s`;
+    this.tiempo.textContent = `t = ${numeroEs(e.t)} s${sim.retrasada ? ' (más lenta que la realidad)' : ''}`;
     const n = sim.modelo.cuerpos.length;
     if (n === 0) {
       this.info.textContent = 'Agrega un bloque o una esfera (herramienta Cuerpos) para simular.';
@@ -398,6 +407,8 @@ export class PanelSimulacion {
           return li;
         }),
       );
+      const ultimo = sim.eventos.at(-1);
+      this.anuncioEvento.textContent = ultimo ? `t = ${numeroEs(ultimo.t)} s: ${sinMarcas(ultimo.texto)}` : '';
     }
 
     const ahora = performance.now();

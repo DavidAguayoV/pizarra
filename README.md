@@ -19,7 +19,13 @@ La barra tiene **cuatro modos**; cada uno muestra solo sus herramientas (en el c
 
 Otras teclas: **1 2 3** grosor fino / medio / grueso · **Ctrl+Z**, **Ctrl+Y** deshacer y rehacer · **0** centrar la vista ·
 **Supr** borra lo seleccionado · **Esc** suelta la selección · **flechas** empujan lo seleccionado 10 cm (con **Mayús**, 1 cm) ·
-**,** y **.** lo giran 15° · **Ctrl+D** lo duplica (conectado entre sí) · **G** activa la rejilla magnética (10 cm). Abrir, Centrar, Tema y Escala están en el menú **⋯ Más**
+**,** y **.** lo giran 15° · **Ctrl+D** lo duplica (conectado entre sí) · **Ctrl+A** selecciona todo · **G** activa la rejilla
+magnética (10 cm).
+
+**Accesibilidad:** con el foco en la pizarra, **Tab** y **Mayús+Tab** recorren los objetos (un lector de pantalla anuncia cada uno con
+sus datos y su posición), las flechas los mueven, **Enter** lleva al panel para editarlo y, al final de la lista, Tab sale de la
+pizarra. La escena tiene una descripción en texto y los eventos de la simulación se anuncian. Con *reducir movimiento* activado en
+el sistema, la interfaz no tiene transiciones. Los colores de texto, botones e interruptores cumplen AA (4,5:1) en los dos temas. Abrir, Centrar, Tema y Escala están en el menú **⋯ Más**
 (en el celular también Rehacer, Exportar y Compartir).
 
 - **Montajes** (*Armar*): Atwood, plano inclinado, plano con polea y colgante, mesa con polea y colgante, masa-resorte horizontal y

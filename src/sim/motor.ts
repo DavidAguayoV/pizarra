@@ -976,15 +976,29 @@ export class Simulacion {
   /** Si la simulación se detuvo sola (un cuerpo llegó a una polea), el motivo; null mientras sigue. */
   detenida: string | null = null;
 
-  /** Avanza `dt` segundos de tiempo simulado (en pasos fijos); devuelve cuántos pasos dio. */
-  avanzar(dt: number, maxPasos = 2000): number {
+  /** ¿El último avance se cortó por falta de tiempo (el equipo no alcanza a simular en tiempo real)? */
+  retrasada = false;
+
+  /**
+   * Avanza `dt` segundos de tiempo simulado (en pasos fijos); devuelve cuántos pasos dio. Con `presupuestoMs`, deja de
+   * avanzar cuando se gasta ese tiempo real (y descarta el atraso): la simulación va más lenta que el tiempo real, pero
+   * la pantalla no se congela. Sin presupuesto (pruebas, exportaciones) avanza exactamente `dt`.
+   */
+  avanzar(dt: number, maxPasos = 2000, presupuestoMs = Infinity): number {
+    this.retrasada = false;
     if (this.detenida) return 0;
     this.acumulado += dt;
     let n = 0;
+    const t0 = presupuestoMs < Infinity ? performance.now() : 0;
     while (this.acumulado >= this.h - 1e-15 && n < maxPasos && !this.detenida) {
       this.paso();
       this.acumulado -= this.h;
       n++;
+      if ((n & 3) === 0 && presupuestoMs < Infinity && performance.now() - t0 > presupuestoMs) {
+        this.retrasada = this.acumulado >= this.h;
+        this.acumulado = 0;
+        break;
+      }
     }
     if (n >= maxPasos) this.acumulado = 0; // no se acumula atraso si el equipo no da abasto
     return n;

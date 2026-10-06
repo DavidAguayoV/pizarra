@@ -29,6 +29,7 @@ import type { ConexionPendiente, Marca } from '../grafo/conectar';
 import { apoyar, conectarNuevo, IMAN_PX, IMAN_TACTIL_PX, iman, marcasDeConexion, marcasDeUnion, PASO_PX, PASO_TACTIL_PX, regionDePaso, toque } from '../grafo/conectar';
 import { crearCuerda, crearResorte, ROCE_POR_DEFECTO } from '../physics/objetos';
 import { crearMontaje, MONTAJES } from '../grafo/montajes';
+import { anunciarSeleccion, resumenEscena } from './describir';
 import { alRejilla, desplazamientoCopia, duplicar, rotar } from '../grafo/disponer';
 import { trasladar } from '../core/elementos';
 import { loteVacio, prepararLote } from '../grafo/integridad';
@@ -369,10 +370,22 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
 
   const lienzo = document.createElement('canvas');
   lienzo.className = 'lienzo';
-  lienzo.setAttribute('aria-label', 'Lienzo de la pizarra');
+  lienzo.setAttribute('aria-label', 'Lienzo de la pizarra. Tab recorre los objetos; Enter edita el seleccionado.');
+  lienzo.setAttribute('role', 'application');
+  lienzo.tabIndex = 0;
+  // Para lectores de pantalla: qué hay en la escena (aria-describedby) y qué se seleccionó (región viva).
+  const descripcionEscena = document.createElement('p');
+  descripcionEscena.id = 'descripcion-escena';
+  descripcionEscena.className = 'solo-lector';
+  lienzo.setAttribute('aria-describedby', descripcionEscena.id);
+  const anuncio = document.createElement('p');
+  anuncio.className = 'solo-lector';
+  anuncio.id = 'anuncio-seleccion';
+  anuncio.setAttribute('aria-live', 'polite'); // sin role=status: el estado de la app es otro
+  anuncio.setAttribute('aria-atomic', 'true');
   const zona = document.createElement('div');
   zona.className = 'zona-lienzo';
-  raiz.append(barra, zona);
+  raiz.append(barra, zona, descripcionEscena, anuncio);
   // --- Lienzo (cámara, caché de dibujo, elemento en construcción) --------------------------
   /** La escena resuelta (la geometría de lo unido derivada del grafo): es lo que se ve, se toca y se exporta. */
   const escena = (): Elemento[] => resolverEscena(store.estado.elementos);
@@ -855,6 +868,11 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     } else if (mod && k === 'y') {
       e.preventDefault();
       store.rehacer();
+    } else if (mod && k === 'a') {
+      // Seleccionar todo
+      e.preventDefault();
+      seleccionar(escena().map((x) => x.id));
+      anuncio.textContent = anunciarSeleccion(seleccionEls());
     } else if (mod && k === 'd' && seleccionIds.length > 0) {
       // Duplicar lo seleccionado (conectado entre sí) y dejar seleccionadas las copias
       e.preventDefault();
@@ -895,10 +913,39 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
   });
 
   problemas.actualizar();
+  // --- Teclado sobre el lienzo (accesibilidad) -----------------------------------------
+  // Tab y Mayús+Tab recorren los objetos (no los trazos); en los extremos el foco sale del lienzo (no hay trampa).
+  lienzo.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && seleccionIds.length > 0) {
+      e.preventDefault();
+      // El primer control visible del panel (el botón de plegar no se ve en el escritorio)
+      const controles = [...panel.elemento.querySelectorAll<HTMLElement>('input, select, textarea, button')];
+      controles.find((c) => c.offsetParent !== null && !(c as HTMLButtonElement).disabled)?.focus();
+      return;
+    }
+    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return;
+    const objetos = escena().filter((x) => x.tipo !== 'trazo');
+    if (objetos.length === 0) return;
+    const actual = seleccionIds.length === 1 ? objetos.findIndex((x) => x.id === seleccionIds[0]) : -1;
+    const sig = e.shiftKey ? (actual === -1 ? objetos.length - 1 : actual - 1) : actual + 1;
+    if (sig < 0 || sig >= objetos.length) {
+      seleccionar([]);
+      return;
+    }
+    e.preventDefault();
+    seleccionar([objetos[sig]!.id]);
+    anuncio.textContent = anunciarSeleccion(seleccionEls());
+  });
+  const describirEscena = (): void => {
+    descripcionEscena.textContent = resumenEscena(escena());
+  };
+  describirEscena();
+
   store.suscribir(() => {
     problemas.actualizar();
     L.invalidar();
     refrescarSeleccion();
     simPanel.alCambiarEscena();
+    describirEscena();
   });
 }
