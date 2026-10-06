@@ -2,7 +2,7 @@ import { colorDeElemento, PALETA_EXPORTACION } from '../core/colores';
 import type { Bloque, Caja2D, Ejes, Elemento, Esfera, Polea, Resorte, Superficie, Trazo, Vector } from '../core/elementos';
 import { ASCENSO, cajaDe, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe, unirCajas } from '../core/elementos';
 import { componerLinea, matASvg } from '../core/matematica';
-import { achurado, puntosResorte, trianguloCuna } from '../physics/objetos';
+import { achurado, etiquetaRoce, puntosResorte, trianguloCuna } from '../physics/objetos';
 import type { AnclaEtiqueta } from '../physics/vectores';
 import { anclarCaja, anclaEtiquetaVector, anclasEjes, arcoAngulo, cajaConEtiquetas, cajaConEtiquetasEjes, geometriaComponentes } from '../physics/vectores';
 import { grosorMedio } from '../ink/herramientas';
@@ -233,6 +233,8 @@ function superficieSvg(s: Superficie, c: string, paleta: PaletaTema, X: Conv, Y:
     if (d) partes.push(`<path d="${d}" stroke="${c}" stroke-width="${L(s.grosor * 0.5)}" fill="none"/>`);
   }
   partes.push(`<line x1="${X(s.a.x)}" y1="${Y(s.a.y)}" x2="${X(s.b.x)}" y2="${Y(s.b.y)}" stroke="${c}" stroke-width="${L(s.grosor)}" stroke-linecap="round"/>`);
+  const roce = etiquetaRoce(s);
+  if (roce) partes.push(etiquetaSvg(anclarCaja(roce.fuente, roce.centro, 0.17), c, X, Y, L));
   return partes.join('\n');
 }
 

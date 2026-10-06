@@ -165,7 +165,7 @@ export class PanelPropiedades {
    * Título del panel. En el celular el panel parte **plegado** (solo esta barra, para no tapar la escena) y el botón
    * *Editar* lo despliega; en el escritorio el botón no se ve.
    */
-  private titulo(t: string): void {
+  private titulo(t: string, plegable = true): void {
     const cab = document.createElement('div');
     cab.className = 'cab-prop';
     const h = document.createElement('h2');
@@ -183,7 +183,9 @@ export class PanelPropiedades {
       pintarBoton();
     });
     pintarBoton();
-    cab.append(h, b);
+    // Lo que se edita en el acto (una superficie: sus μ) no se pliega.
+    if (!plegable) this.plegado = false;
+    cab.append(h, ...(plegable ? [b] : []));
     this.elemento.classList.toggle('plegado', this.plegado);
     this.elemento.append(cab);
   }
@@ -367,7 +369,7 @@ export class PanelPropiedades {
   private panelSuperficie(s0: Superficie): void {
     const e = this.elemento;
     const cambiar = (f: (s: Superficie) => Superficie) => this.host.editar({ actualizar: [f(this.vigente(s0))] });
-    this.titulo('Superficie');
+    this.titulo('Superficie', false);
     const fila = document.createElement('div');
     fila.className = 'fila-campos';
     fila.append(

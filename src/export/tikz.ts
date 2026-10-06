@@ -2,7 +2,7 @@ import type { Punto } from '../core/camara';
 import { claveColor, colorDeTinta, PALETA_EXPORTACION } from '../core/colores';
 import type { Bloque, ColorTinta, Ejes, Elemento, Esfera, Imagen, Linea, Polea, Resorte, Superficie, Texto, Tramo, Trazo, Vector } from '../core/elementos';
 import { COLORES_RESALTADOR, COLORES_TINTA, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
-import { achurado, puntosResorte, trianguloCuna } from '../physics/objetos';
+import { achurado, etiquetaRoce, puntosResorte, trianguloCuna } from '../physics/objetos';
 import type { AnclaEtiqueta } from '../physics/vectores';
 import { aGrados, anclarCaja, anclaEtiquetaVector, anclasEjes, arcoAngulo, geometriaComponentes } from '../physics/vectores';
 import { OPACIDAD_RESALTADOR } from '../ink/dibujo';
@@ -191,7 +191,7 @@ function elementoTikz(
     case 'esfera':
       return esferaTikz(e, escala, P, grosorPt);
     case 'superficie':
-      return superficieTikz(e, P, grosorPt);
+      return superficieTikz(e, escala, P, grosorPt);
     case 'polea':
       return poleaTikz(e, escala, P, grosorPt);
     case 'cuerda':
@@ -327,7 +327,7 @@ function esferaTikz(s: Esfera, escala: number, P: (p: Punto) => string, grosorPt
   ];
 }
 
-function superficieTikz(s: Superficie, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
+function superficieTikz(s: Superficie, escala: number, P: (p: Punto) => string, grosorPt: (g: number) => string): string[] {
   const col = nombreColor(s.color);
   const out: string[] = [];
   if (s.relleno === 'cuna') {
@@ -339,6 +339,8 @@ function superficieTikz(s: Superficie, P: (p: Punto) => string, grosorPt: (g: nu
     if (rayas) out.push(`  \\draw[${col}, ${grosorPt(s.grosor * 0.5)}] ${rayas};`);
   }
   out.push(`  \\draw[${col}, ${grosorPt(s.grosor)}, line cap=round] ${P(s.a)} -- ${P(s.b)};`);
+  const roce = etiquetaRoce(s);
+  if (roce) out.push(...nodoEtiqueta(anclarCaja(roce.fuente, roce.centro, 0.17), col, escala, P));
   return out;
 }
 

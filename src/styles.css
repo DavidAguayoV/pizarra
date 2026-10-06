@@ -976,3 +976,16 @@ button.con-icono .ico,
     height: 180px;
   }
 }
+
+/* «Con roce» es un interruptor dentro de la fila de Armar: se distingue de las herramientas. */
+button.interruptor-roce {
+  background: transparent;
+  color: var(--texto);
+  border-style: dashed;
+}
+button.interruptor-roce[aria-pressed='true'] {
+  background: var(--pz-fam-disipacion);
+  border-color: var(--pz-fam-disipacion);
+  border-style: solid;
+  color: var(--fondo);
+}

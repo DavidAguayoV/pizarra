@@ -27,7 +27,7 @@ import {
 import type { LotePayload } from '../core/escena';
 import type { ConexionPendiente, Marca } from '../grafo/conectar';
 import { apoyar, conectarNuevo, IMAN_PX, IMAN_TACTIL_PX, iman, marcasDeConexion, marcasDeUnion, PASO_PX, PASO_TACTIL_PX, regionDePaso, toque } from '../grafo/conectar';
-import { crearCuerda, crearResorte } from '../physics/objetos';
+import { crearCuerda, crearResorte, ROCE_POR_DEFECTO } from '../physics/objetos';
 import { loteVacio, prepararLote } from '../grafo/integridad';
 import { dependientes, resolverElemento, resolverEscena, sinDerivados } from '../grafo/resolver';
 import type { TipoObjeto } from '../physics/objetos';
@@ -149,6 +149,15 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     g.hidden = m.clave !== modo; // desde el principio, solo la fila del modo activo
     filasHerr.set(m.clave, g);
   }
+  // «Con roce» (Armar): las superficies y planos que se dibujen nacen con μs = 0,4 y μk = 0,3 (se editan en su panel).
+  let conRoce = false;
+  const bRoce = boton('Con roce', 'Las superficies y planos nuevos tienen roce (μs = 0,4; μk = 0,3)', () => {
+    conRoce = !conRoce;
+    actualizarBarra();
+  });
+  bRoce.classList.add('interruptor-roce');
+  const filaArmar = filasHerr.get('armar')!;
+  filaArmar.querySelector('[data-herramienta="objeto:plano"]')?.after(bRoce);
   const botonesModo = new Map<Modo, HTMLButtonElement>();
   for (const m of MODOS) {
     const b = botonIcono(m.icono, m.etiqueta, `Modo ${m.etiqueta}`, () => elegirModo(m.clave));
@@ -342,7 +351,8 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     if (!loteVacio(l)) store.emitir(OP_LOTE, l);
   }
   /** Un elemento recién dibujado, con sus uniones (puede fundirse con otra cuerda en una polea). */
-  function confirmarElemento(e: Elemento): void {
+  function confirmarElemento(e0: Elemento): void {
+    const e = e0.tipo === 'superficie' && conRoce && e0.muS === 0 && e0.muK === 0 ? { ...e0, ...ROCE_POR_DEFECTO } : e0;
     const c = conectarNuevo(sinDerivados(e), store.estado.elementos, radioIman());
     if (c.agregar?.length === 1 && !c.actualizar?.length && !c.borrar?.length) store.emitir(OP_AGREGAR, c.agregar[0]!);
     else emitirLote(c);
@@ -454,6 +464,7 @@ export function montarApp(raiz: HTMLElement, opciones: { ops?: readonly Op[] } =
     for (const [m, b] of botonesModo) b.setAttribute('aria-pressed', String(m === modo));
     for (const { def, b } of botonesHerr) b.setAttribute('aria-pressed', String(botonActivo(def, herramienta, tipoObjeto)));
     bImagen.hidden = modo !== 'dibujar';
+    bRoce.setAttribute('aria-pressed', String(conRoce));
     bSim.setAttribute('aria-pressed', String(simPanel.abierto));
     for (const [k, b] of botonesColor) {
       b.style.setProperty('--muestra', colorDeTinta(paleta, k));

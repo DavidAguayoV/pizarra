@@ -1,5 +1,11 @@
 # Cambios
 
+## Superficies con roce a la vista (2026-10-05)
+
+- Interruptor **«Con roce»** en *Armar*: las superficies y planos que se dibujen nacen con μs = 0,4 y μk = 0,3 (editables).
+- Cada superficie con roce muestra **μs y μk** escritos del lado sólido (en pantalla, PNG, SVG y TikZ).
+- El panel de una superficie se abre **desplegado** en el celular, con sus μ a la vista.
+
 ## Nivel 2, Fase 2c — DCL al seleccionar y vectores que no tapan el cuerpo (2026-10-05)
 
 - **Al seleccionar un bloque o una esfera se ve su diagrama de cuerpo libre** en una tarjeta del panel (también con el panel

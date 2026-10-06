@@ -142,6 +142,27 @@ export function trianguloCuna(s: Superficie): [Punto, Punto, Punto] {
   return [s.a, s.b, esquina];
 }
 
+// --- Roce a la vista ------------------------------------------------------------------------------
+
+/** Coeficientes por defecto de una superficie «con roce» (botón de Armar). */
+export const ROCE_POR_DEFECTO = { muS: 0.4, muK: 0.3 } as const;
+
+/**
+ * Etiqueta con los coeficientes de roce de una superficie (si tiene): en LaTeX y su centro, del lado sólido (bajo el
+ * achurado o dentro de la cuña), donde no la tapan los cuerpos que se apoyan encima.
+ */
+export function etiquetaRoce(s: Superficie): { fuente: string; centro: Punto } | null {
+  if (!(s.muS > 0) && !(s.muK > 0)) return null;
+  const l = largoSegmento(s.a, s.b);
+  if (l < 1e-6) return null;
+  const n = normalSuperficie(s);
+  const num = (x: number) => String(Math.round(x * 1000) / 1000).replace('.', '{,}');
+  const fuente = `\\mu_s=${num(s.muS)},\\ \\mu_k=${num(s.muK)}`;
+  const d = s.relleno === 'cuna' ? 0.32 : 0.34;
+  const m = { x: (s.a.x + s.b.x) / 2, y: (s.a.y + s.b.y) / 2 };
+  return { fuente, centro: { x: m.x - n.x * d, y: m.y - n.y * d } };
+}
+
 // --- Resorte -------------------------------------------------------------------------------------
 
 /** Vértices del zigzag: tramos rectos en las puntas y `espiras` dientes en el medio. */

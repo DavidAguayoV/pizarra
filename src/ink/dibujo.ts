@@ -3,7 +3,7 @@ import { pantallaAMundo } from '../core/camara';
 import { colorDeElemento } from '../core/colores';
 import type { Bloque, Caja2D, Ejes, Elemento, Esfera, Imagen, Polea, Resorte, Superficie, Trazo, Vector } from '../core/elementos';
 import { ASCENSO, cajaCacheada, cajasSeCruzan, esquinasBloque, extremosEjes, geometriaPunta, INTERLINEADO, lineasDe, puntosDe } from '../core/elementos';
-import { achurado, puntosResorte, trianguloCuna } from '../physics/objetos';
+import { achurado, etiquetaRoce, puntosResorte, trianguloCuna } from '../physics/objetos';
 import type { AnclaEtiqueta } from '../physics/vectores';
 import { dibujarMat, componerLinea } from '../core/matematica';
 import { anclarCaja, anclaEtiquetaVector, anclasEjes, arcoAngulo, geometriaComponentes } from '../physics/vectores';
@@ -451,6 +451,8 @@ function dibujarEsfera(ctx: CanvasRenderingContext2D, e: Esfera, op: OpcionesDib
 }
 
 function dibujarSuperficie(ctx: CanvasRenderingContext2D, s: Superficie, op: OpcionesDibujo): void {
+  const roce = etiquetaRoce(s);
+  if (roce) etiqueta(ctx, anclarCaja(roce.fuente, roce.centro, 0.17));
   if (s.relleno === 'cuna') {
     const [a, b, c] = trianguloCuna(s);
     ctx.save();
