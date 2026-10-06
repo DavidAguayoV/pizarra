@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Elemento } from '../../src/core/elementos';
 import { crearBloque, crearCuerda, crearPolea, crearSuperficie } from '../../src/physics/objetos';
-import { herramienta } from './ayudas';
+import { herramienta, pausarSiCorre } from './ayudas';
 
 const panelSim = (page: Page) => page.locator('section.panel-sim');
 const estado = (page: Page) => page.getByRole('status').filter({ hasText: 'elemento' });
@@ -61,7 +61,7 @@ async function reproducirHasta(page: Page, segundos: number, velocidad = '4'): P
   await campo(page, 'Velocidad de reproducción').selectOption(velocidad);
   await panelSim(page).getByRole('button', { name: /Reproducir/ }).click();
   await expect.poll(async () => leer((await tiempo(page).textContent()) ?? '', 't'), { timeout: 15000 }).toBeGreaterThanOrEqual(segundos);
-  await panelSim(page).getByRole('button', { name: /Pausar/ }).click();
+  await pausarSiCorre(page);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -277,7 +277,7 @@ for (const [esquema, nombre] of [['light', 'claro'], ['dark', 'oscuro']] as cons
     await campo(page, 'Velocidad de reproducción').selectOption('1');
     await panelSim(page).getByRole('button', { name: /Reproducir/ }).click();
     await expect.poll(async () => leer((await tiempo(page).textContent()) ?? '', 't'), { timeout: 15000 }).toBeGreaterThanOrEqual(0.9);
-    await panelSim(page).getByRole('button', { name: /Pausar/ }).click();
+    await pausarSiCorre(page);
     await page.screenshot({ path: `docs/capturas/etapa5-simulacion-${nombre}.png` });
   });
 }

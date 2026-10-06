@@ -9,7 +9,7 @@ import { Store } from '../../src/core/store';
 import { posPuerto } from '../../src/grafo/puertos';
 import { resolverEscena } from '../../src/grafo/resolver';
 import { crearBloque, crearCuerda, crearPolea } from '../../src/physics/objetos';
-import { herramienta } from './ayudas';
+import { herramienta, pausarSiCorre } from './ayudas';
 
 /**
  * Fase 1 del Nivel 2: el grafo con la interfaz real. Un Atwood dibujado (no cargado por código) queda con una
@@ -85,7 +85,7 @@ test('Atwood dibujado: una sola cuerda que envuelve la polea, y la tensión de l
   await page.getByLabel('Velocidad de reproducción', { exact: true }).selectOption('4');
   await panelSim(page).getByRole('button', { name: /Reproducir/ }).click();
   await expect.poll(async () => leer((await panelSim(page).locator('.sim-tiempo').textContent()) ?? '', 't'), { timeout: 15000 }).toBeGreaterThanOrEqual(0.3);
-  await panelSim(page).getByRole('button', { name: /Pausar/ }).click();
+  await pausarSiCorre(page);
   const f = (await panelSim(page).locator('p[aria-label="Normal, roce y tensiones"]').textContent()) ?? '';
   expect(leer(f, 'T')).toBeCloseTo((2 * 2 * 3 * 9.8) / 5, 1); // 23,52 N con m₁ = 2 kg y m₂ = 3 kg (numerados solos)
   // Sin problemas en la escena.

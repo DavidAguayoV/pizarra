@@ -18,3 +18,15 @@ export function herramienta(page: Page, nombre: string): { click: () => Promise<
     },
   };
 }
+
+/**
+ * Pausa la simulación si sigue corriendo. Puede que ya se haya detenido sola (por ejemplo, un cuerpo llegó a la
+ * polea): en una máquina lenta eso pasa antes del clic, y entonces no hay nada que pausar.
+ */
+export async function pausarSiCorre(page: Page): Promise<void> {
+  try {
+    await page.locator('section.panel-sim').getByRole('button', { name: /Pausar/ }).click({ timeout: 2000 });
+  } catch {
+    /* ya estaba detenida */
+  }
+}

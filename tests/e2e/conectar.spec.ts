@@ -5,7 +5,7 @@ import type { Cuerda, Elemento, Polea } from '../../src/core/elementos';
 import { escenaInicial, reductoresEscena } from '../../src/core/escena';
 import type { Escena } from '../../src/core/escena';
 import { Store } from '../../src/core/store';
-import { herramienta } from './ayudas';
+import { herramienta, pausarSiCorre } from './ayudas';
 
 /**
  * Fase 2 del Nivel 2 con la interfaz real: la cuerda en un solo gesto que pasa por la polea (o por el borde de la
@@ -41,7 +41,7 @@ async function tension(page: Page, hasta = 0.3): Promise<number> {
   await page.getByLabel('Velocidad de reproducción', { exact: true }).selectOption('1');
   await panelSim(page).getByRole('button', { name: /Reproducir/ }).click();
   await expect.poll(async () => leer((await panelSim(page).locator('.sim-tiempo').textContent()) ?? '', 't'), { timeout: 15000 }).toBeGreaterThanOrEqual(hasta);
-  await panelSim(page).getByRole('button', { name: /Pausar/ }).click();
+  await pausarSiCorre(page);
   return leer((await panelSim(page).locator('p[aria-label="Normal, roce y tensiones"]').textContent()) ?? '', 'T');
 }
 
