@@ -32,7 +32,7 @@ const LARGO_MAX = 2.5;
 /** Escala base: m/s por metro de flecha (igual para v y a, como en los videos). */
 const POR_METRO = 2;
 
-function flecha(id: string, rol: 'velocidad' | 'acel', origen: Punto, vec: Punto): Vector | null {
+function flecha(id: string, rol: 'velocidad' | 'acel', origen: Punto, vec: Punto, lado: 'izq' | 'der' | 'punta'): Vector | null {
   const mod = Math.hypot(vec.x, vec.y);
   if (mod < 1e-3) return null;
   const porMetro = Math.max(POR_METRO, mod / LARGO_MAX);
@@ -42,13 +42,17 @@ function flecha(id: string, rol: 'velocidad' | 'acel', origen: Punto, vec: Punto
     porMetro,
     unidad: rol === 'velocidad' ? 'm/s' : 'm/s²',
     etiqueta: rol === 'velocidad' ? '\\vec{v}' : '\\vec{a}',
-    etiquetaEn: 'punta',
+    // El valor se ve en vivo, al costado de la flecha y hacia afuera (no se monta con la otra flecha).
+    mostrarValor: true,
+    etiquetaEn: lado,
+    halo: true,
+    grosor: 0.035,
   });
 }
 
-/** Separación (m) entre el borde del cuerpo y el origen de la flecha, y entre dos flechas paralelas. */
+/** Separación (m) entre el borde del cuerpo y el origen de la flecha, y corrimiento a un costado del centro. */
 const HOLGURA = 0.04;
-const SEPARACION = 0.08;
+const SEPARACION = 0.12;
 
 /**
  * Origen de una flecha de v o a: en el borde del cuerpo, en la dirección del vector, corrido de costado (`lado` = ±1)
@@ -78,11 +82,16 @@ export function elementosAnimados(sim: Simulacion, escena: readonly Elemento[], 
     if (op.vectores) {
       // Las flechas nacen en el borde del cuerpo (no tapan su etiqueta) y, si v y a apuntan casi para el mismo
       // lado, se separan un poco de costado para que no se monten.
+      // Siempre corridas a un costado del centro: por el centro suele llegar la cuerda. v a la izquierda de su
+      // dirección y a a la derecha; si son casi paralelas, quedan una a cada lado y sus etiquetas, hacia afuera.
       const vv = e.v[i]!;
       const aa = e.a[i]!;
-      const paralelas = Math.hypot(vv.x, vv.y) > 1e-3 && Math.hypot(aa.x, aa.y) > 1e-3 && (vv.x * aa.x + vv.y * aa.y) / (Math.hypot(vv.x, vv.y) * Math.hypot(aa.x, aa.y)) > Math.cos((25 * Math.PI) / 180);
-      const v = flecha(`sim-v-${c.id}`, 'velocidad', origenFuera(c.elemento, e.p[i]!, vv, paralelas ? 1 : 0), vv);
-      const a = flecha(`sim-a-${c.id}`, 'acel', origenFuera(c.elemento, e.p[i]!, aa, paralelas ? -1 : 0), aa);
+      const lv = Math.hypot(vv.x, vv.y);
+      const la = Math.hypot(aa.x, aa.y);
+      const antiparalelas = lv > 1e-3 && la > 1e-3 && (vv.x * aa.x + vv.y * aa.y) / (lv * la) < -Math.cos((25 * Math.PI) / 180);
+      const v = flecha(`sim-v-${c.id}`, 'velocidad', origenFuera(c.elemento, e.p[i]!, vv, 1), vv, 'izq');
+      // Si a apunta al revés que v, «su derecha» queda del mismo lado que la izquierda de v: se invierte.
+      const a = flecha(`sim-a-${c.id}`, 'acel', origenFuera(c.elemento, e.p[i]!, aa, antiparalelas ? 1 : -1), aa, antiparalelas ? 'izq' : 'der');
       if (v) vectores.push(v);
       if (a) vectores.push(a);
     }

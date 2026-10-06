@@ -7,6 +7,9 @@
   diagrama y la aceleración. No agrega nada a la pizarra; *Generar diagrama de cuerpo libre* lo sigue dibujando.
 - Las flechas v y a de la simulación salen del **borde** del cuerpo (no tapan su etiqueta) y, si son paralelas, se separan de
   costado para no montarse. En el DCL dibujado en la pizarra, las fuerzas también salen del borde.
+- Durante la simulación, v y a muestran **su valor en vivo** («v = 1,03 m/s», «a = 1,96 m/s²»), salen de los costados del cuerpo (por
+  el centro suele llegar la cuerda), con un contorno fino del color del fondo y la etiqueta sobre un fondo suave: se leen aunque
+  pasen sobre cuerdas, bloques o planos. El panel compacto del celular también muestra la posición y la rapidez del cuerpo.
 
 ## Nivel 2, Fase 2b — Celular: conectar toque a toque y paneles que no tapan (2026-10-05)
 

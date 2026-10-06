@@ -279,11 +279,12 @@ export function anclaPunta(fuente: string, a: Punto, b: Punto, tam = TAM_ETIQUET
 export function anclaEtiquetaVector(v: Vector): AnclaEtiqueta | null {
   const fuente = etiquetaCompleta(v);
   if (fuente === '' || v.fantasma) return null;
-  return v.etiquetaEn === 'punta' ? anclaPunta(fuente, v.a, v.b) : anclaLateral(fuente, v.a, v.b, v.grosor);
+  if (v.etiquetaEn === 'punta') return anclaPunta(fuente, v.a, v.b);
+  return anclaLateral(fuente, v.a, v.b, v.grosor, TAM_ETIQUETA, v.etiquetaEn === 'izq' ? 1 : v.etiquetaEn === 'der' ? -1 : 0);
 }
 
 /** Etiqueta centrada a un costado del segmento a→b, a una distancia que depende del tamaño de la caja. */
-export function anclaLateral(fuente: string, a: Punto, b: Punto, grosor: number, tam = TAM_ETIQUETA): AnclaEtiqueta {
+export function anclaLateral(fuente: string, a: Punto, b: Punto, grosor: number, tam = TAM_ETIQUETA, lado: 0 | 1 | -1 = 0): AnclaEtiqueta {
   const caja = componerMat(fuente);
   const w = caja.ancho * tam;
   const h = (caja.ascenso + caja.descenso) * tam;
@@ -293,7 +294,7 @@ export function anclaLateral(fuente: string, a: Punto, b: Punto, grosor: number,
   // Normal "a la izquierda"; si apunta hacia abajo se pasa al otro lado para que la etiqueta quede arriba.
   let nx = -dy / l;
   let ny = dx / l;
-  if (ny < -1e-9 || (Math.abs(ny) < 1e-9 && nx < 0)) {
+  if (lado === -1 || (lado === 0 && (ny < -1e-9 || (Math.abs(ny) < 1e-9 && nx < 0)))) {
     nx = -nx;
     ny = -ny;
   }

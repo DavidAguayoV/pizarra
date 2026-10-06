@@ -105,8 +105,13 @@ export interface Vector {
   ref: string | null;
   /** Copia punteada para el polígono de suma (punta con cola). */
   fantasma: boolean;
-  /** Dónde va la etiqueta: al costado, a media flecha (por defecto), o pasada la punta. */
-  etiquetaEn?: 'medio' | 'punta';
+  /**
+   * Dónde va la etiqueta: al costado, a media flecha (por defecto), pasada la punta, o al costado de un lado fijo
+   * (`izq` / `der`: a la izquierda o a la derecha de la dirección de la flecha).
+   */
+  etiquetaEn?: 'medio' | 'punta' | 'izq' | 'der';
+  /** Contorno del color del fondo alrededor de la flecha: se destaca sobre lo que tenga detrás (vectores de la simulación). */
+  halo?: boolean;
   /** Cuerpo sobre el que actúa (fuerzas aplicadas y tensiones dibujadas); `null` = ninguno. */
   cuerpo?: string | null;
 }

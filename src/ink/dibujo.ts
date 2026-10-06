@@ -347,6 +347,28 @@ function dibujarVector(ctx: CanvasRenderingContext2D, v: Vector, op: OpcionesDib
     etiqueta(ctx, c.etiquetaX);
     etiqueta(ctx, c.etiquetaY);
   }
+  if (v.halo && !v.fantasma) {
+    // Contorno del color del fondo, de grosor fijo y con la misma forma: la flecha se distingue sobre cuerdas,
+    // bloques o planos que tenga detrás, sin tapar más de lo necesario.
+    const borde = 3 / op.escala;
+    const g = geometriaPunta(v);
+    ctx.save();
+    ctx.strokeStyle = op.paleta.fondo;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(v.grosor, 1 / op.escala) + 2 * borde;
+    ctx.beginPath();
+    ctx.moveTo(v.a.x, v.a.y);
+    ctx.lineTo(g.base.x, g.base.y);
+    ctx.stroke();
+    ctx.lineWidth = 2 * borde;
+    ctx.beginPath();
+    ctx.moveTo(g.cola.x, g.cola.y);
+    ctx.lineTo(g.izq.x, g.izq.y);
+    ctx.lineTo(g.der.x, g.der.y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
   flecha(ctx, v.a, v.b, v.grosor, op);
   ctx.setLineDash([]);
   if (v.angulo && !v.fantasma) {
@@ -359,7 +381,20 @@ function dibujarVector(ctx: CanvasRenderingContext2D, v: Vector, op: OpcionesDib
       etiqueta(ctx, arco.etiqueta);
     }
   }
-  etiqueta(ctx, anclaEtiquetaVector(v));
+  const ancla = anclaEtiquetaVector(v);
+  if (ancla && v.halo) {
+    // Fondo suave detrás de la etiqueta (el valor cambia en vivo y puede caer sobre otra cosa).
+    const w = ancla.caja.ancho * ancla.tam;
+    const arriba = ancla.caja.ascenso * ancla.tam;
+    const abajo = ancla.caja.descenso * ancla.tam;
+    const m = 0.03;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = op.paleta.fondo;
+    ctx.fillRect(ancla.origen.x - m, ancla.origen.y - abajo - m, w + 2 * m, arriba + abajo + 2 * m);
+    ctx.restore();
+  }
+  etiqueta(ctx, ancla);
 }
 
 function dibujarEjes(ctx: CanvasRenderingContext2D, e: Ejes, op: OpcionesDibujo): void {

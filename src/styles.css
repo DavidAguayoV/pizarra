@@ -873,9 +873,12 @@ button.con-icono .ico,
 .panel-sim.compacto .sim-opciones,
 .panel-sim.compacto .sim-eventos,
 .panel-sim.compacto .sim-exportar,
-.panel-sim.compacto .sim-extra,
-.panel-sim.compacto .sim-info {
+.panel-sim.compacto .sim-extra {
   display: none;
+}
+.panel-sim.compacto .sim-info {
+  font-size: 0.85rem;
+  margin: 2px 0;
 }
 .panel-sim.compacto .sim-controles,
 .panel-sim.compacto .sim-cab {
